@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 #else
     g_args->AddOption('d', "display", "Display mode. Valid value is \"none\" (case insensitive).", false);
 #endif
-    g_args->AddOption('D', "drive", "File to use a storage drive.", false);
+    g_args->AddOption('D', "drive", "File to use as a storage drive.", false);
     g_args->AddOption('h', "help", "Print this help message", false);
 
     g_args->ParseArgs(argc, argv);
