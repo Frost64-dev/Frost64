@@ -25,7 +25,7 @@ public:
     BIOSMemoryRegion(uint64_t start, uint64_t end, uint64_t real_size);
     ~BIOSMemoryRegion();
 
-    virtual void dump() override;
+    virtual void dump(FILE* fp) override;
 
 private:
     uint64_t m_real_size;

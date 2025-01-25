@@ -161,18 +161,14 @@ void VirtualMMU::RemoveMemoryRegion(MemoryRegion* region) {
     (void)region;
 }
 
-void VirtualMMU::DumpMemory() const {
+void VirtualMMU::DumpMemory(FILE*) const {
 }
 
-bool VirtualMMU::RemoveRegionSegment(uint64_t start, uint64_t end) {
-    (void)start;
-    (void)end;
+bool VirtualMMU::RemoveRegionSegment(uint64_t, uint64_t, void**) {
     return false;
 }
 
-bool VirtualMMU::ReaddRegionSegment(uint64_t start, uint64_t end) {
-    (void)start;
-    (void)end;
+bool VirtualMMU::ReaddRegionSegment(void*) {
     return false;
 }
 

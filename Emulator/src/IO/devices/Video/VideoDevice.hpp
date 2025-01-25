@@ -121,6 +121,8 @@ private:
     uint64_t m_currentModeIndex;
 
     std::vector<VideoMode> m_modes;
+
+    void* m_MemoryOverrideData;
 };
 
 #endif /* _VIDEO_IO_DEVICE_HPP */

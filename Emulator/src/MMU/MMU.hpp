@@ -50,12 +50,17 @@ class MMU {
     virtual void AddMemoryRegion(MemoryRegion* region);
     virtual void RemoveMemoryRegion(MemoryRegion* region);
 
-    virtual void DumpMemory() const;
+    virtual void DumpMemory(FILE* fp) const;
 
-    virtual bool RemoveRegionSegment(uint64_t start, uint64_t end);
-    virtual bool ReaddRegionSegment(uint64_t start, uint64_t end);
+    virtual bool RemoveRegionSegment(uint64_t start, uint64_t end, void** data_out);
+    virtual bool ReaddRegionSegment(void* data_in);
 
    private:
+    struct RegionSegmentInfo {
+        uint64_t start;
+        uint64_t end;
+    };
+
     LinkedList::SimpleLinkedList<MemoryRegion> m_regions;
 };
 

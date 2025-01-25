@@ -35,6 +35,6 @@ void VideoMemoryRegion::write(uint64_t address, const uint8_t* buffer, size_t si
     m_operationCallback(true, address - getStart(), const_cast<uint8_t*>(buffer), size, m_data);
 }
 
-void VideoMemoryRegion::dump() {
-    printf("VideoMemoryRegion: %lx-%lx\n", getStart(), getEnd());
+void VideoMemoryRegion::dump(FILE* fp) {
+    fprintf(fp, "VideoMemoryRegion: %lx-%lx\n", getStart(), getEnd());
 }

@@ -42,7 +42,7 @@ class IOMemoryRegion : public MemoryRegion {
     virtual void write32(uint64_t address, const uint32_t* buffer) override;
     virtual void write64(uint64_t address, const uint64_t* buffer) override;
 
-    virtual void dump() override;
+    virtual void dump(FILE* fp) override;
 
    private:
     union {

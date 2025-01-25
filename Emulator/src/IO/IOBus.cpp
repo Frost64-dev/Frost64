@@ -158,24 +158,24 @@ void IOBus::RunCommand(uint64_t command) {
         if (uint64_t oldBaseAddress = device->GetBaseAddress(); oldBaseAddress != 0) {
             // need to delete the old region
             if (IOMemoryRegion* region = device->GetMemoryRegion(); region != nullptr) {
-                uint64_t start = region->getStart();
-                uint64_t end = region->getEnd();
                 m_MMU->RemoveMemoryRegion(region);
                 delete region;
-                m_MMU->ReaddRegionSegment(start, end);
+                m_MMU->ReaddRegionSegment(device->GetReplacingRegionData());
             }
         }
         device->SetBaseAddress(baseAddress);
         if (baseAddress != 0) {
             uint64_t start = baseAddress;
             uint64_t end = baseAddress + device->GetSize() * 8;
-            if (!m_MMU->RemoveRegionSegment(start, end)) {
+            void* data_out = nullptr;
+            if (!m_MMU->RemoveRegionSegment(start, end, &data_out)) {
                 m_registers.status.error = true;
                 break;
             }
             IOMemoryRegion* region = new IOMemoryRegion(start, end, device);
             m_MMU->AddMemoryRegion(region);
             device->SetMemoryRegion(region);
+            device->SetReplacingRegionData(data_out);
         }
         break;
     }

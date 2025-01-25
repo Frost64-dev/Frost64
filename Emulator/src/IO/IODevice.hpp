@@ -29,7 +29,7 @@ typedef void (*IOInterruptCallback)(IODeviceID device, uint64_t index, void* dat
 class IODevice {
    public:
     explicit IODevice(IODeviceID ID, uint64_t size, uint64_t interruptCount = 0)
-        : m_base_address(0), m_size(size), m_ID(ID), m_memoryRegion(nullptr), m_interruptCount(interruptCount), m_interruptCallback(nullptr), m_interruptData(nullptr) {}
+        : m_base_address(0), m_size(size), m_ID(ID), m_memoryRegion(nullptr), m_interruptCount(interruptCount), m_interruptCallback(nullptr), m_interruptData(nullptr), m_replacingRegionData(nullptr) {}
     virtual ~IODevice() = default;
 
     virtual uint8_t ReadByte(uint64_t address) = 0;
@@ -51,6 +51,7 @@ class IODevice {
     uint64_t GetInterruptCount() const { return m_interruptCount; }
     IOInterruptCallback GetInterruptCallback() const { return m_interruptCallback; }
     void* GetInterruptData() const { return m_interruptData; }
+    void* GetReplacingRegionData() const { return m_replacingRegionData; }
 
     void SetBaseAddress(uint64_t base_address) { m_base_address = base_address; }
     void SetMemoryRegion(IOMemoryRegion* memoryRegion) { m_memoryRegion = memoryRegion; }
@@ -58,6 +59,8 @@ class IODevice {
         m_interruptCallback = interruptCallback;
         m_interruptData = interruptData;
     }
+    void SetReplacingRegionData(void* replacingRegionData) { m_replacingRegionData = replacingRegionData; }
+
 
    protected:
     void Internal_HandleInterrupt(uint64_t index) {
@@ -74,6 +77,7 @@ class IODevice {
     IOInterruptCallback m_interruptCallback;
     void* m_interruptData;
     std::unordered_map<uint64_t, uint8_t> m_interruptMap;
+    void* m_replacingRegionData;
 };
 
 #endif /* _IO_DEVICE_HPP */

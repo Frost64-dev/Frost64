@@ -74,10 +74,10 @@ class VirtualMMU : public MMU {
     virtual void AddMemoryRegion(MemoryRegion* region) override; // disabled
     virtual void RemoveMemoryRegion(MemoryRegion* region) override; // disabled
 
-    virtual void DumpMemory() const override;
+    virtual void DumpMemory(FILE* fp) const override;
 
-    virtual bool RemoveRegionSegment(uint64_t start, uint64_t end) override;
-    virtual bool ReaddRegionSegment(uint64_t start, uint64_t end) override;
+    virtual bool RemoveRegionSegment(uint64_t, uint64_t, void**) override;
+    virtual bool ReaddRegionSegment(void*) override;
 
     void SetPageTableRoot(uint64_t pageTableRoot);
 

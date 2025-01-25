@@ -18,6 +18,7 @@
 #   - fwpirate <alavik@disroot.org>
 
 if (ENABLE_SDL STREQUAL "ON")
+    message(WARNING "SDL3 is enabled, this is very experimental and may not work as expected.")
     find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
 endif ()
 
@@ -105,7 +106,7 @@ if (BUILD_CONFIG STREQUAL "Debug")
 endif ()
 
 if (ENABLE_SDL STREQUAL "ON")
-    target_link_libraries(Emulator PRIVATE arch SDL3::SDL3)
+    target_link_libraries(Emulator PRIVATE arch SDL3::SDL3-shared)
     target_compile_definitions(Emulator PRIVATE ENABLE_SDL=1)
 else ()
     target_link_libraries(Emulator PRIVATE arch)

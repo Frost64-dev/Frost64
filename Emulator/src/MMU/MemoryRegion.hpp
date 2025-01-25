@@ -21,6 +21,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cstdio>
+
 class MemoryRegion {
    public:
     MemoryRegion(uint64_t start, uint64_t end);
@@ -47,7 +49,7 @@ class MemoryRegion {
       return address >= m_start && (address + size) <= m_end;
     }
 
-    virtual void dump();
+    virtual void dump(FILE* fp);
 
     virtual bool canSplit() { return false; }
 

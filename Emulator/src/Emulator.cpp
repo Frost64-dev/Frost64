@@ -204,7 +204,7 @@ namespace Emulator {
         g_PhysicalMMU.AddMemoryRegion(g_BIOSMemoryRegion);
 
         // Split the RAM into two regions
-        g_PhysicalMMU.AddMemoryRegion(new StandardMemoryRegion(0, MAX(RAMSize, 0xF000'0000)));
+        g_PhysicalMMU.AddMemoryRegion(new StandardMemoryRegion(0, MIN(RAMSize, 0xF000'0000)));
         if (RAMSize > 0xF000'0000)
             g_PhysicalMMU.AddMemoryRegion(new StandardMemoryRegion(0x1'0000'0000, RAMSize + 0x1000'0000));
 
@@ -257,7 +257,7 @@ namespace Emulator {
 
     void DumpRAM(FILE* fp) {
         fprintf(fp, "RAM:\n");
-        g_PhysicalMMU.DumpMemory();
+        g_PhysicalMMU.DumpMemory(fp);
         fprintf(fp, "\n");
     }
 
@@ -461,7 +461,7 @@ namespace Emulator {
         g_EmulatorRunning = false;
         printf("Crash: %s\n", message);
         DumpRegisters(stdout);
-        // DumpRAM(stdout);
+        // DumpRAM(stderr);
         exit(0);
     }
 

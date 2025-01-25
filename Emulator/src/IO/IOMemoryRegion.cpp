@@ -104,6 +104,6 @@ void IOMemoryRegion::write64(uint64_t address, const uint64_t* buffer) {
         m_data.device->WriteQWord((address - getStart()) / 8, *buffer);
 }
 
-void IOMemoryRegion::dump() {
-    printf("IOMemoryRegion: %lx - %lx\n", getStart(), getEnd());
+void IOMemoryRegion::dump(FILE* fp) {
+    fprintf(fp, "IOMemoryRegion: %lx - %lx\n", getStart(), getEnd());
 }

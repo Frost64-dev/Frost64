@@ -74,6 +74,44 @@ namespace LinkedList {
             insertNode(m_start, (uint64_t)obj);
             m_count++;
         }
+        void insertAt(uint64_t index, const T* obj) {
+            if (index >= m_count)
+                return;
+            if (index == 0) {
+                Node* node = newNode(reinterpret_cast<uint64_t>(obj));
+                node->next = m_start;
+                if (m_start != nullptr)
+                    m_start->previous = node;
+                m_start = node;
+                m_count++;
+                return;
+            }
+            Node* previous = nullptr;
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < index; i++) {
+                if (temp == nullptr) {
+                    temp = previous;
+                    break;
+                }
+                previous = temp;
+                temp = temp->next;
+            }
+            Node* node = newNode(reinterpret_cast<uint64_t>(obj));
+            // node needs to slot in between temp and temp->next
+            if (temp == nullptr) {
+                // empty list
+                m_start = node;
+                m_count++;
+                return;
+            }
+            if (temp->next != nullptr) {
+                temp->next->previous = node;
+                node->next = temp->next;
+            }
+            temp->next = node;
+            node->previous = temp;
+            m_count++;
+        }
         T* get(uint64_t index) const {
             if (index >= m_count)
                 return nullptr;

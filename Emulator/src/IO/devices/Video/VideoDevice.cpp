@@ -29,7 +29,7 @@ void HandleVideoMemoryOperation(bool write, uint64_t address, uint8_t* buffer, s
 }
 
 VideoDevice::VideoDevice(VideoBackendType backendType, MMU& mmu)
-    : IODevice(IODeviceID::VIDEO, 3), m_memoryRegion(nullptr), m_backendType(backendType), m_backend(nullptr), m_mmu(mmu), m_command(0), m_data(0), m_status(0), m_initialised(false), m_currentMode({0, 0, 0, 0, 0}), m_currentModeIndex(0), m_modes({}) {
+    : IODevice(IODeviceID::VIDEO, 3), m_memoryRegion(nullptr), m_backendType(backendType), m_backend(nullptr), m_mmu(mmu), m_command(0), m_data(0), m_status(0), m_initialised(false), m_currentMode({0, 0, 0, 0, 0}), m_currentModeIndex(0), m_modes({}), m_MemoryOverrideData(nullptr) {
 }
 
 VideoDevice::~VideoDevice() {
@@ -213,18 +213,16 @@ void VideoDevice::HandleCommand() {
 
         if (m_memoryRegion != nullptr) {
             // remove the old region
-            uint64_t start = m_memoryRegion->getStart();
-            uint64_t end = m_memoryRegion->getEnd();
             m_mmu.RemoveMemoryRegion(m_memoryRegion);
             delete m_memoryRegion;
-            m_mmu.ReaddRegionSegment(start, end);
+            m_mmu.ReaddRegionSegment(m_MemoryOverrideData);
         }
 
         VideoMode mode = m_modes[request.mode];
 
         size_t size = mode.pitch * mode.height;
 
-        if (!m_mmu.RemoveRegionSegment(request.address, request.address + size)) {
+        if (!m_mmu.RemoveRegionSegment(request.address, request.address + size, &m_MemoryOverrideData)) {
             m_status = 1;
             return;
         }

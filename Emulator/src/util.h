@@ -49,6 +49,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define MIN(a, b) _util_min(a, b)
 
 #ifdef __cplusplus
+#define CMP16_B(a, byte, result) { \
+    uint64_t _cmp16_b_wide = (uint64_t)byte * 0x0101010101010101; \
+    uint64_t* _cmp16_b_list = reinterpret_cast<uint64_t*>(a); \
+    result = _cmp16_b_list[0] == _cmp16_b_wide && _cmp16_b_list[1] == _cmp16_b_wide; \
+}
+#else
+#define CMP16_B(a, byte, result) { \
+    uint64_t _cmp16_b_wide = (uint64_t)byte * 0x0101010101010101; \
+    uint64_t* _cmp16_b_list = (uint64_t*)a; \
+    result = _cmp16_b_list[0] == _cmp16_b_wide && _cmp16_b_list[1] == _cmp16_b_wide; \
+}
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 

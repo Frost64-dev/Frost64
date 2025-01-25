@@ -30,7 +30,7 @@ public:
     void read(uint64_t address, uint8_t* buffer, size_t size) override;
     void write(uint64_t address, const uint8_t* buffer, size_t size) override;
 
-    void dump() override;
+    void dump(FILE* fp) override;
 
 private:
     void (*m_operationCallback)(bool write, uint64_t address, uint8_t* buffer, size_t size, void* data);

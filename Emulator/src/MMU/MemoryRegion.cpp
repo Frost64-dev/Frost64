@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "MemoryRegion.hpp"
 
 #include <stdio.h>
+#include <util.h>
 
 MemoryRegion::MemoryRegion(uint64_t start, uint64_t end) : m_start(start), m_end(end), m_size(end - start + 1) {
 
@@ -71,27 +72,35 @@ size_t MemoryRegion::getSize() {
     return m_size;
 }
 
-void MemoryRegion::dump() {
-    printf("MemoryRegion: %lx - %lx", m_start, m_end);
+void MemoryRegion::dump(FILE* fp) {
+    fprintf(fp, "MemoryRegion: %lx - %lx", m_start, m_end);
     uint8_t buffer[16];
     uint8_t buffer_index = 0;
+    uint8_t last_printed = 0;
     for (uint64_t i = m_start; i < m_end; i++, buffer_index++) {
-        if ((i - m_start) % 16 == 0) {
-            buffer_index = 0;
-            printf("\n%016lx: ", i);
-        }
-        else if ((i - m_start) % 8 == 0)
-            printf(" ");
         uint8_t data = 0;
         read8(i, &data);
         buffer[buffer_index] = data;
-        printf("%02X ", data);
         if ((i - m_start) % 16 == 15) {
-            printf(" |");
+            buffer_index = 0;
+            if (i > 16 && m_end - i > 16) {
+                bool result = false;
+                CMP16_B(buffer, last_printed, result);
+                if (result)
+                    continue; // skip printing this line
+            }
+            fprintf(fp, "\n%016lx: ", i - 15);
+            for (uint64_t j = 0; j < 16; j++) {
+                if (j == 8)
+                    fprintf(fp, " ");
+                fprintf(fp, "%02X ", data);
+            }
+            fprintf(fp, " |");
             for (uint64_t j = 0; j < 16; j++)
-                printf("%c", buffer[j] >= 32 && buffer[j] <= 126 ? buffer[j] : '.');
-            printf("|");
+                fprintf(fp, "%c", buffer[j] >= 32 && buffer[j] <= 126 ? buffer[j] : '.');
+            last_printed = buffer[15];
+            fprintf(fp, "|");
         }
     }
-    printf("\n");
+    fprintf(fp, "\n");
 }
