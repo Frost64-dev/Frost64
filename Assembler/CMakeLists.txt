@@ -19,8 +19,20 @@ if(BUILD_ARCHITECTURE STREQUAL "x86_64")
     )
 endif()
 
+set(CMAKE_REQUIRED_FLAGS "-std=c++20")
+
 include(CheckSourceCompiles)
-check_source_compiles(C++ ${CMAKE_SOURCE_DIR}/build-scripts/test-cxx20-format.cpp HAVE_CXX20_FORMAT)
+check_source_compiles(CXX
+"#include <format>
+#include <string>
+
+int main(int argc, char**) {
+    std::string str = std::format(\"This is a test, argc = {}\", argc);
+    return 0;
+}"
+HAVE_CXX20_FORMAT)
+
+unset(CMAKE_REQUIRED_FLAGS)
 
 set(assembler_sources
     ${assembler_sources}
@@ -66,7 +78,6 @@ endif()
 
 if (HAVE_CXX20_FORMAT EQUAL 1)
     target_compile_definitions(Assembler PRIVATE ENABLE_CXX20_FORMAT=1)
-    message(STATUS "Enabling C++20 text formatting")
 endif()
 
 add_custom_target(RunAssembler
