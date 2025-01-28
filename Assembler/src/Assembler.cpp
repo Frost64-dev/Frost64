@@ -126,7 +126,7 @@ void Assembler::assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Lab
         label->blocks.Enumerate([&](Block* block) {
             Section* section = m_sections.get(section_index);
             uint64_t real_offset = section->GetOffset() + base_address;
-            block->jumps_to_here.Enumerate([&](uint64_t* offset) {
+            block->jumps_to_here.Enumerate([&](const uint64_t* offset) {
                 m_buffer.Write(*offset, reinterpret_cast<uint8_t*>(&real_offset), 8);
             });
             section_index++;
@@ -148,7 +148,7 @@ void Assembler::Clear() {
     m_current_offset = 0;
 }
 
-[[noreturn]] void Assembler::error(const char* message, const std::string& file_name, size_t line) const {
+[[noreturn]] void Assembler::error(const char* message, const std::string& file_name, size_t line) {
     fprintf(stderr, "Assembler error at %s:%zu: %s\n", file_name.c_str(), line, message);
     exit(1);
 }

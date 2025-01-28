@@ -55,7 +55,7 @@ class Lexer {
 
     void tokenize(const char* source, size_t source_size, const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& reference_points);
 
-    const LinkedList::RearInsertLinkedList<Token>& GetTokens() const;
+    [[nodiscard]] const LinkedList::RearInsertLinkedList<Token>& GetTokens() const;
 
     static const char* TokenTypeToString(TokenType type);
 
@@ -64,11 +64,11 @@ class Lexer {
    private:
     void AddToken(const std::string& str_token, const std::string& file_name, size_t line);
 
-    size_t GetLineDifference(const char* src, size_t src_offset, size_t dst_offset) const;
+    static size_t GetLineDifference(const char* src, size_t src_offset, size_t dst_offset);
 
     [[noreturn]] void error(const char* message, Token* token);
     [[noreturn]] void error(const char* message, const std::string& file, size_t line);
-    [[noreturn]] void internal_error(const char* message);
+    [[noreturn]] static void internal_error(const char* message);
 
    private:
     LinkedList::RearInsertLinkedList<Token> m_tokens;

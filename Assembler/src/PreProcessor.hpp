@@ -38,23 +38,23 @@ public:
 
     void process(const char* source, size_t source_size, const std::string_view& file_name);
 
-    size_t GetProcessedBufferSize() const;
+    [[nodiscard]] size_t GetProcessedBufferSize() const;
     void ExportProcessedBuffer(uint8_t* data) const;
 
-    const LinkedList::RearInsertLinkedList<ReferencePoint>& GetReferencePoints() const;
+    [[nodiscard]] const LinkedList::RearInsertLinkedList<ReferencePoint>& GetReferencePoints() const;
 
 private:
-    char* GetLine(char* source, size_t source_size, size_t& line_size);
+    static char* GetLine(char* source, size_t source_size, size_t& line_size);
 
     void HandleIncludes(const char* source, size_t source_size, const std::string_view& file_name);
 
-    size_t GetLineCount(const char* src, const char* dst) const;
+    static size_t GetLineCount(const char* src, const char* dst);
 
     ReferencePoint* CreateReferencePoint(const char* source, size_t source_offset, const std::string& file_name, size_t offset);
     ReferencePoint* CreateReferencePoint(size_t line, const std::string& file_name, size_t offset);
 
-    [[noreturn]] void error(const char* message, const std::string& file, size_t line);
-    [[noreturn]] void internal_error(const char* message);
+    [[noreturn]] static void error(const char* message, const std::string& file, size_t line);
+    [[noreturn]] static void internal_error(const char* message);
 
 private:
     Buffer m_buffer;

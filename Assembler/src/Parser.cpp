@@ -836,11 +836,8 @@ void Parser::Clear() {
                                     }
                                 } else if (complex_data->base.type == ComplexItem::Type::REGISTER) {
                                     delete complex_data->base.data.reg;
-                                } else if (complex_data->base.type == ComplexItem::Type::LABEL) {
-                                    // do nothing
-                                } else if (complex_data->base.type == ComplexItem::Type::SUBLABEL) {
-                                    // do nothing
                                 }
+                                // LABEL and SUBLABEL do not need to be deleted
                             }
                             if (complex_data->index.present) {
                                 if (complex_data->index.type == ComplexItem::Type::IMMEDIATE) {
@@ -860,11 +857,8 @@ void Parser::Clear() {
                                     }
                                 } else if (complex_data->index.type == ComplexItem::Type::REGISTER) {
                                     delete complex_data->index.data.reg;
-                                } else if (complex_data->index.type == ComplexItem::Type::LABEL) {
-                                    // do nothing
-                                } else if (complex_data->index.type == ComplexItem::Type::SUBLABEL) {
-                                    // do nothing
                                 }
+                                // LABEL and SUBLABEL do not need to be deleted
                             }
                             if (complex_data->offset.present) {
                                 if (complex_data->offset.type == ComplexItem::Type::IMMEDIATE) {
@@ -884,11 +878,8 @@ void Parser::Clear() {
                                     }
                                 } else if (complex_data->offset.type == ComplexItem::Type::REGISTER) {
                                     delete complex_data->offset.data.reg;
-                                } else if (complex_data->offset.type == ComplexItem::Type::LABEL) {
-                                    // do nothing
-                                } else if (complex_data->offset.type == ComplexItem::Type::SUBLABEL) {
-                                    // do nothing
                                 }
+                                // LABEL and SUBLABEL do not need to be deleted
                             }
                             delete complex_data;
                         } else if (operand->type == OperandType::MEMORY) {
@@ -945,7 +936,7 @@ void Parser::Clear() {
                 return true;
             });
             block->data_blocks.clear();
-            block->jumps_to_here.EnumerateReverse([&](uint64_t* jump) -> bool {
+            block->jumps_to_here.EnumerateReverse([&](const uint64_t* jump) -> bool {
                 if (jump == nullptr)
                     return false;
                 delete jump;
@@ -1336,7 +1327,7 @@ void Parser::error(const char* message, Token* token, bool print_token) {
     exit(1);
 }
 
-const char* Parser::GetInstructionName(InsEncoding::Opcode opcode) const {
+const char* Parser::GetInstructionName(InsEncoding::Opcode opcode) {
     using namespace InsEncoding;
 #define NAME_CASE(ins) \
     case Opcode::ins:  \
@@ -1387,7 +1378,7 @@ const char* Parser::GetInstructionName(InsEncoding::Opcode opcode) const {
     return "UNKNOWN";
 }
 
-const char* Parser::GetRegisterName(InsEncoding::Register reg) const {
+const char* Parser::GetRegisterName(InsEncoding::Register reg) {
     using namespace InsEncoding;
 #define NAME_CASE(reg)  \
     case Register::reg: \

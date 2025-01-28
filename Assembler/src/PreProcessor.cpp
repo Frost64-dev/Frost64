@@ -17,13 +17,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "PreProcessor.hpp"
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <map>
 #include <string>
+
+#ifdef ENABLE_CXX20_FORMAT
+#include <format>
+#else
+#include <sstream>
+#endif
 
 PreProcessor::PreProcessor()
     : m_current_offset(0) {
@@ -139,7 +144,7 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
             ReferencePoint* new_ref = new ReferencePoint{GetLineCount(original_source3, source3 - 2), ref->file_name, m_current_offset};
             m_referencePoints.insertAt(index + 1, new_ref);
             // now need to update all the reference points
-            m_referencePoints.Enumerate([&](ReferencePoint* current_ref, uint64_t i) {
+            m_referencePoints.Enumerate([&](ReferencePoint* current_ref, uint64_t) {
                 if (current_ref->offset >= m_current_offset + (comment_end - comment_start) + 2)
                     current_ref->offset -= (comment_end - comment_start) + 2;
                 return true;
@@ -401,7 +406,7 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
     m_current_offset += source_size - (include_end - source);
 }
 
-size_t PreProcessor::GetLineCount(const char* src, const char* dst) const {
+size_t PreProcessor::GetLineCount(const char* src, const char* dst) {
     char const* line_start = src;
     size_t line = 1;
     while (line_start < dst) {

@@ -46,10 +46,10 @@ private:
     InsEncoding::Register GetRegister(const char* name, size_t name_size);
 
     // if the token is going to be printed, a colon followed by a space is insert after the message, then the token is printed inside double quotes
-    void error(const char* message, Token* token, bool print_token = false);
+    static void error(const char* message, Token* token, bool print_token = false);
 
-    const char* GetInstructionName(InsEncoding::Opcode opcode) const;
-    const char* GetRegisterName(InsEncoding::Register reg) const;
+    static const char* GetInstructionName(InsEncoding::Opcode opcode);
+    static const char* GetRegisterName(InsEncoding::Register reg);
 
 private:
     LinkedList::RearInsertLinkedList<InsEncoding::Label> m_labels;

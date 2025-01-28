@@ -32,9 +32,9 @@ public:
     Section(char* name, uint64_t name_size, uint64_t offset);
     ~Section();
 
-    char const* GetName() const;
-    uint64_t GetNameSize() const;
-    uint64_t GetOffset() const;
+    [[nodiscard]] char const* GetName() const;
+    [[nodiscard]] uint64_t GetNameSize() const;
+    [[nodiscard]] uint64_t GetOffset() const;
 
 private:
     char* m_name;
@@ -47,15 +47,15 @@ public:
     Assembler();
     ~Assembler();
 
-    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& data, uint64_t base_address);
+    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t base_address);
 
-    const Buffer& GetBuffer() const;
+    [[nodiscard]] const Buffer& GetBuffer() const;
 
     void Clear();
 
 private:
 
-    [[noreturn]] void error(const char* message, const std::string& file_name, size_t line) const;
+    [[noreturn]] static void error(const char* message, const std::string& file_name, size_t line);
 
     uint64_t m_current_offset;
     Buffer m_buffer;

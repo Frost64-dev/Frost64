@@ -49,7 +49,7 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
         return;
 
     bool start_of_token = true;
-    std::string token = "";
+    std::string token;
     uint64_t current_offset_in_token = 0;
     PreProcessor::ReferencePoint* current_reference_point = reference_points.get(0);
     PreProcessor::ReferencePoint* next_reference_point = reference_points.get(1);
@@ -60,12 +60,7 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
         if (start_of_token) {
             if (source[i] == ' ' || source[i] == '\n' || source[i] == '\t')
                 continue;
-            else if (source[i] == '[' || source[i] == ']' || source[i] == ',') {
-                token += source[i];
-                APPEND_TOKEN(token);
-                token = "";
-                current_offset_in_token = 0;
-            } else if ((source[i] == '+' || source[i] == '*') || (source[i] == '-' && ((i + 1) >= source_size || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
+            else if ((source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '+' || source[i] == '*') || (source[i] == '-' && ((i + 1) >= source_size || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
@@ -255,7 +250,6 @@ const char* Lexer::TokenTypeToString(TokenType type) {
     case TokenType::STRING:
         return "STRING";
     case TokenType::UNKNOWN:
-        return "UNKNOWN";
     default:
         return "UNKNOWN";
     }
@@ -271,7 +265,7 @@ void Lexer::Clear() {
 }
 
 void Lexer::AddToken(const std::string& str_token, const std::string& file_name, size_t line) {
-    std::string lower_token = "";
+    std::string lower_token;
     for (char c : str_token) { // convert the token to lowercase
         if (c >= 'A' && c <= 'Z')
             c = c - 'A' + 'a';
@@ -286,7 +280,7 @@ void Lexer::AddToken(const std::string& str_token, const std::string& file_name,
     new_token->data_size = lower_token.size();
 
     /* now we identify the token type */
-#define IS_REGISTER(token) (token == "r0" || token == "r1" || token == "r2" || token == "r3" || token == "r4" || token == "r5" || token == "r6" || token == "r7" || token == "r8" || token == "r9" || token == "r10" || token == "r11" || token == "r12" || token == "r13" || token == "r14" || token == "r15" || token == "scp" || token == "sbp" || token == "stp" || token == "cr0" || token == "cr1" || token == "cr2" || token == "cr3" || token == "cr4" || token == "cr5" || token == "cr6" || token == "cr7" || token == "sts" || token == "ip")
+#define IS_REGISTER(token) ((token) == "r0" || (token) == "r1" || (token) == "r2" || (token) == "r3" || (token) == "r4" || (token) == "r5" || (token) == "r6" || (token) == "r7" || (token) == "r8" || (token) == "r9" || (token) == "r10" || (token) == "r11" || (token) == "r12" || (token) == "r13" || (token) == "r14" || (token) == "r15" || (token) == "scp" || (token) == "sbp" || (token) == "stp" || (token) == "cr0" || (token) == "cr1" || (token) == "cr2" || (token) == "cr3" || (token) == "cr4" || (token) == "cr5" || (token) == "cr6" || (token) == "cr7" || (token) == "sts" || (token) == "ip")
     if IS_REGISTER (lower_token)
         new_token->type = TokenType::REGISTER;
     else if (IsInstruction(lower_token))
@@ -407,7 +401,7 @@ void Lexer::AddToken(const std::string& str_token, const std::string& file_name,
 #endif
 }
 
-size_t Lexer::GetLineDifference(const char* src, size_t src_offset, size_t dst_offset) const {
+size_t Lexer::GetLineDifference(const char* src, size_t src_offset, size_t dst_offset) {
     char const* line_start = src + src_offset;
     size_t line = 0;
     while (true) {
