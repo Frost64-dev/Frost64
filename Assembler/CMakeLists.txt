@@ -19,6 +19,9 @@ if(BUILD_ARCHITECTURE STREQUAL "x86_64")
     )
 endif()
 
+include(CheckSourceCompiles)
+check_source_compiles(C++ ${CMAKE_SOURCE_DIR}/build-scripts/test-cxx20-format.cpp HAVE_CXX20_FORMAT)
+
 set(assembler_sources
     ${assembler_sources}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ArgsParser.cpp
@@ -59,6 +62,11 @@ target_link_libraries(Assembler PRIVATE arch)
 
 if (BUILD_CONFIG STREQUAL "Debug")
    target_compile_definitions(Assembler PRIVATE ASSEMBLER_DEBUG=1)
+endif()
+
+if (HAVE_CXX20_FORMAT EQUAL 1)
+    target_compile_definitions(Assembler PRIVATE ENABLE_CXX20_FORMAT=1)
+    message(STATUS "Enabling C++20 text formatting")
 endif()
 
 add_custom_target(RunAssembler

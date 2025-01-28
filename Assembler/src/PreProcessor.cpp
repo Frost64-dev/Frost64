@@ -364,8 +364,16 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
                         m_referencePoints.insert(ref);
                     });
                     preprocessor.m_referencePoints.clear();
-                } else
+                } else {
+#ifdef ENABLE_CXX20_FORMAT
                     error(std::format("Could not open included file \"{}\": {}", std::string(include_start, include_end), strerror(errno)).c_str(), start_ref->file_name, start_ref->line);
+#else
+		            std::stringstream ss;
+                    ss << "Could not open included file \"" << std::string(include_start, include_end) << "\"";
+                    ss << ": " << strerror(errno);
+                    error(ss.str().c_str(), start_ref->file_name, start_ref->line);                    
+#endif
+                }
                 i_source = include_end + 1;
                 CreateReferencePoint(source, i_source - source, file_name.data(), m_current_offset);
             } else {
