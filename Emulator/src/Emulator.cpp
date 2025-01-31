@@ -506,7 +506,7 @@ namespace Emulator {
     }
 
     void WriteCharToConsole(char c) {
-        fputc(c, stdout);
+        fputc(c, stderr);
     }
 
     char ReadCharFromConsole() {

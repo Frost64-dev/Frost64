@@ -93,7 +93,7 @@ void MemoryRegion::dump(FILE* fp) {
             for (uint64_t j = 0; j < 16; j++) {
                 if (j == 8)
                     fprintf(fp, " ");
-                fprintf(fp, "%02X ", data);
+                fprintf(fp, "%02X ", buffer[j]);
             }
             fprintf(fp, " |");
             for (uint64_t j = 0; j < 16; j++)

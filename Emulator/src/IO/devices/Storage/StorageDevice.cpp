@@ -102,9 +102,9 @@ void StorageDevice::StartTransfer() {
     }
 
     if (m_transferCommandStatus.write)
-        m_buffer->Read(m_transferCommandStatus.LBA << 9, reinterpret_cast<uint8_t*>(reinterpret_cast<uint64_t>(m_file.GetData()) + (m_transferCommandStatus.LBA << 9)), m_transferCommandStatus.Count << 9);
+        m_buffer->Read(0, reinterpret_cast<uint8_t*>(reinterpret_cast<uint64_t>(m_file.GetData()) + (m_transferCommandStatus.LBA << 9)), m_transferCommandStatus.Count << 9);
     else
-        m_buffer->Write(m_transferCommandStatus.LBA << 9, reinterpret_cast<const uint8_t*>(reinterpret_cast<uint64_t>(m_file.GetData()) + (m_transferCommandStatus.LBA << 9)), m_transferCommandStatus.Count << 9);
+        m_buffer->Write(0, reinterpret_cast<const uint8_t*>(reinterpret_cast<uint64_t>(m_file.GetData()) + (m_transferCommandStatus.LBA << 9)), m_transferCommandStatus.Count << 9);
 
     m_status.TRN = 0;
     m_status.ERR = 0;
