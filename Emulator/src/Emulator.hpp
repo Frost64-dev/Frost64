@@ -84,6 +84,8 @@ namespace Emulator {
     char ReadCharFromConsole();
 
     void KillCurrentInstruction(); // MUST NOT be called from the instruction thread
+
+    bool isPagingEnabled();
 } // namespace Emulator
 
 #endif /* _EMULATOR_HPP */

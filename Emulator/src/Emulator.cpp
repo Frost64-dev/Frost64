@@ -525,5 +525,8 @@ namespace Emulator {
         AllowExecution();
     }
 
+    bool isPagingEnabled() {
+        return g_isPagingEnabled;
+    }
 
 } // namespace Emulator
