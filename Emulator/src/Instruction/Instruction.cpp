@@ -16,18 +16,24 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include "Instruction.hpp"
+#include "InstructionBuffer.hpp"
 
 #include <atomic>
+
+#ifdef EMULATOR_DEBUG
+#include <cstdio>
+#endif
+
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
 #include <Interrupts.hpp>
+#include <Stack.hpp>
+
 #include <IO/IOBus.hpp>
 #include <libarch/Instruction.hpp>
 #include <libarch/Operand.hpp>
-#include <MMU/MMU.hpp>
-#include <Stack.hpp>
 
-#include "InstructionBuffer.hpp"
+#include <MMU/MMU.hpp>
 
 std::atomic_uchar g_ExecutionAllowed = 1;
 std::atomic_uchar g_ExecutionRunning = 1;
@@ -70,10 +76,17 @@ bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, c
     (void)last_error;
     InstructionBuffer buffer(mmu, IP);
     uint64_t current_offset = 0;
-    if (!DecodeInstruction(buffer, current_offset, &g_current_instruction))
+    if (!DecodeInstruction(buffer, current_offset, &g_current_instruction, [](const char* message) {
+#ifdef EMULATOR_DEBUG
+        printf("Decoding error: %s\n", message);
+#else
+        (void)message;
+#endif
+        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+    }))
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
     uint8_t Opcode = static_cast<uint8_t>(g_current_instruction.GetOpcode());
-    for (uint8_t i = 0; i < g_current_instruction.operand_count; i++) {
+    for (uint64_t i = 0; i < g_current_instruction.operand_count; i++) {
         switch (InsEncoding::Operand* op = &g_current_instruction.operands[i]; op->type) {
         case InsEncoding::OperandType::REGISTER: {
             InsEncoding::Register* temp_reg = static_cast<InsEncoding::Register*>(op->data);
@@ -386,8 +399,6 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
     }
     return nullptr;
 }
-
-extern "C" int printf(const char* __format, ...);
 
 #ifdef EMULATOR_DEBUG
 #define PRINT_INS_INFO2(dst, src)                              \
