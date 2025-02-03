@@ -1,4 +1,4 @@
-# Copyright (©) 2024  Frosty515 & contributors
+# Copyright (©) 2024-2025  Frosty515 & contributors
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@ endif ()
 if (BUILD_ARCHITECTURE STREQUAL "x86_64")
     set(emulator_sources
         ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/ALUInstruction.asm
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/spinlock.asm
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/util.asm
     )
 endif ()
 
@@ -45,10 +43,6 @@ endif ()
 
 set(emulator_sources
     ${emulator_sources}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/AVLTree.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Bitmap.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Buffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/LinkedList.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/Instruction.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/InstructionBuffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/Operand.cpp
@@ -66,7 +60,6 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MMU.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/StandardMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/VirtualMMU.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ArgsParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Emulator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Exceptions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Interrupts.cpp
@@ -74,7 +67,6 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/math.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Register.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Stack.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
 )
 
 if (NOT DEFINED ENABLE_SDL)
@@ -106,10 +98,10 @@ if (BUILD_CONFIG STREQUAL "Debug")
 endif ()
 
 if (ENABLE_SDL STREQUAL "ON")
-    target_link_libraries(Emulator PRIVATE arch SDL3::SDL3-shared)
+    target_link_libraries(Emulator PRIVATE arch common SDL3::SDL3-shared)
     target_compile_definitions(Emulator PRIVATE ENABLE_SDL=1)
 else ()
-    target_link_libraries(Emulator PRIVATE arch)
+    target_link_libraries(Emulator PRIVATE arch common)
 endif ()
 
 target_compile_options(Emulator

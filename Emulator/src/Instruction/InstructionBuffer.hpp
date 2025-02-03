@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,14 +18,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _INSTRUCTION_BUFFER_HPP
 #define _INSTRUCTION_BUFFER_HPP
 
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
 
-#include <libarch/Data-structures/Buffer.hpp>
+#include <common/Data-structures/Buffer.hpp>
 
 #include <MMU/MMU.hpp>
 
-class InstructionBuffer : public InsEncoding::Buffer {
+class InstructionBuffer : public Buffer {
 public:
     InstructionBuffer(MMU* mmu, uint64_t base_address);
     ~InstructionBuffer();

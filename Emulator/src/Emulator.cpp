@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,27 +17,34 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Emulator.hpp"
 
-#include <stdint.h>
-#include <stdio.h>
-#include <util.h>
+#include <cstdint>
+#include <cstdio>
+#include <thread>
+
+#include <common/util.h>
 
 #include <Exceptions.hpp>
+#include <Interrupts.hpp>
+#include <Register.hpp>
+#include <Stack.hpp>
+
 #include <Instruction/Instruction.hpp>
 #include <Instruction/Operand.hpp>
-#include <Interrupts.hpp>
-#include <IO/devices/ConsoleDevice.hpp>
+
 #include <IO/devices/Storage/StorageDevice.hpp>
+
+#include <IO/devices/Video/VideoDevice.hpp>
+
+#include <IO/devices/ConsoleDevice.hpp>
+
 #include <IO/IOBus.hpp>
 #include <IO/IOMemoryRegion.hpp>
+
 #include <MMU/BIOSMemoryRegion.hpp>
 #include <MMU/MMU.hpp>
 #include <MMU/StandardMemoryRegion.hpp>
-#include <Register.hpp>
-#include <Stack.hpp>
-#include <thread>
+#include <MMU/VirtualMMU.hpp>
 
-#include "IO/devices/Video/VideoDevice.hpp"
-#include "MMU/VirtualMMU.hpp"
 
 namespace Emulator {
 

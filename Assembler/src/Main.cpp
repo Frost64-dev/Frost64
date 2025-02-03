@@ -15,12 +15,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <stdint.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdio>
 
-#include "ArgsParser.hpp"
+#include <common/ArgsParser.hpp>
+
+#include <common/Data-structures/Buffer.hpp>
+
 #include "Assembler.hpp"
-#include "Buffer.hpp"
 #include "Lexer.hpp"
 #include "Parser.hpp"
 #include "PreProcessor.hpp"

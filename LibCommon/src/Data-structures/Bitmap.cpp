@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "Bitmap.hpp"
+#include <Data-structures/Bitmap.hpp>
 
 #include <cstring>
 
@@ -27,8 +27,7 @@ Bitmap::Bitmap(uint64_t size) : m_data(nullptr), m_size(size) {
 }
 
 Bitmap::~Bitmap() {
-    if (m_data != nullptr)
-        delete[] m_data;
+    delete[] m_data;
 }
 
 void Bitmap::Set(uint64_t index) {
@@ -64,8 +63,7 @@ uint64_t Bitmap::GetSize() const {
 }
 
 void Bitmap::Resize(uint64_t size) {
-    if (m_data != nullptr)
-        delete[] m_data;
+    delete[] m_data;
     m_size = size;
     if (size > 0)
         m_data = new uint8_t[size >> 3];

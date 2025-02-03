@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ void InstructionBuffer::Read(uint64_t offset, uint8_t* data, size_t size) const 
     m_mmu->ReadBuffer(m_base_address + offset, data, size);
 }
 
-InsEncoding::Buffer::Block* InstructionBuffer::AddBlock(size_t size) {
+Buffer::Block* InstructionBuffer::AddBlock(size_t size) {
     (void)size;
     return nullptr;
 }

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,14 +18,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _IO_BUS_HPP
 #define _IO_BUS_HPP
 
-#include <stdint.h>
-
-#include <Data-structures/Bitmap.hpp>
-#include <Data-structures/LinkedList.hpp>
-#include <map>
-#include <math.hpp>
+#include <cstdint>
 #include <unordered_map>
-#include <utility>
+
+#include <common/Data-structures/Bitmap.hpp>
+#include <common/Data-structures/LinkedList.hpp>
+
+#include <math.hpp>
 
 class MMU;
 class IODevice;

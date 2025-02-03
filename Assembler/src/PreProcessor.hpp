@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _PREPROCESSOR_HPP
 #define _PREPROCESSOR_HPP
 
-#include <stddef.h>
+#include <cstddef>
 
 #include <string>
 #include <string_view>
 
-#include "Buffer.hpp"
+#include <common/Data-structures/Buffer.hpp>
 
 class PreProcessor {
 public:

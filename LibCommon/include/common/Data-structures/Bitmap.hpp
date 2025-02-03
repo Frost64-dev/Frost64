@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _BITMAP_HPP
 #define _BITMAP_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 class Bitmap {
    public:
@@ -28,15 +28,15 @@ class Bitmap {
 
     void Set(uint64_t index);
     void Clear(uint64_t index);
-    bool Test(uint64_t index) const;
+    [[nodiscard]] bool Test(uint64_t index) const;
 
     bool operator[](uint64_t index) const;
 
     void ClearAll();
     void SetAll();
 
-    uint8_t* GetData() const;
-    uint64_t GetSize() const; // in bits
+    [[nodiscard]] uint8_t* GetData() const;
+    [[nodiscard]] uint64_t GetSize() const; // in bits
 
     void Resize(uint64_t size); // size is in bits
 

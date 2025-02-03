@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _BUFFER_HPP
 #define _BUFFER_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "LinkedList.hpp"
 
@@ -29,18 +29,18 @@ class Buffer {
 public:
     Buffer();
     explicit Buffer(size_t size, size_t blockSize = DEFAULT_BUFFER_BLOCK_SIZE);
-    ~Buffer();
+    virtual ~Buffer();
 
     // Write size bytes from data to the buffer at offset
-    void Write(uint64_t offset, const uint8_t* data, size_t size);
+    virtual void Write(uint64_t offset, const uint8_t* data, size_t size);
 
     // Read size bytes from the buffer at offset to data
-    void Read(uint64_t offset, uint8_t* data, size_t size) const;
+    virtual void Read(uint64_t offset, uint8_t* data, size_t size) const;
 
     // Clear size bytes starting at offset. Potentially could remove the block if it is empty
     void Clear(uint64_t offset, size_t size);
 
-    // Empty the buffer
+    // Clear the buffer
     void Clear();
 
     // Remove any unused blocks at the end
@@ -52,15 +52,15 @@ public:
     // Get the size of the buffer
     size_t GetSize() const;
 
-private:
+protected:
     struct Block {
         uint8_t* data;
         size_t size;
         bool empty;
     };
-    
-    Block* AddBlock(size_t size);
-    void DeleteBlock(uint64_t index);
+
+    virtual Block* AddBlock(size_t size);
+    virtual void DeleteBlock(uint64_t index);
 
 private:
     size_t m_size;

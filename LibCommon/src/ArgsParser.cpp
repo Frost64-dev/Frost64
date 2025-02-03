@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,17 +15,17 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "ArgsParser.hpp"
+#include <ArgsParser.hpp>
 
-#include <string.h>
+#include <cstring>
 
 #include <string>
 
-ArgsParser::ArgsParser()
-    : m_helpMessageInitialised(false), m_programName(nullptr) {
+ArgsParser::ArgsParser() : m_helpMessageInitialised(false), m_programName(nullptr) {
 }
 
 ArgsParser::~ArgsParser() {
+    
 }
 
 void ArgsParser::ParseArgs(int argc, char** argv) {
@@ -40,7 +40,8 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
                         m_parsed_options[opt.short_name] = argv[i + 1];
                         i++;
                     }
-                } else if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
+                }
+                else if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
                     if (i + 1 < argc) {
                         m_parsed_options[opt.short_name] = argv[i + 1];
                         i++;

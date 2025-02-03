@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2022-2024  Frosty515
+Copyright (©) 2022-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,11 +15,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "LinkedList.hpp"
+#include <cstdio>
+#include <cstdlib>
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <util.h>
+
+#include <Data-structures/LinkedList.hpp>
 
 bool operator==(const LinkedList::Node& left, const LinkedList::Node& right) {
     return ((left.data == right.data) && (left.next == right.next) && (left.previous == right.previous));
@@ -55,13 +56,13 @@ namespace LinkedList {
     }
 
     void insertNode(Node*& head, uint64_t data) {
-  // check if head is NULL
+        // check if head is NULL
         if (head == nullptr) {
             head = newNode(data);
             return;
         }
 
-  // move to last node
+        // move to last node
         Node* current = head;
         while (true) {
             if (current->next == nullptr)
@@ -69,13 +70,13 @@ namespace LinkedList {
             current = current->next;
         }
 
-  // get new node and set last node's next to it
+        // get new node and set last node's next to it
         current->next = newNode(data);
 
-  // update newly created node's previous to the last node
+        // update newly created node's previous to the last node
         current->next->previous = current;
 
-  // clear the value of current to protect the node it is pointing to from possible deletion
+        // clear the value of current to protect the node it is pointing to from possible deletion
         current = nullptr;
     }
 
@@ -138,7 +139,7 @@ namespace LinkedList {
 
         fprintf(file, "\n");
 
-  // clear the value of current to protect the node it is pointing to from possible deletion
+        // clear the value of current to protect the node it is pointing to from possible deletion
         current = nullptr;
     }
 

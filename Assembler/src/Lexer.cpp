@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,11 +17,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Lexer.hpp"
 
-#include <stdio.h>
-#include <string.h>
-#include <util.h>
+#include <cstdio>
+#include <cstring>
 
 #include <algorithm>
+
+#include <common/util.h>
 
 constexpr const char* instructions_str = "add mul sub div or xor nor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
 constexpr size_t instructions_str_len = sizeof(instructions_str) - 1;

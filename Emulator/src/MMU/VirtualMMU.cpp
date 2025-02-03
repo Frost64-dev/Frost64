@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,15 +17,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "VirtualMMU.hpp"
 
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-#include <util.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstring>
+
+#include <common/util.h>
 
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
-
-#include "StandardMemoryRegion.hpp"
 
 VirtualMMU::VirtualMMU(MMU* physicalMMU, uint64_t pageTableRoot, PageSize pageSize, PageTableLevelCount pageTableLevelCount)
     : m_physicalMMU(physicalMMU), m_pageTableRoot(pageTableRoot), m_pageSize(pageSize), m_pageTableLevelCount(pageTableLevelCount) {

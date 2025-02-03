@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2022-2024  Frosty515
+Copyright (©) 2022-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,17 +15,17 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "AVLTree.hpp"
-
-#include <math.h>
-#include <stdlib.h>
-#include <util.h>
+#include <Data-structures/AVLTree.hpp>
 
 #include <cassert>
+#include <cmath>
+#include <cstdlib>
+
+#include <util.h>
 
 namespace AVLTree {
 
-    uint64_t height(Node* root) {
+    int64_t height(Node* root) {
         if (root == nullptr)
             return 0;
         return root->height;
@@ -46,15 +46,15 @@ namespace AVLTree {
         Node* x = root->left;
         Node* T2 = x->right;
 
-  // Perform rotation
+        // Perform rotation
         x->right = root;
         root->left = T2;
 
-  // Update heights
+        // Update heights
         root->height = MAX(height(root->left), height(root->right)) + 1;
         x->height = MAX(height(x->left), height(x->right)) + 1;
 
-  // Return new root
+        // Return new root
         return x;
     }
 
@@ -64,26 +64,26 @@ namespace AVLTree {
         Node* y = root->right;
         Node* T2 = y->left;
 
-  // Perform rotation
+        // Perform rotation
         y->left = root;
         root->right = T2;
 
-  // Update heights
+        // Update heights
         root->height = MAX(height(root->left), height(root->right)) + 1;
         y->height = MAX(height(y->left), height(y->right)) + 1;
 
-  // Return new root
+        // Return new root
         return y;
     }
 
     int64_t getBalance(Node* N) {
         if (N == nullptr)
             return 0;
-        return height(N->left) - height(N->right);
+        return static_cast<int64_t>(height(N->left)) - height(N->right);
     }
 
     Node* insertNode(Node*& root, uint64_t key, uint64_t extraData) {
-  /* 1. Perform the normal BST insertion */
+        /* 1. Perform the normal BST insertion */
         if (root == nullptr) {
             root = newNode(key, extraData);
             return root;
@@ -98,24 +98,24 @@ namespace AVLTree {
         else // Equal keys are not allowed in BST
             return nullptr;
 
-  /* 2. Update height of this ancestor node */
+        /* 2. Update height of this ancestor node */
         root->height = 1 + MAX(height(root->left), height(root->right));
 
-  // STEP 3: GET THE BALANCE FACTOR OF THIS NODE
-        int balance = getBalance(root);
+        // STEP 3: GET THE BALANCE FACTOR OF THIS NODE
+        int64_t balance = getBalance(root);
 
-  // STEP 4: BALANCE THE NODE
-  // Left, Left Case
+        // STEP 4: BALANCE THE NODE
+        // Left, Left Case
         if (balance > 1 && key < root->left->key)
             root = rightRotate(root);
 
-  // Right, Right Case
+        // Right, Right Case
         if (balance < -1 && key > root->right->key)
             root = leftRotate(root);
 
         assert(root->left != nullptr);
 
-  // Left Right Case
+        // Left Right Case
         if (balance > 1 && key > root->left->key) {
             if (root->left->right != nullptr) {
                 root->left = leftRotate(root->left);
@@ -123,7 +123,7 @@ namespace AVLTree {
             }
         }
 
-  // Right Left Case
+        // Right Left Case
         if (balance < -1 && key < root->right->key) {
             if (root->right->left != nullptr) {
                 root->right = rightRotate(root->right);
@@ -183,7 +183,7 @@ namespace AVLTree {
     Node* minValueNode(Node* root) {
         Node* current = root;
 
-  /* loop down to find the leftmost leaf */
+        /* loop down to find the leftmost leaf */
         while (current->left != nullptr)
             current = current->left;
 
@@ -191,7 +191,7 @@ namespace AVLTree {
     }
 
     void deleteNode(Node*& root, uint64_t key) {
-  // Step 1: Perform standard BST delete
+        // Step 1: Perform standard BST delete
         if (root == nullptr)
             return;
 
@@ -216,32 +216,32 @@ namespace AVLTree {
             }
         }
 
-  // If the tree had only one node then return
+        // If the tree had only one node then return
         if (root == nullptr)
             return;
 
-  /* 2. Update height of this ancestor node */
+        /* 2. Update height of this ancestor node */
         root->height = 1 + MAX(height(root->left), height(root->right));
 
-  // STEP 3: GET THE BALANCE FACTOR OF THIS NODE
-        int balance = getBalance(root);
+        // STEP 3: GET THE BALANCE FACTOR OF THIS NODE
+        int64_t balance = getBalance(root);
 
-  // STEP 4: BALANCE THE NODE
-  // Left, Left Case
+        // STEP 4: BALANCE THE NODE
+        // Left, Left Case
         if (balance > 1 && getBalance(root->left) >= 0)
             root = rightRotate(root);
 
-  // Left Right Case
+        // Left Right Case
         if (balance > 1 && getBalance(root->left) < 0) {
             root->left = leftRotate(root->left);
             root = rightRotate(root);
         }
 
-  // Right, Right Case
+        // Right, Right Case
         if (balance < -1 && getBalance(root->right) <= 0)
             root = leftRotate(root);
 
-  // Right Left Case
+        // Right Left Case
         if (balance < -1 && getBalance(root->right) > 0) {
             root->right = rightRotate(root->right);
             root = leftRotate(root);
@@ -249,9 +249,7 @@ namespace AVLTree {
     }
 
     Node* getParent(Node* root, uint64_t key) {
-        if (root == nullptr)
-            return nullptr;
-        else if (root->left == nullptr || root->right == nullptr)
+        if (root == nullptr || root->key == key || root->left == nullptr || root->right == nullptr)
             return nullptr;
         else if (root->left->key == key || root->right->key == key)
             return root;
@@ -259,10 +257,7 @@ namespace AVLTree {
             return getParent(root->right, key);
         else if (root->key > key)
             return getParent(root->left, key);
-        else if (root->key == key)
-            return nullptr;
-        else
-            return nullptr;
+        return nullptr;
     }
 
 } // namespace AVLTree

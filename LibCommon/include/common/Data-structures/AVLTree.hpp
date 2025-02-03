@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2022-2024  Frosty515
+Copyright (©) 2022-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _AVL_TREE_HPP
 #define _AVL_TREE_HPP
 
-#include <stdint.h>
+#include <cstdint>
+
 #include <spinlock.h>
 
 namespace AVLTree {
@@ -31,11 +32,11 @@ namespace AVLTree {
 		// Required extras
 		Node* left;
 		Node* right;
-		uint64_t height;
+		int64_t height;
 	};
 
 	// Get height of the AVL tree
-	uint64_t height(Node* root);
+	int64_t height(Node* root);
 
 	// Helper function that allocates a new node with the given key, extra data and NULL left and right pointers.
 	Node* newNode(uint64_t key, uint64_t extraData);
@@ -118,7 +119,7 @@ namespace AVLTree {
 				deleteNode(m_root, m_root->key);
 		}
 
-		Node* GetRoot() const {
+		[[nodiscard]] Node* GetRoot() const {
 			return m_root;
 		}
 
@@ -128,13 +129,13 @@ namespace AVLTree {
 
 	private:
 		Node* m_root;
-		bool m_vmm;
+		bool m_vmm{};
 	};
 
 	template <typename K, typename D>
 	class LockableAVLTree {
 	public:
-		LockableAVLTree(bool vmm = false) : m_list(vmm) {
+		explicit LockableAVLTree(bool vmm = false) : m_list(vmm) {
 			spinlock_init(&m_lock);
 		}
 
@@ -200,7 +201,7 @@ namespace AVLTree {
 		
 	private:
 		SimpleAVLTree<K, D> m_list;
-		spinlock_t m_lock;
+		spinlock_t m_lock{};
 	};
 }
 

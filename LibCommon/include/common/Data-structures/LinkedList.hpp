@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2022-2024  Frosty515
+Copyright (©) 2022-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,16 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _LINKED_LIST_HPP
 #define _LINKED_LIST_HPP
 
-#include <assert.h>
-#include <spinlock.h>
-#include <stdint.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdint>
+#include <cstdio>
 
 #include <functional>
 
-namespace LinkedList {
+#include "../spinlock.h"
 
-    static constexpr uint64_t POOL_SIZE = 128;
+namespace LinkedList {
 
     struct Node {
         Node* previous;
@@ -35,32 +34,32 @@ namespace LinkedList {
         Node* next;
     };
 
-        // Get length of the Linked list
+    // Get length of the Linked list
     uint64_t length(Node* head);
 
-        // Helper function that allocates a new node with the given data and NULL previous and next pointers.
+    // Helper function that allocates a new node with the given data and NULL previous and next pointers.
     Node* newNode(uint64_t data);
 
-        // Recursive function to insert a node in the list with given data and returns the head node
+    // Recursive function to insert a node in the list with given data and returns the head node
     void insertNode(Node*& head, uint64_t data);
 
-        // Get a pointer to a node from its data
+    // Get a pointer to a node from its data
     Node* findNode(Node* head, uint64_t data);
 
-        // Delete a node
+    // Delete a node
     void deleteNode(Node*& head, uint64_t key);
 
-        // Delete a specific node
+    // Delete a specific node
     void deleteNode(Node*& head, Node* node);
 
-        // print the Linked list
+    // print the Linked list
     void fprint(FILE* file, Node* head);
 
     void panic(const char* str); // a tiny function which just expands the PANIC macro. This is so PANIC can be called from the template class below.
 
     template<typename T>
     class SimpleLinkedList {
-       public:
+    public:
         SimpleLinkedList()
             : m_count(0), m_start(nullptr) {}
         ~SimpleLinkedList() {
@@ -69,8 +68,8 @@ namespace LinkedList {
         }
 
         void insert(const T* obj) {
-            if (findNode(m_start, (uint64_t)&obj) != nullptr)
-                return; // object already exists
+            // if (findNode(m_start, (uint64_t)&obj) != nullptr)
+            // 	return; // object already exists
             insertNode(m_start, (uint64_t)obj);
             m_count++;
         }
@@ -196,27 +195,27 @@ namespace LinkedList {
             fprintf(file, "\n");
         }
 
-        uint64_t getCount() const {
+        [[nodiscard]] uint64_t getCount() const {
             return m_count;
         }
 
-       private:
+    private:
         uint64_t m_count;
         Node* m_start;
     };
 
     template<typename T>
     class RearInsertLinkedList {
-       public:
+    public:
         RearInsertLinkedList()
             : m_count(0), m_start(nullptr), m_end(nullptr) {}
         ~RearInsertLinkedList() {
             for (uint64_t i = 0; i < m_count; i++)
-                remove(UINT64_C(0));
+                remove((uint64_t)0);
         }
 
         void insert(const T* obj) {
-            Node* node = newNode(reinterpret_cast<uint64_t>(obj));
+            Node* node = newNode((uint64_t)obj);
             if (m_count == 0) {
                 m_start = node;
                 m_end = node;
@@ -225,6 +224,38 @@ namespace LinkedList {
                 node->previous = m_end;
                 m_end = node;
             }
+            m_count++;
+        }
+
+        void insertAt(uint64_t index, const T* obj) {
+            if (index >= m_count)
+                return;
+            Node* previous = nullptr;
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < index; i++) {
+                if (temp == nullptr) {
+                    temp = previous;
+                    break;
+                }
+                previous = temp;
+                temp = temp->next;
+            }
+            Node* node = newNode(reinterpret_cast<uint64_t>(obj));
+            // node needs to slot in between temp and temp->next
+            if (temp == nullptr) {
+                // empty list
+                m_start = node;
+                m_end = node;
+                m_count++;
+                return;
+            }
+            if (temp->next != nullptr) {
+                temp->next->previous = node;
+                node->next = temp->next;
+            } else
+                m_end = node;
+            temp->next = node;
+            node->previous = temp;
             m_count++;
         }
 
@@ -239,7 +270,7 @@ namespace LinkedList {
             }
             if (temp == nullptr)
                 return nullptr;
-            return reinterpret_cast<T*>(temp->data);
+            return (T*)(temp->data);
         }
 
         uint64_t getIndex(const T* obj) const {
@@ -247,7 +278,7 @@ namespace LinkedList {
             for (uint64_t i = 0; i < m_count; i++) {
                 if (temp == nullptr)
                     return UINT64_MAX;
-                if (temp->data == static_cast<uint64_t>(obj))
+                if (temp->data == (uint64_t)obj)
                     return i;
                 temp = temp->next;
             }
@@ -255,19 +286,21 @@ namespace LinkedList {
         }
 
         void remove(uint64_t index) {
-            deleteNode(m_start, reinterpret_cast<uint64_t>(get(index)));
+            deleteNode(m_start, (uint64_t)get(index));
             m_count--;
         }
 
         void remove(const T* obj) {
-            deleteNode(m_start, reinterpret_cast<uint64_t>(obj));
+            deleteNode(m_start, (uint64_t)obj);
             m_count--;
         }
 
         void Enumerate(std::function<void(T* obj)> func) const {
             Node* temp = m_start;
             for (uint64_t i = 0; i < m_count; i++) {
-                func(static_cast<T*>(temp->data));
+                // if (temp == nullptr)
+                // 	return;
+                func((T*)(temp->data));
                 temp = temp->next;
             }
         }
@@ -275,10 +308,14 @@ namespace LinkedList {
         void Enumerate(std::function<bool(T* obj, uint64_t index)> func, uint64_t start = 0) const {
             Node* temp = m_start;
             for (uint64_t i = 0; i < start; i++) {
+                // if (temp == nullptr)
+                // 	return;
                 temp = temp->next;
             }
             for (uint64_t i = start; i < m_count; i++) {
-                if (!func(static_cast<T*>(temp->data), i))
+                // if (temp == nullptr)
+                // 	return;
+                if (!func((T*)(temp->data), i))
                     return;
                 temp = temp->next;
             }
@@ -287,7 +324,9 @@ namespace LinkedList {
         void EnumerateReverse(std::function<bool(T* obj)> func) const {
             Node* temp = m_end;
             for (uint64_t i = 0; i < m_count; i++) {
-                func(static_cast<T*>(temp->data));
+                // if (temp == nullptr)
+                // 	return;
+                func((T*)(temp->data));
                 temp = temp->previous;
             }
         }
@@ -295,16 +334,20 @@ namespace LinkedList {
         void EnumerateReverse(std::function<bool(T* obj, uint64_t index)> func, uint64_t start = 0) const {
             Node* temp = m_end;
             for (uint64_t i = 0; i < start; i++) {
+                // if (temp == nullptr)
+                // 	return;
                 temp = temp->previous;
             }
             for (uint64_t i = start; i < m_count; i++) {
-                if (!func(static_cast<T*>(temp->data), i))
+                // if (temp == nullptr)
+                // 	return;
+                if (!func((T*)(temp->data), i))
                     return;
                 temp = temp->previous;
             }
         }
 
-        uint64_t getCount() const {
+        [[nodiscard]] uint64_t getCount() const {
             return m_count;
         }
 
@@ -315,15 +358,15 @@ namespace LinkedList {
             m_end = nullptr;
         }
 
-       private:
+    private:
         uint64_t m_count;
         Node* m_start;
         Node* m_end;
     };
 
     template<typename T>
-    class LockableLinkedList { // has an internal SimpleLinkedList and a spinlock. We do not lock automatically, so the user must lock the list before using it.
-       public:
+    class LockableLinkedList { // has a internal SimpleLinkedList and a spinlock. We do not lock automatically, so the user must lock the list before using it.
+    public:
         LockableLinkedList()
             : m_list(), m_lock() {}
         ~LockableLinkedList() {
@@ -370,7 +413,7 @@ namespace LinkedList {
             spinlock_release(&m_lock);
         }
 
-       private:
+    private:
         SimpleLinkedList<T> m_list;
         mutable spinlock_t m_lock;
     };

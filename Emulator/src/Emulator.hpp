@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _EMULATOR_HPP
 #define _EMULATOR_HPP
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <Register.hpp>
 
-#include "IO/devices/Video/VideoBackend.hpp"
+#include <IO/devices/Video/VideoBackend.hpp>
 
 namespace Emulator {
 

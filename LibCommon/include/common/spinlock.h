@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _LIBARCH_SPINLOCK_H
-#define _LIBARCH_SPINLOCK_H
+#ifndef _SPINLOCK_H
+#define _SPINLOCK_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,4 +34,4 @@ void spinlock_release(spinlock_t* lock);
 }
 #endif
 
-#endif /* _LIBARCH_SPINLOCK_H */
+#endif /* _SPINLOCK_H */

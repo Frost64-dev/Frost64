@@ -1,4 +1,4 @@
-# Copyright (©) 2024  Frosty515
+# Copyright (©) 2024-2025  Frosty515
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,11 +36,8 @@ unset(CMAKE_REQUIRED_FLAGS)
 
 set(assembler_sources
     ${assembler_sources}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ArgsParser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Assembler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Lexer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/LinkedList.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Parser.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/PreProcessor.cpp
@@ -57,6 +54,7 @@ set_target_properties(Assembler PROPERTIES C_STANDARD_REQUIRED ON)
 
 target_include_directories(Assembler PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(Assembler PUBLIC ${CMAKE_SOURCE_DIR}/LibArch/include)
+target_include_directories(Assembler PUBLIC ${CMAKE_SOURCE_DIR}/LibCommon/include)
 
 target_compile_options(Assembler
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>
@@ -70,7 +68,7 @@ target_compile_options(Assembler
     PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
 )
 
-target_link_libraries(Assembler PRIVATE arch)
+target_link_libraries(Assembler PRIVATE arch common)
 
 if (BUILD_CONFIG STREQUAL "Debug")
    target_compile_definitions(Assembler PRIVATE ASSEMBLER_DEBUG=1)

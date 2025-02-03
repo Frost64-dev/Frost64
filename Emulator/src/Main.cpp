@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,16 +15,17 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <util.h>
-
 #include <cctype>
+#include <cstdint>
+#include <cstdio>
+#include <cstring> 
+
+#include <common/ArgsParser.hpp>
+#include <common/util.h>
+
 #include <Emulator.hpp>
 
-#include "ArgsParser.hpp"
-#include "IO/devices/Video/VideoBackend.hpp"
+#include <IO/devices/Video/VideoBackend.hpp>
 
 #define MAX_PROGRAM_FILE_SIZE 0x1000'0000
 #define MIN_PROGRAM_FILE_SIZE 1

@@ -13,26 +13,34 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-set(arch_sources
-    ${arch_sources}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Operand.cpp
+if(BUILD_ARCHITECTURE STREQUAL "x86_64")
+    set(libcommon_sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/spinlock.asm
+    )
+endif()
+
+set(libcommon_sources
+    ${libcommon_sources}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/AVLTree.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Bitmap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Buffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/LinkedList.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ArgsParser.cpp
 )
 
-add_library(arch STATIC ${arch_sources})
+add_library(common STATIC ${libcommon_sources})
 
-set_target_properties(arch PROPERTIES CXX_STANDARD 23)
-set_target_properties(arch PROPERTIES CXX_STANDARD_REQUIRED ON)
-set_target_properties(arch PROPERTIES CXX_EXTENSIONS OFF)
-set_target_properties(arch PROPERTIES C_STANDARD 23)
-set_target_properties(arch PROPERTIES C_EXTENSIONS OFF)
-set_target_properties(arch PROPERTIES C_STANDARD_REQUIRED ON)
+set_target_properties(common PROPERTIES CXX_STANDARD 23)
+set_target_properties(common PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(common PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(common PROPERTIES C_STANDARD 23)
+set_target_properties(common PROPERTIES C_EXTENSIONS OFF)
+set_target_properties(common PROPERTIES C_STANDARD_REQUIRED ON)
 
-target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/libarch)
-target_include_directories(arch PUBLIC ${CMAKE_SOURCE_DIR}/LibCommon/include)
+target_include_directories(common PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(common PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/common)
 
-target_compile_options(arch
+target_compile_options(common
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wall>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wextra>
@@ -45,5 +53,5 @@ target_compile_options(arch
 )
 
 if (BUILD_CONFIG STREQUAL "Debug")
-    target_compile_definitions(arch PRIVATE LIBARCH_DEBUG=1)
+    target_compile_definitions(common PRIVATE LIBCOMMON_DEBUG=1)
 endif()
