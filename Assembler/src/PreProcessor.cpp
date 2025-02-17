@@ -23,6 +23,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <filesystem>
 #include <map>
 #include <string>
+#include <vector>
+#include <fstream>
 
 #ifdef ENABLE_CXX20_FORMAT
 #include <format>
@@ -335,6 +337,7 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
     char* include_start = const_cast<char*>(source);
     char* include_end = nullptr;
     char const* i_source = source;
+
     while (include_start != nullptr) {
         include_start = strstr(include_start, "%include \"");
         if (include_start != nullptr) {
@@ -345,25 +348,24 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
             include_end = strchr(include_start, '"');
             if (include_end != nullptr) {
                 std::string include_string = std::filesystem::path(file_name).replace_filename(std::string(include_start, include_end));
-                if (FILE* file = fopen(include_string.c_str(), "r"); file != nullptr) {
-                    fseek(file, 0, SEEK_END);
-                    size_t file_size = ftell(file);
-                    fseek(file, 0, SEEK_SET);
-                    char* file_data = new char[file_size + 1];
-                    fread(file_data, 1, file_size, file);
-                    fclose(file);
-                    file_data[file_size] = '\0';
+
+                std::ifstream file(include_string, std::ios::binary);
+                if (file) {
+                    std::vector<char> file_data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+
                     PreProcessor preprocessor;
                     preprocessor.CreateReferencePoint(1, include_string, 0);
-                    preprocessor.HandleIncludes(file_data, file_size, include_string);
-                    preprocessor.CreateReferencePoint(file_data, file_size, include_string, preprocessor.m_current_offset);
+                    preprocessor.HandleIncludes(file_data.data(), file_data.size(), include_string);
+                    preprocessor.CreateReferencePoint(file_data.data(), file_data.size(), include_string, preprocessor.m_current_offset);
                     size_t processed_size = preprocessor.GetProcessedBufferSize();
-                    uint8_t* processed_data = new uint8_t[processed_size];
-                    preprocessor.ExportProcessedBuffer(processed_data);
-                    m_buffer.Write(m_current_offset, processed_data, processed_size);
+                    
+                    std::vector<uint8_t> processed_data(processed_size);
+                    preprocessor.ExportProcessedBuffer(processed_data.data());
+
+                    m_buffer.Write(m_current_offset, processed_data.data(), processed_size);
                     m_current_offset += processed_size;
-                    delete[] processed_data;
-                    delete[] file_data;
+
                     preprocessor.m_referencePoints.Enumerate([&](ReferencePoint* ref) {
                         ref->offset += m_current_offset - processed_size;
                         m_referencePoints.insert(ref);
@@ -371,10 +373,10 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
                     preprocessor.m_referencePoints.clear();
                 } else {
 #ifdef ENABLE_CXX20_FORMAT
-                    error(std::format("Could not open included file \"{}\": {}", std::string(include_start, include_end), strerror(errno)).c_str(), start_ref->file_name, start_ref->line);
+                    error(std::format("Could not open included file \"{}\": {}", include_string, strerror(errno)).c_str(), start_ref->file_name, start_ref->line);
 #else
-		            std::stringstream ss;
-                    ss << "Could not open included file \"" << std::string(include_start, include_end) << "\"";
+                    std::stringstream ss;
+                    ss << "Could not open included file \"" << include_string << "\"";
                     ss << ": " << strerror(errno);
                     error(ss.str().c_str(), start_ref->file_name, start_ref->line);                    
 #endif
@@ -402,6 +404,7 @@ void PreProcessor::HandleIncludes(const char* source, size_t source_size, const 
         include_end = const_cast<char*>(source);
     else
         include_end += 1;
+
     m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(include_end), source_size - (include_end - source));
     m_current_offset += source_size - (include_end - source);
 }
