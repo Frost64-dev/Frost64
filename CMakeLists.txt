@@ -33,5 +33,6 @@ add_custom_target(distinstall
 
 add_subdirectory(LibArch)
 add_subdirectory(LibCommon)
+add_subdirectory(LibExec)
 add_subdirectory(Assembler)
 add_subdirectory(Emulator)
