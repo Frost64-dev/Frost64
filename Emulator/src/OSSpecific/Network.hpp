@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,21 +15,24 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _BIOS_MEMORY_REGION_HPP
-#define _BIOS_MEMORY_REGION_HPP
+#ifndef _OS_SPECIFIC_NETWORK_HPP
+#define _OS_SPECIFIC_NETWORK_HPP
 
-#include "StandardMemoryRegion.hpp"
+#include <cstddef>
 
-class BIOSMemoryRegion : public StandardMemoryRegion {
-public:
-    BIOSMemoryRegion(uint64_t start, uint64_t end, uint64_t real_size);
-    ~BIOSMemoryRegion();
+#ifdef __unix__
+#include <sys/types.h>
+#endif /* __unix__ */
 
-    virtual void dump(FILE* fp) override;
-    virtual void printData(void (*write)(void* data, const char* format, ...), void* data) override;
+struct TCPSocketHandle_t;
 
-private:
-    uint64_t m_real_size;
-};
+TCPSocketHandle_t* OpenTCPSocket(int port);
+void CloseTCPSocket(TCPSocketHandle_t* handle);
 
-#endif /* _BIOS_MEMORY_REGION_HPP */
+// Read from the oldest active client
+ssize_t ReadFromTCPSocket(TCPSocketHandle_t* handle, void* buffer, size_t size);
+
+// Write to the oldest active client
+ssize_t WriteToTCPSocket(TCPSocketHandle_t* handle, const void* buffer, size_t size);
+
+#endif /* _OS_SPECIFIC_NETWORK_HPP */

@@ -105,3 +105,7 @@ void MemoryRegion::dump(FILE* fp) {
     }
     fprintf(fp, "\n");
 }
+
+void MemoryRegion::printData(void (*write)(void* data, const char* format, ...), void* data) {
+    write(data, "MemoryRegion: %lx - %lx\n", m_start, m_end);
+}

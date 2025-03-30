@@ -20,10 +20,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 #include <Register.hpp>
 
 #include <IO/devices/Video/VideoBackend.hpp>
+
+class DebugInterface;
 
 namespace Emulator {
 
@@ -36,7 +39,8 @@ namespace Emulator {
     enum class EventType {
         SwitchToIP,
         NewMMU,
-        StorageTransfer
+        StorageTransfer,
+        TestInterrupt
     };
 
     struct Event {
@@ -48,9 +52,11 @@ namespace Emulator {
 
     void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write);
 
-    int Start(uint8_t* program, size_t size, size_t RAM, bool has_display = false, VideoBackendType displayType = VideoBackendType::NONE, bool has_drive = false, const char* drivePath = nullptr);
+    int Start(uint8_t* program, size_t size, size_t RAM, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display = false, VideoBackendType displayType = VideoBackendType::NONE, bool has_drive = false, const char* drivePath = nullptr);
     int RequestEmulatorStop();
     int SendInstruction(uint64_t instruction);
+
+    DebugInterface* GetDebugInterface();
 
     void SetCPUStatus(uint64_t mask);
     void ClearCPUStatus(uint64_t mask);
@@ -67,6 +73,7 @@ namespace Emulator {
 
 
     void SyncRegisters();
+    void DumpRegisters(void (*write)(void*, const char*, ...), void* data = nullptr);
 
     Register* GetRegisterPointer(uint8_t ID);
 
@@ -79,9 +86,6 @@ namespace Emulator {
     void EnterUserMode();
     void EnterUserMode(uint64_t address);
     void ExitUserMode();
-
-    void WriteCharToConsole(char c);
-    char ReadCharFromConsole();
 
     void KillCurrentInstruction(); // MUST NOT be called from the instruction thread
 

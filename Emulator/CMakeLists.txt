@@ -33,6 +33,8 @@ if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
         ${emulator_sources}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/File.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Memory.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Network.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Signal.cpp
     )
 else (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     set(emulator_sources
@@ -47,6 +49,7 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/InstructionBuffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/Operand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOBus.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/ConsoleDevice.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Storage/PhysicalRegionListBuffer.cpp
@@ -60,6 +63,7 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MMU.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/StandardMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/VirtualMMU.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Emulator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Exceptions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Interrupts.cpp

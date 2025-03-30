@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,21 +15,26 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _BIOS_MEMORY_REGION_HPP
-#define _BIOS_MEMORY_REGION_HPP
+#ifndef _OSSPECIFIC_SIGNAL_HPP
+#define _OSSPECIFIC_SIGNAL_HPP
 
-#include "StandardMemoryRegion.hpp"
+typedef void (*SignalHandler_t)(int);
 
-class BIOSMemoryRegion : public StandardMemoryRegion {
-public:
-    BIOSMemoryRegion(uint64_t start, uint64_t end, uint64_t real_size);
-    ~BIOSMemoryRegion();
+#ifdef __unix__
+#include <csignal>
 
-    virtual void dump(FILE* fp) override;
-    virtual void printData(void (*write)(void* data, const char* format, ...), void* data) override;
+#include <sys/types.h>
 
-private:
-    uint64_t m_real_size;
-};
+#define USER_SIGNAL_1 SIGUSR1
+#define USER_SIGNAL_2 SIGUSR2
 
-#endif /* _BIOS_MEMORY_REGION_HPP */
+typedef pthread_t ThreadID_t;
+#else
+#define USER_SIGNAL_1 0
+#define USER_SIGNAL_2 0
+#endif /* __unix__ */
+
+void SetSignalHandler(int signal, SignalHandler_t handler);
+void SendSignal(int signal, ThreadID_t thread_id);
+
+#endif /* _OSSPECIFIC_SIGNAL_HPP */

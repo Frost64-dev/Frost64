@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _VIDEO_MEMORY_REGION_HPP
 #define _VIDEO_MEMORY_REGION_HPP
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <MMU/MemoryRegion.hpp>
 
@@ -31,6 +31,7 @@ public:
     void write(uint64_t address, const uint8_t* buffer, size_t size) override;
 
     void dump(FILE* fp) override;
+    void printData(void (*write)(void* data, const char* format, ...), void* data) override;
 
 private:
     void (*m_operationCallback)(bool write, uint64_t address, uint8_t* buffer, size_t size, void* data);

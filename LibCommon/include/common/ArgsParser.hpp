@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define _ARGS_PARSER_HPP
 
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <string_view>
 #include <string>
 
@@ -33,8 +33,10 @@ public:
     void AddOption(char short_name, const char* option, const char* description, bool required = false);
 
     std::string_view GetOption(char short_name);
+    std::string_view GetOption(const char* option);
 
     bool HasOption(char short_name) const;
+    bool HasOption(const char* option) const;
 
     const std::string& GetHelpMessage() const;
 
@@ -47,7 +49,8 @@ private:
     };
 
     std::vector<Option> m_options;
-    std::map<char, std::string_view> m_parsed_options;
+    std::unordered_map<char, std::string_view> m_parsed_options;
+    std::unordered_map<std::string_view, std::string_view> m_parsed_options_long;
 
     mutable std::string m_helpMessage;
     bool m_helpMessageInitialised;

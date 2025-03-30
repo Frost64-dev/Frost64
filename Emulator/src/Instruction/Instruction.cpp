@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "InstructionBuffer.hpp"
 
 #include <atomic>
+#include <utility>
 
 #ifdef EMULATOR_DEBUG
 #include <cstdio>
@@ -30,21 +31,47 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Stack.hpp>
 
 #include <IO/IOBus.hpp>
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
 
 #include <MMU/MMU.hpp>
 
+#include <common/spinlock.h>
+
+#include <libarch/Instruction.hpp>
+#include <libarch/Operand.hpp>
+
 std::atomic_uchar g_ExecutionAllowed = 1;
-std::atomic_uchar g_ExecutionRunning = 1;
+std::atomic_uchar g_ExecutionRunning = 0;
 std::atomic_uchar g_TerminateExecution = 0;
+std::atomic_uchar g_AllowOneInstruction = 0;
 
 InsEncoding::SimpleInstruction g_current_instruction;
 
 Operand g_currentOperands[2];
 ComplexData g_complex[2];
 
-void StopExecution() {
+std::unordered_map<uint64_t, std::function<void(uint64_t)>> g_breakpoints;
+spinlock_new(g_breakpointsLock);
+std::atomic_uchar g_breakpointsEnabled = 0;
+std::pair<uint64_t, std::function<void(uint64_t)>> g_CurrentBreakpoint;
+bool g_breakpointHit = false;
+
+struct InstructionExecutionRunState {
+    bool Allowed;
+    bool Running;
+    bool Terminate;
+    bool AllowOne;
+};
+
+void StopExecution(void** state) {
+    if (state != nullptr) {
+        InstructionExecutionRunState* s = new InstructionExecutionRunState();
+        s->Terminate = g_TerminateExecution.load() == 1;
+        s->Running = g_ExecutionRunning.load() == 1;
+        s->Allowed = g_ExecutionAllowed.load() == 1;
+        s->AllowOne = g_AllowOneInstruction.load() == 1;
+        *state = s;
+    }
+
     g_TerminateExecution.store(1);
     while (g_ExecutionRunning.load() == 1) {
     }
@@ -52,26 +79,106 @@ void StopExecution() {
 
 void PauseExecution() {
     g_ExecutionAllowed.store(0);
-    while (g_ExecutionRunning.load() == 1) {
+    g_ExecutionRunning.wait(1);
+}
+
+void AllowExecution(void** old_state) {
+    if (old_state != nullptr) {
+        InstructionExecutionRunState* s = static_cast<InstructionExecutionRunState*>(*old_state);
+        g_AllowOneInstruction.store(s->AllowOne);
+        g_ExecutionAllowed.store(s->Allowed);
+        g_TerminateExecution.store(s->Terminate);
+
+        g_AllowOneInstruction.notify_all();
+        g_ExecutionAllowed.notify_all();
+
+        delete s;
+    }
+    else {
+        g_TerminateExecution.store(0);
+        g_ExecutionAllowed.store(1);
+        g_ExecutionAllowed.notify_all();
     }
 }
 
-void AllowExecution() {
-    g_TerminateExecution.store(0);
+void AllowOneInstruction() {
+    g_AllowOneInstruction.store(1);
     g_ExecutionAllowed.store(1);
+    g_ExecutionAllowed.notify_all();
+    g_AllowOneInstruction.wait(1);
+    g_ExecutionRunning.wait(1);
+}
+
+void AddBreakpoint(uint64_t address, std::function<void(uint64_t)> callback) {
+    spinlock_acquire(&g_breakpointsLock);
+    g_breakpoints[address] = std::move(callback);
+    spinlock_release(&g_breakpointsLock);
+    if (g_breakpointsEnabled.load() == 0)
+        g_breakpointsEnabled.store(1);
+}
+
+void RemoveBreakpoint(uint64_t address) {
+    spinlock_acquire(&g_breakpointsLock);
+    g_breakpoints.erase(address);
+    spinlock_release(&g_breakpointsLock);
 }
 
 bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, char const*& last_error) {
     if (g_TerminateExecution.load() == 1) {
         g_ExecutionRunning.store(0);
+        g_ExecutionRunning.notify_all();
         return false; // completely stop execution
     }
-    if (g_ExecutionAllowed.load() == 0 && g_ExecutionRunning.load() != 0) {
-        g_ExecutionRunning.store(0);
+    if (g_ExecutionAllowed.load() == 0) {
+        if (g_ExecutionRunning.load() == 1) {
+            g_ExecutionRunning.store(0);
+            g_ExecutionRunning.notify_all();
+        }
+        g_ExecutionAllowed.wait(0);
         return true; // still looping through instructions, just not doing anything
     }
-    else if (g_ExecutionRunning.load() == 0)
+    else if (g_ExecutionRunning.load() == 0) {
         g_ExecutionRunning.store(1);
+        g_ExecutionRunning.notify_all();
+    }
+
+    if (g_AllowOneInstruction.load() == 1) {
+        g_ExecutionRunning.store(1);
+        g_AllowOneInstruction.store(0);
+        g_AllowOneInstruction.notify_all();
+        g_ExecutionAllowed.store(0);
+    }
+
+    if (g_breakpointsEnabled.load() == 1 && g_AllowOneInstruction.load() == 0) { // don't check on single step
+        // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
+        spinlock_acquire(&g_breakpointsLock);
+        auto it = g_breakpoints.find(IP);
+        if (it != g_breakpoints.end()) {
+            g_ExecutionRunning.store(0);
+            g_ExecutionRunning.notify_all();
+            g_ExecutionAllowed.store(0);
+            g_ExecutionAllowed.notify_all();
+
+            g_CurrentBreakpoint.first = IP;
+            g_CurrentBreakpoint.second = it->second;
+            g_breakpointHit = true;
+            g_breakpoints.erase(it);
+            spinlock_release(&g_breakpointsLock);
+
+            g_CurrentBreakpoint.second(IP);
+
+            return true;
+        }
+        spinlock_release(&g_breakpointsLock);
+    }
+
+    if (g_breakpointHit && g_CurrentBreakpoint.first != IP) {
+        spinlock_acquire(&g_breakpointsLock);
+        g_breakpoints[g_CurrentBreakpoint.first] = g_CurrentBreakpoint.second;
+        g_breakpointHit = false;
+        spinlock_release(&g_breakpointsLock);
+    }
+
     (void)CurrentState;
     (void)last_error;
     InstructionBuffer buffer(mmu, IP);

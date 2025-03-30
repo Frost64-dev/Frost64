@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "BIOSMemoryRegion.hpp"
 
-#include <stdio.h>
+#include <cstdio>
 
 BIOSMemoryRegion::BIOSMemoryRegion(uint64_t start, uint64_t end, uint64_t real_size) : StandardMemoryRegion(start, end), m_real_size(real_size) {
 
@@ -50,4 +50,8 @@ void BIOSMemoryRegion::dump(FILE* fp) {
     //     }
     // }
     // fprintf(fp, "\n");
+}
+
+void BIOSMemoryRegion::printData(void (*write)(void* data, const char* format, ...), void* data) {
+    write(data, "BIOSMemoryRegion: %lx - %lx, real_size = %lx\n", getStart(), getEnd(), m_real_size);
 }

@@ -43,7 +43,9 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
                 }
                 else if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
                     if (i + 1 < argc) {
-                        m_parsed_options[opt.short_name] = argv[i + 1];
+                        if (opt.short_name != '\0')
+                            m_parsed_options[opt.short_name] = argv[i + 1];
+                        m_parsed_options_long[opt.option] = argv[i + 1];
                         i++;
                     }
                 }
@@ -61,8 +63,16 @@ std::string_view ArgsParser::GetOption(char short_name) {
     return m_parsed_options[short_name];
 }
 
+std::string_view ArgsParser::GetOption(const char* option) {
+    return m_parsed_options_long[option];
+}
+
 bool ArgsParser::HasOption(char short_name) const {
     return m_parsed_options.contains(short_name);
+}
+
+bool ArgsParser::HasOption(const char* option) const {
+    return m_parsed_options_long.contains(option);
 }
 
 const std::string& ArgsParser::GetHelpMessage() const {
@@ -73,8 +83,11 @@ const std::string& ArgsParser::GetHelpMessage() const {
         m_helpMessage += "[options]\n";
         m_helpMessage += "Options:\n";
         for (const Option& opt : m_options) {
-            m_helpMessage += "-";
-            m_helpMessage += opt.short_name;
+            if (opt.short_name != '\0') {
+                m_helpMessage += "-";
+                m_helpMessage += opt.short_name;
+            } else
+                m_helpMessage += "  ";
             m_helpMessage += " --";
             m_helpMessage += opt.option;
             m_helpMessage += "  ";

@@ -46,6 +46,8 @@ int main(int argc, char** argv) {
     g_args->AddOption('d', "display", "Display mode. Valid value is \"none\" (case insensitive).", false);
 #endif
     g_args->AddOption('D', "drive", "File to use as a storage drive.", false);
+    g_args->AddOption('c', "console", R"(Console device location. Valid values are "stdio", "file:<path>", or "port:<port>" (case insensitive).)", false);
+    g_args->AddOption(0, "debug", R"(Debug console location. Valid values are "disabled", "stdio", "file:<path>", or "port:<port>" (case insensitive). Default is "disabled".)", false);
     g_args->AddOption('h', "help", "Print this help message", false);
 
     g_args->ParseArgs(argc, argv);
@@ -146,12 +148,22 @@ int main(int argc, char** argv) {
     if (has_drive)
         drive = g_args->GetOption('D');
 
+    // get the console type
+    std::string_view console = "stdio";
+    if (g_args->HasOption('c'))
+        console = g_args->GetOption('c');
+
+    // get the debug console type
+    std::string_view debug = "disabled";
+    if (g_args->HasOption("debug"))
+        debug = g_args->GetOption("debug");
+
     // delete the args parser
     delete g_args;
 
     // Actually start emulator
 
-    if (int status = Emulator::Start(data, fileSize, RAM_Size, has_display, displayType, has_drive, drive.data()); status != 0) {
+    if (int status = Emulator::Start(data, fileSize, RAM_Size, console, debug, has_display, displayType, has_drive, drive.data()); status != 0) {
         printf("Emulator failed to start: %d\n", status);
         return 1;
     }

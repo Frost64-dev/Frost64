@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,13 +18,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _OS_SPECIFIC_FILE_HPP
 #define _OS_SPECIFIC_FILE_HPP
 
-#include <stddef.h>
+#include <cstddef>
 
 #ifdef __unix__
 typedef int FileHandle_t;
+
+#define FILE_HANDLE_TO_VOID_PTR(x) ((void*)(unsigned long)(x))
+#define VOID_PTR_TO_FILE_HANDLE(x) ((FileHandle_t)(unsigned long)(x))
 #endif /* __unix__ */
 
-FileHandle_t OpenFile(const char* path);
+FileHandle_t GetFileHandleForStdIn();
+FileHandle_t GetFileHandleForStdOut();
+FileHandle_t GetFileHandleForStdErr();
+
+FileHandle_t OpenFile(const char* path, bool create = false);
 void CloseFile(FileHandle_t handle);
 size_t GetFileSize(FileHandle_t handle);
 

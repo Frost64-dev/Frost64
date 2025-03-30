@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "VideoMemoryRegion.hpp"
 
-#include <stdio.h>
+#include <cstdio>
 
 VideoMemoryRegion::VideoMemoryRegion(uint64_t start, uint64_t end, void (*operationCallback)(bool write, uint64_t address, uint8_t* buffer, size_t size, void* data), void* data) : MemoryRegion(start, end), m_operationCallback(operationCallback), m_data(data) {
 
@@ -37,4 +37,8 @@ void VideoMemoryRegion::write(uint64_t address, const uint8_t* buffer, size_t si
 
 void VideoMemoryRegion::dump(FILE* fp) {
     fprintf(fp, "VideoMemoryRegion: %lx-%lx\n", getStart(), getEnd());
+}
+
+void VideoMemoryRegion::printData(void (*write)(void* data, const char* format, ...), void* data) {
+    write(data, "VideoMemoryRegion: %lx-%lx\n", getStart(), getEnd());
 }

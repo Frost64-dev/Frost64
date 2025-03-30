@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,49 +18,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _INSTRUCTION_HPP
 #define _INSTRUCTION_HPP
 
+#include <functional>
+
 #include <MMU/MMU.hpp>
 
 #include "Operand.hpp"
 
-/*
-### Stack
-
-
-
-### ALU
-
-- `add`, `mul`, `sub`, `div`, `or`, `xor`, `nor`, `and`, `nand` instructions which support 2 arguments; dst and src, dst can be either a register or address. src can be the same types as dst as well as an immediate. The result of the arithmetic between the 2 values is put in the destination.
-- `cmp (address or register), (address, register or immediate)` instruction that compares the values of its to arguments. If its result is successful, the error flag is reset. If it fails, the error flag is set.
-- `inc (address or register)` instruction that increments the value in the address or register supplied.
-- `dec (address or register)` instruction that decrements the value in the address or register supplied.
-- `not (address or register)` instruction that flips all bits in the address or register supplied.
-- `shl dst(address or register), n(address, register or immediate)` instruction that shifts dst to the left by n and then returns it in dst.
-- `shr dst(address or register), n(address, register or immediate)` instruction that shifts dst to the right by n and then returns it in dst.
-
-### Program flow
-
-- `ret` return from a function
-- `call (address or register)` call a function by saving I1 to stack, saving return address in I1 and calling the given address or address in the register
-- `jmp (address or register)` jump to address provided or address in register
-- `jc (address or register)` jump to address provided or address in register if carry flag is set, otherwise `nop`
-- `jnc (address or register)` jump to address provided or address in register if carry flag is not set, otherwise `nop`
-- `jz (address or register)` jump to address provided or address in register if zero flag is set, otherwise `nop`
-- `jnz (address or register)` jump to address provided or address in register if zero flag is not set, otherwise `nop`
-
-### Misc
-
-- `mov dst(address or register), src(address, register or immediate)` instruction to move values between registers and memory addresses
-- `nop` does nothing for that instruction cycle
-- `hlt` freeze CPU in its current state
-- `push (address or register)` instruction to push 64-bit integers from a memory address or from a general purpose register to the stack
-- `pop (address or GPR)` instruction to pop 64-bit integers to a memory address or a  register from the stack
-- `pusha` instruction to push all general purpose registers to the stack starting with r15, and finishing with r0
-- `popa` instruction to pop all general purpose registers to the stack starting with r0, and finishing with r15
-- `int (number)` send interrupt (number)
-- `lidt (address or register)` loads Interrupt Descriptor Table
-- `iret` instruction which cleans up after interrupt and then calls `ret`
-
-*/
 
 enum class InstructionState {
     OPCODE,
@@ -71,9 +34,12 @@ enum class InstructionState {
 
 bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, char const*& last_error);
 void ExecutionLoop(MMU* mmu, InstructionState& CurrentState, char const*& last_error);
-void StopExecution();
+void StopExecution(void** state = nullptr); // If state is non-NULL, a new object of will be allocated with new, and deleted when parsed to the next AllowExecution call.
+void AllowExecution(void** old_state = nullptr); // If old_state is non-NULL, it will be deleted after restoring the state.
 void PauseExecution();
-void AllowExecution();
+void AllowOneInstruction();
+void AddBreakpoint(uint64_t address, std::function<void(uint64_t)> callback);
+void RemoveBreakpoint(uint64_t address);
 
 // return function pointer to instruction based on opcode, output argument count into argument_count if non-null.
 void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count);

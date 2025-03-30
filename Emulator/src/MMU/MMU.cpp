@@ -280,6 +280,12 @@ void MMU::DumpMemory(FILE* fp) const {
         region->dump(fp);
 }
 
+void MMU::PrintRegions(void (*write)(void* data, const char* format, ...), void* data) const {
+    write(data, "Physical Memory Regions:\n");
+    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region))
+        region->printData(write, data);
+}
+
 bool MMU::RemoveRegionSegment(uint64_t start, uint64_t end, void** data_out) {
     for (uint64_t i = 0; i < m_regions.getCount(); i++) {
         if (MemoryRegion* region = m_regions.get(i); start >= region->getStart() && end > region->getStart() && region->getEnd() > start) {

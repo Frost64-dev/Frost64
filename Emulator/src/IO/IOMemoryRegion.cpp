@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,9 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "IOMemoryRegion.hpp"
-
 #include "IODevice.hpp"
+#include "IOMemoryRegion.hpp"
 
 IOMemoryRegion::IOMemoryRegion(uint64_t start, uint64_t end, IOBus* bus)
     : MemoryRegion(start, end), m_data(bus), m_isBus(true) {
@@ -106,4 +105,8 @@ void IOMemoryRegion::write64(uint64_t address, const uint64_t* buffer) {
 
 void IOMemoryRegion::dump(FILE* fp) {
     fprintf(fp, "IOMemoryRegion: %lx - %lx\n", getStart(), getEnd());
+}
+
+void IOMemoryRegion::printData(void (*write)(void* data, const char* format, ...), void* data) {
+    write(data, "IOMemoryRegion: %lx - %lx\n", getStart(), getEnd());
 }

@@ -208,7 +208,7 @@ namespace LinkedList {
     class RearInsertLinkedList {
     public:
         RearInsertLinkedList()
-            : m_count(0), m_start(nullptr), m_end(nullptr) {}
+            : m_count(0), m_start(nullptr), m_end(nullptr), m_lock(SPINLOCK_DEFAULT_VALUE) {}
         ~RearInsertLinkedList() {
             for (uint64_t i = 0; i < m_count; i++)
                 remove((uint64_t)0);
@@ -358,10 +358,19 @@ namespace LinkedList {
             m_end = nullptr;
         }
 
+        void lock() const {
+            spinlock_acquire(&m_lock);
+        }
+
+        void unlock() const {
+            spinlock_release(&m_lock);
+        }
+
     private:
         uint64_t m_count;
         Node* m_start;
         Node* m_end;
+        mutable spinlock_t m_lock;
     };
 
     template<typename T>

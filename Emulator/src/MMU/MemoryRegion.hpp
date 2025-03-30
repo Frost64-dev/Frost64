@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,9 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _MEMORY_REGION_HPP
 #define _MEMORY_REGION_HPP
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 
 class MemoryRegion {
@@ -50,6 +49,7 @@ class MemoryRegion {
     }
 
     virtual void dump(FILE* fp);
+    virtual void printData(void (*write)(void* data, const char* format, ...), void* data);
 
     virtual bool canSplit() { return false; }
 

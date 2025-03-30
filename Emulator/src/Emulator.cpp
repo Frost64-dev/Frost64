@@ -23,6 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <common/util.h>
 
+#include <DebugInterface.hpp>
 #include <Exceptions.hpp>
 #include <Interrupts.hpp>
 #include <Register.hpp>
@@ -39,6 +40,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <IO/IOBus.hpp>
 #include <IO/IOMemoryRegion.hpp>
+#include <IO/IOInterfaceManager.hpp>
 
 #include <MMU/BIOSMemoryRegion.hpp>
 #include <MMU/MMU.hpp>
@@ -66,7 +68,7 @@ namespace Emulator {
     uint64_t g_NextIP;
 
     MMU g_PhysicalMMU;
-    VirtualMMU* g_VirtualMMU;
+    VirtualMMU* g_VirtualMMU = nullptr;
     MMU* g_CurrentMMU = &g_PhysicalMMU;
 
     uint64_t g_RAMSize = 0;
@@ -87,12 +89,15 @@ namespace Emulator {
     bool g_isPagingEnabled = false;
 
     LinkedList::LockableLinkedList<Event> g_events;
+    std::atomic_uchar g_eventWait = 0;
 
     std::thread* ExecutionThread;
     std::thread* EmulatorThread;
 
     IOMemoryRegion* g_IOMemoryRegion;
     BIOSMemoryRegion* g_BIOSMemoryRegion;
+
+    DebugInterface* g_DebugInterface;
 
     void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write) {
         if (write) {
@@ -143,12 +148,18 @@ namespace Emulator {
         Event* new_event = new Event(event);
         g_events.insert(new_event);
         g_events.unlock();
+        g_eventWait.store(1);
+        g_eventWait.notify_all();
     }
 
 
     // what the EmulatorThread will run. just loops waiting for events.
     void WaitForOperation() {
         while (true) {
+            g_eventWait.wait(0);
+            if (g_eventWait.load() == 1)
+                g_eventWait.store(0);
+            
             g_events.lock();
             if (g_events.getCount() == 0) {
                 g_events.unlock();
@@ -176,6 +187,9 @@ namespace Emulator {
                     device->StartTransfer();
                     break;
                 }
+                case EventType::TestInterrupt:
+                    g_ConsoleDevice->RaiseInterrupt(0);
+                    break;
                 default:
                     break;
                 }
@@ -186,7 +200,7 @@ namespace Emulator {
         }
     }
 
-    int Start(uint8_t* program, size_t size, const size_t RAMSize, bool has_display, VideoBackendType displayType, bool has_drive, const char* drivePath) {
+    int Start(uint8_t* program, size_t size, const size_t RAMSize, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display, VideoBackendType displayType, bool has_drive, const char* drivePath) {
         if (size > 0x1000'0000)
             return 1; // program too large
 
@@ -215,9 +229,19 @@ namespace Emulator {
         if (RAMSize > 0xF000'0000)
             g_PhysicalMMU.AddMemoryRegion(new StandardMemoryRegion(0x1'0000'0000, RAMSize + 0x1000'0000));
 
+        g_IOInterfaceManager = new IOInterfaceManager();
+
         // Configure the console device
-        g_ConsoleDevice = new ConsoleDevice(16);
+        g_ConsoleDevice = new ConsoleDevice(16, consoleMode);
         g_IOBus->AddDevice(g_ConsoleDevice);
+        g_IOInterfaceManager->AddInterfaceItem(g_ConsoleDevice);
+
+        // Configure the debug interface
+        if (debugConsoleMode != "disabled") {
+            g_DebugInterface = new DebugInterface(IOInterfaceType::UNKNOWN, &g_PhysicalMMU, g_VirtualMMU, debugConsoleMode);
+            g_IOInterfaceManager->AddInterfaceItem(g_DebugInterface);
+            g_DebugInterface->InterfaceInit();
+        }
 
         // Configure the video device
         if (has_display) {
@@ -260,6 +284,24 @@ namespace Emulator {
         fprintf(fp, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", g_Control[0]->GetValue(), g_Control[1]->GetValue(), g_Control[2]->GetValue(), g_Control[3]->GetValue());
         fprintf(fp, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", g_Control[4]->GetValue(), g_Control[5]->GetValue(), g_Control[6]->GetValue(), g_Control[7]->GetValue());
         fprintf(fp, "STS = %016lx\n", g_STS->GetValue());
+    }
+
+    void DumpRegisters(void(*write)(void*, const char*, ...), void* data) {
+        if (!g_registersInitialised)
+            return;
+        if (write == nullptr)
+            return DumpRegisters(stdout);
+
+        write(data, "Registers:\n");
+        write(data, "R0 =%016lx R1 =%016lx R2 =%016lx R3 =%016lx\n", g_GPR[0]->GetValue(), g_GPR[1]->GetValue(), g_GPR[2]->GetValue(), g_GPR[3]->GetValue());
+        write(data, "R4 =%016lx R5 =%016lx R6 =%016lx R7 =%016lx\n", g_GPR[4]->GetValue(), g_GPR[5]->GetValue(), g_GPR[6]->GetValue(), g_GPR[7]->GetValue());
+        write(data, "R8 =%016lx R9 =%016lx R10=%016lx R11=%016lx\n", g_GPR[8]->GetValue(), g_GPR[9]->GetValue(), g_GPR[10]->GetValue(), g_GPR[11]->GetValue());
+        write(data, "R12=%016lx R13=%016lx R14=%016lx R15=%016lx\n", g_GPR[12]->GetValue(), g_GPR[13]->GetValue(), g_GPR[14]->GetValue(), g_GPR[15]->GetValue());
+        write(data, "SCP=%016lx SBP=%016lx STP=%016lx\n", g_SCP->GetValue(), g_SBP->GetValue(), g_STP->GetValue());
+        write(data, "IP =%016lx\n", g_IP->GetValue());
+        write(data, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", g_Control[0]->GetValue(), g_Control[1]->GetValue(), g_Control[2]->GetValue(), g_Control[3]->GetValue());
+        write(data, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", g_Control[4]->GetValue(), g_Control[5]->GetValue(), g_Control[6]->GetValue(), g_Control[7]->GetValue());
+        write(data, "STS = %016lx\n", g_STS->GetValue());
     }
 
     void DumpRAM(FILE* fp) {
@@ -512,28 +554,26 @@ namespace Emulator {
         g_GPR[15]->SetValue(g_SCP->GetValue());
     }
 
-    void WriteCharToConsole(char c) {
-        fputc(c, stderr);
-    }
-
-    char ReadCharFromConsole() {
-        return fgetc(stdin);
-    }
-
     void KillCurrentInstruction() {
         if (std::this_thread::get_id() == ExecutionThread->get_id())
             Crash("Cannot kill current instruction from the instruction thread");
 
-        StopExecution(); // wait for current instruction to finish executing
+        void* state = nullptr;
+
+        StopExecution(&state); // wait for current instruction to finish executing
 
         ExecutionThread->join(); // ensure the thread has finished executing
         delete ExecutionThread;
 
-        AllowExecution();
+        AllowExecution(&state);
     }
 
     bool isPagingEnabled() {
         return g_isPagingEnabled;
+    }
+
+    DebugInterface* GetDebugInterface() {
+        return g_DebugInterface;
     }
 
 } // namespace Emulator

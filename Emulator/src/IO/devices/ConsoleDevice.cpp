@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,15 +19,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Emulator.hpp>
 
+#include <IO/IOInterfaceManager.hpp>
+
 #ifdef EMULATOR_DEBUG
 #include <stdio.h>
 #endif
 
-ConsoleDevice::ConsoleDevice(uint64_t size)
-    : IODevice(IODeviceID::CONSOLE, size) {
+ConsoleDevice::ConsoleDevice(uint64_t size, const std::string_view& data)
+    : IODevice(IODeviceID::CONSOLE, size, 0), IOInterfaceItem(IOInterfaceType::UNKNOWN, data) {
 }
 
 ConsoleDevice::~ConsoleDevice() {
+}
+
+void ConsoleDevice::InterfaceInit() {
+}
+
+void ConsoleDevice::InterfaceShutdown() {
+}
+
+void ConsoleDevice::InterfaceWrite() {
 }
 
 uint8_t ConsoleDevice::ReadByte(uint64_t address) {
@@ -36,7 +47,9 @@ uint8_t ConsoleDevice::ReadByte(uint64_t address) {
 #else
     (void)address;
 #endif
-    return static_cast<uint8_t>(Emulator::ReadCharFromConsole());
+    uint8_t data = 0;
+    g_IOInterfaceManager->Read(this, &data, 1);
+    return data;
 }
 
 uint16_t ConsoleDevice::ReadWord(uint64_t address) {
@@ -72,7 +85,7 @@ void ConsoleDevice::WriteByte(uint64_t address, uint8_t data) {
 #else
     (void)address;
 #endif
-    Emulator::WriteCharToConsole(static_cast<char>(data));
+    g_IOInterfaceManager->Write(this, &data, 1);
 }
 
 void ConsoleDevice::WriteWord(uint64_t address, uint16_t data) {

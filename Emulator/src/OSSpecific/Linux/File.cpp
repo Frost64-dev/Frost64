@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,19 +17,35 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "../File.hpp"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <cerrno>
 #include <cstring>
-#include <Emulator.hpp>
+#include <fcntl.h>
 #include <string>
+#include <unistd.h>
 
-#include "../Memory.hpp"
+#include <sys/mman.h>
 
-FileHandle_t OpenFile(const char* path) {
-    int fd = open(path, O_RDWR);
+#include <Emulator.hpp>
+
+FileHandle_t GetFileHandleForStdIn() {
+    return STDIN_FILENO;
+}
+
+FileHandle_t GetFileHandleForStdOut() {
+    return STDOUT_FILENO;
+}
+
+FileHandle_t GetFileHandleForStdErr() {
+    return STDERR_FILENO;
+}
+
+FileHandle_t OpenFile(const char* path, bool create) {
+    int fd = -1;
+    if (create)
+        fd = open(path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH);
+    else
+        fd = open(path, O_RDWR);
     if (fd < 0) {
         const char* err = strerror(errno);
         std::string str = "Failed to open file: ";
@@ -59,11 +75,13 @@ size_t GetFileSize(FileHandle_t handle) {
 }
 
 size_t ReadFile(FileHandle_t handle, void* buffer, size_t size, size_t offset) {
-    if (off_t ret = lseek(handle, offset, SEEK_SET); ret < 0) {
-        const char* err = strerror(errno);
-        std::string str = "Failed to seek file with error: ";
-        str += err;
-        Emulator::Crash(str.c_str());
+    if (offset != SIZE_MAX) {
+        if (off_t ret = lseek(handle, offset, SEEK_SET); ret < 0) {
+            const char* err = strerror(errno);
+            std::string str = "Failed to seek file with error: ";
+            str += err;
+            Emulator::Crash(str.c_str());
+        }
     }
 
     ssize_t read_size = read(handle, buffer, size);
@@ -78,11 +96,13 @@ size_t ReadFile(FileHandle_t handle, void* buffer, size_t size, size_t offset) {
 }
 
 size_t WriteFile(FileHandle_t handle, const void* buffer, size_t size, size_t offset) {
-    if (off_t ret = lseek(handle, offset, SEEK_SET); ret < 0) {
-        const char* err = strerror(errno);
-        std::string str = "Failed to seek file with error: ";
-        str += err;
-        Emulator::Crash(str.c_str());
+    if (offset != SIZE_MAX) {
+        if (off_t ret = lseek(handle, offset, SEEK_SET); ret < 0) {
+            const char* err = strerror(errno);
+            std::string str = "Failed to seek file with error: ";
+            str += err;
+            Emulator::Crash(str.c_str());
+        }
     }
 
     ssize_t write_size = write(handle, buffer, size);

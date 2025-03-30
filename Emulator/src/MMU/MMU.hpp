@@ -51,6 +51,7 @@ class MMU {
     virtual void RemoveMemoryRegion(MemoryRegion* region);
 
     virtual void DumpMemory(FILE* fp) const;
+    virtual void PrintRegions(void (*write)(void* data, const char* format, ...), void* data) const;
 
     virtual bool RemoveRegionSegment(uint64_t start, uint64_t end, void** data_out);
     virtual bool ReaddRegionSegment(void* data_in);

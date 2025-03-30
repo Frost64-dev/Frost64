@@ -24,6 +24,10 @@ extern "C" {
 
 typedef unsigned long spinlock_t;
 
+#define SPINLOCK_DEFAULT_VALUE SPINLOCK_UNLOCKED_VALUE
+#define SPINLOCK_LOCKED_VALUE 1
+#define SPINLOCK_UNLOCKED_VALUE 0
+
 #define spinlock_init(lock) (*(lock) = 0)
 #define spinlock_new(name) spinlock_t name = 0
 
