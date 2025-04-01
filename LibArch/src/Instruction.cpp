@@ -124,7 +124,7 @@ namespace InsEncoding {
         return reg_id;
     }
 
-    Register GetRegisterFromID(RegisterID reg_id, void (*error_handler)(const char* message)) {
+    Register GetRegisterFromID(RegisterID reg_id, void (*error_handler)(const char* message, void* data), void* data) {
         Register reg;
         switch (reg_id.type) {
 #define REG_CASE(name, num)   \
@@ -150,7 +150,7 @@ namespace InsEncoding {
                 REG_CASE(r14, 14)
                 REG_CASE(r15, 15)
             default:
-                error_handler("Invalid register number");
+                error_handler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
@@ -160,7 +160,7 @@ namespace InsEncoding {
                 REG_CASE(sbp, 1)
                 REG_CASE(stp, 2)
             default:
-                error_handler("Invalid register number");
+                error_handler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
@@ -177,12 +177,12 @@ namespace InsEncoding {
                 REG_CASE(sts, 8)
                 REG_CASE(ip, 9)
             default:
-                error_handler("Invalid register number");
+                error_handler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
         default:
-            error_handler("Invalid register type");
+            error_handler("Invalid register type", data);
             __builtin_unreachable();
         }
 #undef REG_CASE
@@ -237,14 +237,14 @@ namespace InsEncoding {
         }
     }
 
-    bool DecodeInstruction(const uint8_t* data, size_t data_size, SimpleInstruction* out, void (*error_handler)(const char* message)) {
+    bool DecodeInstruction(const uint8_t* data, size_t data_size, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
         Buffer buffer(data_size);
         buffer.Write(0, data, data_size);
         uint64_t current_offset = 0;
-        return DecodeInstruction(buffer, current_offset, out, error_handler);
+        return DecodeInstruction(buffer, current_offset, out, error_handler, error_data);
     }
 
-    bool DecodeInstruction(Buffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message)) {
+    bool DecodeInstruction(Buffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
         if (out == nullptr)
             return false;
 
@@ -321,7 +321,7 @@ namespace InsEncoding {
                 }
             }
         } else
-            error_handler("Invalid argument count");
+            error_handler("Invalid argument count", error_data);
 
         for (uint8_t i = 0; i < arg_count; i++) {
             OperandType operand_type = operand_types[i];
@@ -346,7 +346,7 @@ namespace InsEncoding {
                         buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
                         current_offset += sizeof(RegisterID);
                         complex->base.data.reg = &g_currentRegisters[i * 3];
-                        *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler);
+                        *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
                 complex->index.present = complex_info.index_present;
@@ -362,7 +362,7 @@ namespace InsEncoding {
                         buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
                         current_offset += sizeof(RegisterID);
                         complex->index.data.reg = &g_currentRegisters[i * 3 + 1];
-                        *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler);
+                        *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
                 complex->offset.present = complex_info.offset_present;
@@ -378,7 +378,7 @@ namespace InsEncoding {
                         buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
                         current_offset += sizeof(RegisterID);
                         complex->offset.data.reg = &g_currentRegisters[i * 3 + 2];
-                        *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler);
+                        *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                         complex->offset.sign = complex_info.offset_size;
                     }
                 }
@@ -390,7 +390,7 @@ namespace InsEncoding {
                 buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
                 current_offset += sizeof(RegisterID);
                 Register* reg = &g_currentRegisters[i * 3];
-                *reg = GetRegisterFromID(reg_id, error_handler);
+                *reg = GetRegisterFromID(reg_id, error_handler, error_data);
                 operand.data = reg;
                 break;
             }
@@ -409,7 +409,7 @@ namespace InsEncoding {
                 break;
             }
             default:
-                error_handler("Invalid operand type");
+                error_handler("Invalid operand type", error_data);
             }
 
             g_currentInstruction.operands[g_currentInstruction.operand_count] = operand;

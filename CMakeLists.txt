@@ -28,10 +28,12 @@ endif()
 add_custom_target(distinstall
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:Emulator> /usr/bin/frost64-emu
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:Assembler> /usr/bin/frost64-asm
-    DEPENDS Emulator Assembler
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:Disassembler> /usr/bin/frost64-dasm
+    DEPENDS Emulator Assembler Disassembler
 )
 
 add_subdirectory(LibArch)
 add_subdirectory(LibCommon)
 add_subdirectory(Assembler)
+add_subdirectory(Disassembler)
 add_subdirectory(Emulator)

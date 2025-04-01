@@ -183,7 +183,7 @@ bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, c
     (void)last_error;
     InstructionBuffer buffer(mmu, IP);
     uint64_t current_offset = 0;
-    if (!DecodeInstruction(buffer, current_offset, &g_current_instruction, [](const char* message) {
+    if (!DecodeInstruction(buffer, current_offset, &g_current_instruction, [](const char* message, void*) {
 #ifdef EMULATOR_DEBUG
         printf("Decoding error: %s\n", message);
 #else
