@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,10 +17,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Parser.hpp"
 
-#include <string.h>
-
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+
 #include <libarch/Instruction.hpp>
 #include <libarch/Operand.hpp>
 
@@ -47,6 +47,15 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
     bool base_address_set = false;
     bool base_address_parsed = false;
 
+    Label* label = new Label;
+    label->name = const_cast<char*>("");
+    label->name_size = 0;
+    m_labels.insert(label);
+    Block* block = new Block;
+    block->name = const_cast<char*>("");
+    block->name_size = 0;
+    label->blocks.insert(block);
+
     // First scan for labels
     tokens.Enumerate([&](Token* token) -> void {
         if (token->type == TokenType::BLABEL) {
@@ -71,6 +80,9 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
             in_instruction = false;
         }
     });
+
+    current_label = label;
+    current_block = block;
 
     tokens.Enumerate([&](Token* token, uint64_t index) -> bool {
 #ifdef ASSEMBLER_DEBUG
@@ -317,6 +329,8 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
         } else if (token->type == TokenType::BSUBLABEL) {
             if (in_instruction && in_operand)
                 error("Sublabel inside operand", token);
+            if (current_label == nullptr)
+                error("Invalid sublabel", token);
             // find the block
             Block* block = nullptr;
             char* name = new char[token->data_size + 1];
