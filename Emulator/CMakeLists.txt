@@ -46,7 +46,7 @@ endif ()
 set(emulator_sources
     ${emulator_sources}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/Instruction.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/InstructionBuffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/InstructionCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction/Operand.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOBus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,11 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Exceptions.hpp"
 
-Stack::Stack()
-    : m_MMU(nullptr), m_stackBase(0), m_stackPointer(0), m_stackTop(0) {
-}
-
-Stack::Stack(MMU* mmu, uint64_t base, uint64_t top, uint64_t pointer)
+Stack::Stack(MMU* mmu, Register& base, Register& top, Register& pointer)
     : m_MMU(mmu), m_stackBase(base), m_stackPointer(pointer), m_stackTop(top) {
 }
 

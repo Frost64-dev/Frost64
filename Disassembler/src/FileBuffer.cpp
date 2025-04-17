@@ -19,31 +19,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdio>
 
-FileBuffer::FileBuffer() : Buffer(), m_file(nullptr), m_size(0) {}
-FileBuffer::FileBuffer(FILE* file, size_t size) : Buffer(size), m_file(file), m_size(size) {}
+FILE* debug = nullptr;
+
+FileBuffer::FileBuffer() : StreamBuffer(), m_file(nullptr), m_size(0) {}
+FileBuffer::FileBuffer(FILE* file, size_t size) : StreamBuffer(), m_file(file), m_size(size) {}
 FileBuffer::~FileBuffer() {
 }
 
-void FileBuffer::Write(uint64_t offset, const uint8_t* data, size_t size) {
+void FileBuffer::WriteStream(const uint8_t* data, size_t size) {
     if (m_file == nullptr)
         return;
-
-    int int_offset = static_cast<int>(offset);
-    
-    if (ftell(m_file) != int_offset)
-        fseek(m_file, int_offset, SEEK_SET);
 
     fwrite(data, 1, size, m_file);
 }
 
-void FileBuffer::Read(uint64_t offset, uint8_t* data, size_t size) const {
+void FileBuffer::ReadStream(uint8_t* data, size_t size) const {
     if (m_file == nullptr)
         return;
 
-    int int_offset = static_cast<int>(offset);
-    
-    if (ftell(m_file) != int_offset)
-        fseek(m_file, int_offset, SEEK_SET);
-
     fread(data, 1, size, m_file);
+}
+
+void FileBuffer::SeekStream(uint64_t offset) {
+    if (m_file == nullptr)
+        return;
+
+    fseek(m_file, static_cast<int64_t>(offset), SEEK_SET);
+}
+
+uint64_t FileBuffer::GetOffset() const {
+    if (m_file == nullptr)
+        return 0;
+
+    return ftell(m_file);
+}
+
+size_t FileBuffer::GetSize() const {
+    return m_size;
 }

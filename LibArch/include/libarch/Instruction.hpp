@@ -259,8 +259,9 @@ namespace InsEncoding {
 
     };
 
-    bool DecodeInstruction(const uint8_t* data, size_t data_size, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data = nullptr);
-    bool DecodeInstruction(Buffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data = nullptr);
+    const char* GetInstructionName(Opcode opcode);
+
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data = nullptr);
     size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset);
 } // namespace InsEncoding
 

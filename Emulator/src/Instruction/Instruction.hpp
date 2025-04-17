@@ -25,15 +25,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "Operand.hpp"
 
 
-enum class InstructionState {
-    OPCODE,
-    OPERAND_INFO,
-    OPERAND0,
-    OPERAND1
-};
+void InitInsCache(uint64_t starting_IP, MMU* mmu);
+void UpdateInsCacheMMU(MMU* mmu);
+void InsCache_MaybeSetBaseAddress(uint64_t IP);
 
-bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, char const*& last_error);
-void ExecutionLoop(MMU* mmu, InstructionState& CurrentState, char const*& last_error);
+bool ExecuteInstruction(uint64_t IP);
+void ExecutionLoop();
 void StopExecution(void** state = nullptr); // If state is non-NULL, a new object of will be allocated with new, and deleted when parsed to the next AllowExecution call.
 void AllowExecution(void** old_state = nullptr); // If old_state is non-NULL, it will be deleted after restoring the state.
 void PauseExecution();

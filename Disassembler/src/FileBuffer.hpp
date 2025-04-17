@@ -24,17 +24,22 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <common/Data-structures/Buffer.hpp>
 
-class FileBuffer : public Buffer {
+class FileBuffer : public StreamBuffer {
    public:
     FileBuffer();
     FileBuffer(FILE* file, size_t size);
     ~FileBuffer();
 
     // Write size bytes from data to the buffer at offset
-    void Write(uint64_t offset, const uint8_t* data, size_t size) override;
+    void WriteStream(const uint8_t* data, size_t size) override;
 
     // Read size bytes from the buffer at offset to data
-    void Read(uint64_t offset, uint8_t* data, size_t size) const override;
+    void ReadStream(uint8_t* data, size_t size) const override;
+
+    void SeekStream(uint64_t offset) override;
+
+    [[nodiscard]] uint64_t GetOffset() const override;
+    [[nodiscard]] size_t GetSize() const;
 
    private:
     FILE* m_file;

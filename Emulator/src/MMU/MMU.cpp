@@ -32,8 +32,8 @@ MMU::~MMU() {
 void MMU::ReadBuffer(uint64_t address, uint8_t* data, size_t size) {
     MemoryRegion* startingRegion = nullptr;
     uint64_t regionIndex = 0;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-        if (region->isInside(address, 1)) {
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
             startingRegion = region;
             regionIndex++;
             break;
@@ -56,9 +56,11 @@ void MMU::ReadBuffer(uint64_t address, uint8_t* data, size_t size) {
         currentAddress += currentSize;
         data = reinterpret_cast<uint8_t*>(reinterpret_cast<uint64_t>(data) + currentSize * sizeof(uint8_t));
         startingRegion = nullptr;
-        for (MemoryRegion* region = m_regions.get(regionIndex); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-            if (region->isInside(currentAddress, 1)) {
+        for (auto iterator = m_regions.at(regionIndex); iterator != m_regions.end(); ++iterator) {
+            MemoryRegion* region = *iterator;
+            if (region->isInside(currentAddress)) {
                 startingRegion = region;
+                regionIndex++;
                 break;
             }
         }
@@ -72,8 +74,8 @@ void MMU::ReadBuffer(uint64_t address, uint8_t* data, size_t size) {
 void MMU::WriteBuffer(uint64_t address, const uint8_t* data, size_t size) {
     MemoryRegion* startingRegion = nullptr;
     uint64_t regionIndex = 0;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-        if (region->isInside(address, 1)) {
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
             startingRegion = region;
             regionIndex++;
             break;
@@ -96,9 +98,11 @@ void MMU::WriteBuffer(uint64_t address, const uint8_t* data, size_t size) {
         currentAddress += currentSize;
         data = reinterpret_cast<uint8_t*>(reinterpret_cast<uint64_t>(data) + currentSize * sizeof(uint8_t));
         startingRegion = nullptr;
-        for (MemoryRegion* region = m_regions.get(regionIndex); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-            if (region->isInside(currentAddress, 1)) {
+        for (auto iterator = m_regions.at(regionIndex); iterator != m_regions.end(); ++iterator) {
+            MemoryRegion* region = *iterator;
+            if (region->isInside(currentAddress)) {
                 startingRegion = region;
+                regionIndex++;
                 break;
             }
         }
@@ -112,8 +116,8 @@ void MMU::WriteBuffer(uint64_t address, const uint8_t* data, size_t size) {
 uint8_t MMU::read8(uint64_t address) {
     uint8_t data = 0;
     bool found = false;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
-        if (region->isInside(address, 1)) {
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
             region->read8(address, &data);
             found = true;
             break;
@@ -127,7 +131,7 @@ uint8_t MMU::read8(uint64_t address) {
 uint16_t MMU::read16(uint64_t address) {
     uint16_t data = 0;
     bool found = false;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 2)) {
             region->read16(address, &data);
             found = true;
@@ -142,7 +146,7 @@ uint16_t MMU::read16(uint64_t address) {
 uint32_t MMU::read32(uint64_t address) {
     uint32_t data = 0;
     bool found = false;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 4)) {
             region->read32(address, &data);
             found = true;
@@ -157,7 +161,7 @@ uint32_t MMU::read32(uint64_t address) {
 uint64_t MMU::read64(uint64_t address) {
     uint64_t data = 0;
     bool found = false;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 8)) {
             region->read64(address, &data);
             found = true;
@@ -170,50 +174,62 @@ uint64_t MMU::read64(uint64_t address) {
 }
 
 void MMU::write8(uint64_t address, uint8_t data) {
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
-        if (region->isInside(address, 1)) {
+    bool found = false;
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
             region->write8(address, &data);
-            return;
+            found = true;
+            break;
         }
     }
-    g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+    if (!found)
+        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void MMU::write16(uint64_t address, uint16_t data) {
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    bool found = false;
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 2)) {
             region->write16(address, &data);
-            return;
+            found = true;
+            break;
         }
     }
-    g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+    if (!found)
+        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void MMU::write32(uint64_t address, uint32_t data) {
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    bool found = false;
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 4)) {
             region->write32(address, &data);
-            return;
+            found = true;
+            break;
         }
     }
-    g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+    if (!found)
+        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);    
 }
 
 void MMU::write64(uint64_t address, uint64_t data) {
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region)) {
+    bool found = false;
+    for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 8)) {
             region->write64(address, &data);
-            return;
+            found = true;
+            break;
         }
     }
-    g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+    if (!found)
+        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 bool MMU::ValidateRead(uint64_t address, size_t size) {
     MemoryRegion* startingRegion = nullptr;
     uint64_t regionIndex = 0;
-    for (MemoryRegion* region = m_regions.get(0); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-        if (region->isInside(address, 1)) {
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
             startingRegion = region;
             regionIndex++;
             break;
@@ -234,9 +250,11 @@ bool MMU::ValidateRead(uint64_t address, size_t size) {
             break;
         currentAddress += currentSize;
         startingRegion = nullptr;
-        for (MemoryRegion* region = m_regions.get(regionIndex); region != nullptr; region = m_regions.getNext(region), regionIndex++) {
-            if (region->isInside(currentAddress, 1)) {
+        for (auto iterator = m_regions.at(regionIndex); iterator != m_regions.end(); ++iterator) {
+            MemoryRegion* region = *iterator;
+            if (region->isInside(currentAddress)) {
                 startingRegion = region;
+                regionIndex++;
                 break;
             }
         }
@@ -263,9 +281,10 @@ void MMU::AddMemoryRegion(MemoryRegion* region) {
         m_regions.insert(region);
         return;
     }
-    for (uint64_t i = 0; i < m_regions.getCount(); i++) {
-        if (MemoryRegion* currentRegion = m_regions.get(i); region->getStart() < currentRegion->getStart()) {
-            m_regions.insertAt(i, region);
+    for (auto iterator = m_regions.begin(); iterator != m_regions.end(); ++iterator) {
+        MemoryRegion* currentRegion = *iterator;
+        if (region->getStart() < currentRegion->getStart()) {
+            m_regions.insertAfter(iterator, region);
             return;
         }
     }
@@ -287,15 +306,15 @@ void MMU::PrintRegions(void (*write)(void* data, const char* format, ...), void*
 }
 
 bool MMU::RemoveRegionSegment(uint64_t start, uint64_t end, void** data_out) {
-    for (uint64_t i = 0; i < m_regions.getCount(); i++) {
-        if (MemoryRegion* region = m_regions.get(i); start >= region->getStart() && end > region->getStart() && region->getEnd() > start) {
+    for (auto iterator = m_regions.begin(); iterator != m_regions.end(); ++iterator) {
+        if (MemoryRegion* region = *iterator; start >= region->getStart() && end > region->getStart() && region->getEnd() > start) {
             if (!region->canSplit())
                 return false;
             uint64_t regionStart = region->getStart();
             uint64_t regionEnd = region->getEnd();
 
             if (regionEnd < end) {
-                if (MemoryRegion* region2 = m_regions.get(i + 1); region2 != nullptr) {
+                if (MemoryRegion* region2 = m_regions.getNext(iterator); region2 != nullptr) {
                     if (region2->getStart() < end)
                         return false;
                 }
@@ -337,9 +356,9 @@ bool MMU::ReaddRegionSegment(void* data_in) {
     uint64_t end = static_cast<RegionSegmentInfo*>(data_in)->end;
     MemoryRegion* region = nullptr;
     MemoryRegion* previousRegion = nullptr;
-    for (uint64_t i = 0; i < m_regions.getCount(); i++) {
+    for (auto i_region : m_regions) {
         previousRegion = region;
-        region = m_regions.get(i);
+        region = i_region;
         if (previousRegion == nullptr)
             continue;
         if (start >= previousRegion->getEnd() && end <= region->getStart()) {

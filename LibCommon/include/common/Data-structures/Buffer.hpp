@@ -68,4 +68,26 @@ private:
     LinkedList::RearInsertLinkedList<Block> m_blocks;
 };
 
+class StreamBuffer {
+public:
+    StreamBuffer() = default;
+    virtual ~StreamBuffer() = default;
+
+    virtual void WriteStream(const uint8_t* data, size_t size) = 0;
+    virtual void ReadStream(uint8_t* data, size_t size) const = 0;
+
+    virtual void WriteStream8(uint8_t data);
+    virtual void ReadStream8(uint8_t& data);
+    virtual void WriteStream16(uint16_t data);
+    virtual void ReadStream16(uint16_t& data);
+    virtual void WriteStream32(uint32_t data);
+    virtual void ReadStream32(uint32_t& data);
+    virtual void WriteStream64(uint64_t data);
+    virtual void ReadStream64(uint64_t& data);
+
+    virtual void SeekStream(uint64_t offset) = 0;
+
+    [[nodiscard]] virtual uint64_t GetOffset() const = 0;
+};
+
 #endif /* _BUFFER_HPP */

@@ -39,8 +39,7 @@ namespace Emulator {
     enum class EventType {
         SwitchToIP,
         NewMMU,
-        StorageTransfer,
-        TestInterrupt
+        StorageTransfer
     };
 
     struct Event {

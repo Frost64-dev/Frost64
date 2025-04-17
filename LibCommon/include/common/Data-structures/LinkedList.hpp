@@ -60,6 +60,42 @@ namespace LinkedList {
     template<typename T>
     class SimpleLinkedList {
     public:
+        class iterator {
+        public:
+            explicit iterator(Node* node)
+                : m_node(node) {}
+            T* operator*() {
+                return (T*)(m_node->data);
+            }
+            iterator& operator++() {
+                m_node = m_node->next;
+                return *this;
+            }
+            bool operator!=(const iterator& other) const {
+                return m_node != other.m_node;
+            }
+            bool operator==(const iterator& other) const {
+                return m_node == other.m_node;
+            }
+            iterator operator++(int) {
+                iterator temp = *this;
+                ++(*this);
+                return temp;
+            }
+
+            [[nodiscard]] Node* getNode() const {
+                return m_node;
+            }
+
+            using difference_type = std::ptrdiff_t;
+            using value_type = T*;
+            using pointer = T**;
+            using reference = T*&;
+            using iterator_category = std::forward_iterator_tag;
+        private:
+            Node* m_node;
+        };
+
         SimpleLinkedList()
             : m_count(0), m_start(nullptr) {}
         ~SimpleLinkedList() {
@@ -111,6 +147,18 @@ namespace LinkedList {
             node->previous = temp;
             m_count++;
         }
+        void insertAfter(iterator& it, const T* obj) {
+            if (it.getNode() == nullptr)
+                return;
+            Node* node = newNode(reinterpret_cast<uint64_t>(obj));
+            if (it.getNode()->next != nullptr) {
+                it.getNode()->next->previous = node;
+                node->next = it.getNode()->next;
+            }
+            it.getNode()->next = node;
+            node->previous = it.getNode();
+            m_count++;
+        }
         T* get(uint64_t index) const {
             if (index >= m_count)
                 return nullptr;
@@ -131,6 +179,13 @@ namespace LinkedList {
             if (temp->next == nullptr)
                 return nullptr;
             return (T*)(temp->next->data);
+        }
+        T* getNext(iterator& it) const {
+            if (it.getNode() == nullptr)
+                return nullptr;
+            if (it.getNode()->next == nullptr)
+                return nullptr;
+            return (T*)(it.getNode()->next->data);
         }
         uint64_t getIndex(const T* obj) const {
             Node* temp = m_start;
@@ -197,6 +252,50 @@ namespace LinkedList {
 
         [[nodiscard]] uint64_t getCount() const {
             return m_count;
+        }
+
+        iterator begin() {
+            return iterator(m_start);
+        }
+        iterator end() {
+            return iterator(nullptr);
+        }
+        iterator at(uint64_t index) {
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < index; i++) {
+                if (temp == nullptr)
+                    return iterator(nullptr);
+                temp = temp->next;
+            }
+            return iterator(temp);
+        }
+
+        void EnumerateNoExit(std::function<void(T* obj)> func) const {
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < m_count; i++) {
+                func((T*)(temp->data));
+                temp = temp->next;
+            }
+        }
+
+        void Enumerate(std::function<bool (T* obj)> func) const {
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < m_count; i++) {
+                if (!func((T*)(temp->data)))
+                    return;
+                temp = temp->next;
+            }
+        }
+
+        void Enumerate(std::function<bool(T* obj, uint64_t index)> func, uint64_t start = 0) const {
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < start; i++)
+                temp = temp->next;
+            for (uint64_t i = start; i < m_count; i++) {
+                if (!func((T*)(temp->data), i))
+                    return;
+                temp = temp->next;
+            }
         }
 
     private:

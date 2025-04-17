@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Instruction.hpp"
 
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
 
@@ -81,7 +82,7 @@ namespace InsEncoding {
     }
 
     RegisterID GetRegisterID(Register reg, Instruction* ins) {
-        RegisterID reg_id;
+        RegisterID reg_id{};
 #define REG_CASE(name, group, num) \
     case Register::name:           \
         reg_id.type = group;       \
@@ -237,19 +238,65 @@ namespace InsEncoding {
         }
     }
 
-    bool DecodeInstruction(const uint8_t* data, size_t data_size, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
-        Buffer buffer(data_size);
-        buffer.Write(0, data, data_size);
-        uint64_t current_offset = 0;
-        return DecodeInstruction(buffer, current_offset, out, error_handler, error_data);
+    const char* GetInstructionName(Opcode opcode) {
+    #define NAME_CASE(ins) \
+        case Opcode::ins:  \
+            return #ins;
+        switch (opcode) {
+            NAME_CASE(PUSH)
+            NAME_CASE(POP)
+            NAME_CASE(PUSHA)
+            NAME_CASE(POPA)
+            NAME_CASE(ADD)
+            NAME_CASE(MUL)
+            NAME_CASE(SUB)
+            NAME_CASE(DIV)
+            NAME_CASE(OR)
+            NAME_CASE(XOR)
+            NAME_CASE(NOR)
+            NAME_CASE(AND)
+            NAME_CASE(NAND)
+            NAME_CASE(NOT)
+            NAME_CASE(CMP)
+            NAME_CASE(INC)
+            NAME_CASE(DEC)
+            NAME_CASE(SHL)
+            NAME_CASE(SHR)
+            NAME_CASE(RET)
+            NAME_CASE(CALL)
+            NAME_CASE(JMP)
+            NAME_CASE(JC)
+            NAME_CASE(JNC)
+            NAME_CASE(JZ)
+            NAME_CASE(JNZ)
+            NAME_CASE(JL)
+            NAME_CASE(JLE)
+            NAME_CASE(JNL)
+            NAME_CASE(JNLE)
+            NAME_CASE(INT)
+            NAME_CASE(LIDT)
+            NAME_CASE(IRET)
+            NAME_CASE(MOV)
+            NAME_CASE(NOP)
+            NAME_CASE(HLT)
+            NAME_CASE(SYSCALL)
+            NAME_CASE(SYSRET)
+            NAME_CASE(ENTERUSER)
+            NAME_CASE(UNKNOWN)
+        }
+    #undef NAME_CASE
+        return "UNKNOWN";
     }
 
-    bool DecodeInstruction(Buffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
         if (out == nullptr)
             return false;
 
         uint8_t raw_opcode;
-        buffer.Read(current_offset, &raw_opcode, 1);
+        buffer.ReadStream8(raw_opcode);
         current_offset++;
 
         g_currentInstruction.SetOpcode(static_cast<Opcode>(raw_opcode));
@@ -269,7 +316,7 @@ namespace InsEncoding {
         if (arg_count == 1) {
             // read 1 byte to get the operand type
             uint8_t raw_operand_info;
-            buffer.Read(current_offset, &raw_operand_info, 1);
+            buffer.ReadStream8(raw_operand_info);
             current_offset++;
             StandardOperandInfo* temp_operand_info = reinterpret_cast<StandardOperandInfo*>(&raw_operand_info);
 
@@ -277,20 +324,24 @@ namespace InsEncoding {
             operand_sizes[0] = static_cast<OperandSize>(temp_operand_info->size);
 
             if (operand_types[0] == OperandType::COMPLEX) {
-                ComplexOperandInfo complex_info;
-                buffer.Read(current_offset - 1, reinterpret_cast<uint8_t*>(&complex_info), sizeof(ComplexOperandInfo));
+                ComplexOperandInfo complex_info{};
+                uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&complex_info);
+                raw_complex_info[0] = raw_operand_info;
+                buffer.ReadStream8(raw_complex_info[1]);
                 current_offset += sizeof(ComplexOperandInfo) - 1;
                 complex_infos[0] = complex_info;
             }
         } else if (arg_count == 2) {
             // read 1 byte to get the operand types
             uint8_t raw_operand_info;
-            buffer.Read(current_offset, &raw_operand_info, 1);
+            buffer.ReadStream8(raw_operand_info);
             current_offset++;
 
             if (StandardOperandInfo* temp_operand_info = reinterpret_cast<StandardOperandInfo*>(&raw_operand_info); temp_operand_info->type == static_cast<uint8_t>(OperandType::COMPLEX)) {
-                ComplexStandardOperandInfo temp_complex_info;
-                buffer.Read(current_offset - 1, reinterpret_cast<uint8_t*>(&temp_complex_info), sizeof(ComplexStandardOperandInfo));
+                ComplexStandardOperandInfo temp_complex_info{};
+                uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&temp_complex_info);
+                raw_complex_info[0] = raw_operand_info;
+                buffer.ReadStream16(reinterpret_cast<uint16_t&>(raw_complex_info[1]));
                 current_offset += sizeof(ComplexStandardOperandInfo) - 1;
                 operand_types[0] = static_cast<OperandType>(temp_complex_info.complex.type);
                 operand_sizes[0] = static_cast<OperandSize>(temp_complex_info.complex.size);
@@ -300,8 +351,12 @@ namespace InsEncoding {
                 complex_infos[0] = temp_complex_info.complex;
 
                 if (operand_types[1] == OperandType::COMPLEX) {
-                    ComplexComplexOperandInfo i_temp_complex_info;
-                    buffer.Read(current_offset - sizeof(ComplexStandardOperandInfo), reinterpret_cast<uint8_t*>(&i_temp_complex_info), sizeof(ComplexComplexOperandInfo));
+                    ComplexComplexOperandInfo i_temp_complex_info{};
+                    uint8_t* i_raw_complex_info = reinterpret_cast<uint8_t*>(&i_temp_complex_info);
+                    i_raw_complex_info[0] = raw_complex_info[0];
+                    i_raw_complex_info[1] = raw_complex_info[1];
+                    i_raw_complex_info[2] = raw_complex_info[2];
+                    buffer.ReadStream8(i_raw_complex_info[3]);
                     current_offset += sizeof(ComplexComplexOperandInfo) - sizeof(ComplexStandardOperandInfo);
                     complex_infos[1] = i_temp_complex_info.second;
                 }
@@ -313,8 +368,10 @@ namespace InsEncoding {
                 operand_sizes[1] = static_cast<OperandSize>(temp_standard_info->second_size);
 
                 if (operand_types[1] == OperandType::COMPLEX) {
-                    StandardComplexOperandInfo temp_complex_info;
-                    buffer.Read(current_offset - 1, reinterpret_cast<uint8_t*>(&temp_complex_info), sizeof(StandardComplexOperandInfo));
+                    StandardComplexOperandInfo temp_complex_info{};
+                    uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&temp_complex_info);
+                    raw_complex_info[0] = raw_operand_info;
+                    buffer.ReadStream16(reinterpret_cast<uint16_t&>(raw_complex_info[1]));
                     current_offset += sizeof(StandardComplexOperandInfo) - 1;
                     complex_infos[1] = temp_complex_info.complex;
                     operand_sizes[1] = static_cast<OperandSize>(temp_complex_info.complex.size);
@@ -339,11 +396,21 @@ namespace InsEncoding {
                     if (complex->base.type == ComplexItem::Type::IMMEDIATE) {
                         complex->base.data.imm.size = static_cast<OperandSize>(complex_info.base_size);
                         complex->base.data.imm.data = &g_rawData[i * 3];
-                        buffer.Read(current_offset, static_cast<uint8_t*>(complex->base.data.imm.data), 1 << complex_info.base_size);
+                        switch (complex_info.base_size) {
+#define SIZE_CASE(bytes, bits) \
+        case bytes: \
+            buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->base.data.imm.data)); \
+            break
+                        SIZE_CASE(0, 8);
+                        SIZE_CASE(1, 16);
+                        SIZE_CASE(2, 32);
+                        SIZE_CASE(3, 64);
+#undef SIZE_CASE
+                        }
                         current_offset += 1 << complex_info.base_size;
                     } else if (complex->base.type == ComplexItem::Type::REGISTER) {
-                        RegisterID reg_id;
-                        buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
+                        RegisterID reg_id{};
+                        buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         current_offset += sizeof(RegisterID);
                         complex->base.data.reg = &g_currentRegisters[i * 3];
                         *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
@@ -355,11 +422,21 @@ namespace InsEncoding {
                     if (complex->index.type == ComplexItem::Type::IMMEDIATE) {
                         complex->index.data.imm.size = static_cast<OperandSize>(complex_info.index_size);
                         complex->index.data.imm.data = &g_rawData[i * 3 + 1];
-                        buffer.Read(current_offset, static_cast<uint8_t*>(complex->index.data.imm.data), 1 << complex_info.index_size);
+                        switch (complex_info.index_size) {
+#define SIZE_CASE(bytes, bits) \
+        case bytes: \
+            buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->index.data.imm.data)); \
+            break
+                        SIZE_CASE(0, 8);
+                        SIZE_CASE(1, 16);
+                        SIZE_CASE(2, 32);
+                        SIZE_CASE(3, 64);
+#undef SIZE_CASE
+                        }
                         current_offset += 1 << complex_info.index_size;
                     } else if (complex->index.type == ComplexItem::Type::REGISTER) {
-                        RegisterID reg_id;
-                        buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
+                        RegisterID reg_id{};
+                        buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         current_offset += sizeof(RegisterID);
                         complex->index.data.reg = &g_currentRegisters[i * 3 + 1];
                         *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
@@ -371,11 +448,21 @@ namespace InsEncoding {
                     if (complex->offset.type == ComplexItem::Type::IMMEDIATE) {
                         complex->offset.data.imm.size = static_cast<OperandSize>(complex_info.offset_size);
                         complex->offset.data.imm.data = &g_rawData[i * 3 + 2];
-                        buffer.Read(current_offset, static_cast<uint8_t*>(complex->offset.data.imm.data), 1 << complex_info.offset_size);
+                        switch (complex_info.offset_size) {
+#define SIZE_CASE(bytes, bits) \
+        case bytes: \
+            buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->offset.data.imm.data)); \
+            break
+                        SIZE_CASE(0, 8);
+                        SIZE_CASE(1, 16);
+                        SIZE_CASE(2, 32);
+                        SIZE_CASE(3, 64);
+#undef SIZE_CASE
+                        }
                         current_offset += 1 << complex_info.offset_size;
                     } else if (complex->offset.type == ComplexItem::Type::REGISTER) {
-                        RegisterID reg_id;
-                        buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
+                        RegisterID reg_id{};
+                        buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         current_offset += sizeof(RegisterID);
                         complex->offset.data.reg = &g_currentRegisters[i * 3 + 2];
                         *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
@@ -386,8 +473,8 @@ namespace InsEncoding {
                 break;
             }
             case OperandType::REGISTER: {
-                RegisterID reg_id;
-                buffer.Read(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
+                RegisterID reg_id{};
+                buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                 current_offset += sizeof(RegisterID);
                 Register* reg = &g_currentRegisters[i * 3];
                 *reg = GetRegisterFromID(reg_id, error_handler, error_data);
@@ -396,14 +483,24 @@ namespace InsEncoding {
             }
             case OperandType::MEMORY: {
                 uint8_t* mem_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
-                buffer.Read(current_offset, mem_data, 8);
+                buffer.ReadStream64(*reinterpret_cast<uint64_t*>(mem_data));
                 current_offset += 8;
                 operand.data = mem_data;
                 break;
             }
             case OperandType::IMMEDIATE: {
                 uint8_t* imm_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
-                buffer.Read(current_offset, imm_data, 1 << static_cast<uint8_t>(operand_size));
+                switch (static_cast<uint8_t>(operand_size)) {
+#define SIZE_CASE(bytes, bits) \
+        case bytes: \
+            buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(imm_data)); \
+            break
+                SIZE_CASE(0, 8);
+                SIZE_CASE(1, 16);
+                SIZE_CASE(2, 32);
+                SIZE_CASE(3, 64);
+#undef SIZE_CASE
+                }
                 current_offset += 1 << static_cast<uint8_t>(operand_size);
                 operand.data = imm_data;
                 break;
@@ -419,6 +516,8 @@ namespace InsEncoding {
         *out = g_currentInstruction;
         return true;
     }
+
+#pragma GCC diagnostic pop
 
     size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset) {
         Buffer buffer;
@@ -443,7 +542,7 @@ namespace InsEncoding {
         if (arg_count == 1) {
             if (operands[0]->type == OperandType::COMPLEX) {
                 ComplexData* complex = static_cast<ComplexData*>(operands[0]->data);
-                ComplexOperandInfo info;
+                ComplexOperandInfo info{};
                 info.type = static_cast<uint8_t>(OperandType::COMPLEX);
                 info.size = static_cast<uint8_t>(operands[0]->size);
                 info.base_type = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
@@ -458,7 +557,7 @@ namespace InsEncoding {
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexOperandInfo));
                 current_offset += sizeof(ComplexOperandInfo);
             } else {
-                StandardOperandInfo info;
+                StandardOperandInfo info{};
                 if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL) {
                     info.type = static_cast<uint8_t>(OperandType::IMMEDIATE);
                     info.size = 3;
@@ -473,7 +572,7 @@ namespace InsEncoding {
         } else if (arg_count == 2) {
             if ((operands[0]->type == OperandType::COMPLEX && operands[1]->type != OperandType::COMPLEX) || (operands[1]->type == OperandType::COMPLEX && operands[0]->type != OperandType::COMPLEX)) {
                 // start with a StandardComplexOperandInfo, and swap at the end if needed
-                StandardComplexOperandInfo info;
+                StandardComplexOperandInfo info{};
                 {
                     if (Operand* temp = operands[operands[0]->type != OperandType::COMPLEX ? 0 : 1]; temp->type == OperandType::LABEL || temp->type == OperandType::SUBLABEL) {
                         info.standard.type = static_cast<uint8_t>(OperandType::IMMEDIATE);
@@ -497,7 +596,7 @@ namespace InsEncoding {
                 info.complex.offset_size = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
                 info.complex.offset_present = complex->offset.present;
                 if (operands[0]->type == OperandType::COMPLEX) {
-                    ComplexStandardOperandInfo temp;
+                    ComplexStandardOperandInfo temp{};
                     temp.complex = info.complex;
                     temp.standard = info.standard;
                     buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp), sizeof(ComplexStandardOperandInfo));
@@ -508,7 +607,7 @@ namespace InsEncoding {
                     current_offset += sizeof(StandardComplexOperandInfo);
                 }
             } else if (operands[0]->type == OperandType::COMPLEX && operands[1]->type == OperandType::COMPLEX) {
-                ComplexComplexOperandInfo info;
+                ComplexComplexOperandInfo info{};
                 ComplexData* complex0 = static_cast<ComplexData*>(operands[0]->data);
                 ComplexData* complex1 = static_cast<ComplexData*>(operands[1]->data);
                 info.first.type = static_cast<uint8_t>(OperandType::COMPLEX);
@@ -536,7 +635,7 @@ namespace InsEncoding {
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexComplexOperandInfo));
                 current_offset += sizeof(ComplexComplexOperandInfo);
             } else if (operands[0]->type != OperandType::COMPLEX && operands[1]->type != OperandType::COMPLEX) {
-                StandardStandardOperandInfo info;
+                StandardStandardOperandInfo info{};
                 if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL) {
                     info.first_type = static_cast<uint8_t>(OperandType::IMMEDIATE);
                     info.first_size = 3;

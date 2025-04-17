@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,14 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _STACK_HPP
 #define _STACK_HPP
 
-#include <stdint.h>
+#include <cstdint>
+
+#include "Register.hpp"
 
 #include <MMU/MMU.hpp>
 
 class Stack {
 public:
-    Stack();
-    Stack(MMU* mmu, uint64_t base, uint64_t top, uint64_t pointer);
+    Stack(MMU* mmu, Register& base, Register& top, Register& pointer);
     ~Stack();
 
     void push(uint64_t value);
@@ -47,9 +48,9 @@ public:
 private:
     MMU* m_MMU;
 
-    uint64_t m_stackBase;
-    uint64_t m_stackPointer;
-    uint64_t m_stackTop;
+    Register& m_stackBase;
+    Register& m_stackPointer;
+    Register& m_stackTop;
 };
 
 extern Stack* g_stack;

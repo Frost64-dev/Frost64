@@ -52,13 +52,13 @@ namespace Emulator {
 
     void EmulatorMain();
 
-    Register* g_IP; // instruction pointer
+    SafeRegister* g_IP; // instruction pointer
     Register* g_SCP; // stack current pos
     Register* g_SBP; // stack base
     Register* g_STP; // stack top
     Register* g_GPR[16]; // general purpose registers
-    Register* g_STS;  // status (STS) register
-    Register* g_Control[8]; // control registers
+    SafeRegister* g_STS;  // status (STS) register
+    SafeSyncingRegister* g_Control[8]; // control registers
     bool g_registersInitialised = false;
 
     ConsoleDevice* g_ConsoleDevice;
@@ -77,12 +77,9 @@ namespace Emulator {
 
     uint64_t g_CurrentInstruction = 0;
 
-    InstructionState g_CurrentState = InstructionState::OPCODE;
     uint64_t g_CurrentInstructionOffset = 0;
 
     bool g_EmulatorRunning = false;
-
-    char const* last_error = nullptr;
 
     bool g_isInProtectedMode = false;
     bool g_isInUserMode = false;
@@ -173,23 +170,22 @@ namespace Emulator {
                     ExecutionThread->detach();
                     delete ExecutionThread;
                     SetCPU_IP(event->data);
-                    ExecutionThread = new std::thread(ExecutionLoop, g_CurrentMMU, std::ref(g_CurrentState), std::ref(last_error));
+                    InsCache_MaybeSetBaseAddress(event->data);
+                    ExecutionThread = new std::thread(ExecutionLoop);
                     break;
                 case EventType::NewMMU: // assuming that the execution thread has joined this thread
                     g_InterruptHandler->ChangeMMU(g_CurrentMMU);
                     assert(ExecutionThread != nullptr);
                     ExecutionThread->detach();
                     delete ExecutionThread;
-                    ExecutionThread = new std::thread(ExecutionLoop, g_CurrentMMU, std::ref(g_CurrentState), std::ref(last_error));
+                    UpdateInsCacheMMU(g_CurrentMMU);
+                    ExecutionThread = new std::thread(ExecutionLoop);
                     break;
                 case EventType::StorageTransfer: {
                     StorageDevice* device = reinterpret_cast<StorageDevice*>(event->data);
                     device->StartTransfer();
                     break;
                 }
-                case EventType::TestInterrupt:
-                    g_ConsoleDevice->RaiseInterrupt(0);
-                    break;
                 default:
                     break;
                 }
@@ -257,12 +253,16 @@ namespace Emulator {
         }
 
         // Configure the stack
-        g_stack = new Stack(&g_PhysicalMMU, 0, 0, 0);
+        g_SCP = new Register(RegisterType::Stack, 0, true);
+        g_SBP = new Register(RegisterType::Stack, 1, true);
+        g_STP = new Register(RegisterType::Stack, 2, true);
+
+        g_stack = new Stack(&g_PhysicalMMU, *g_SBP, *g_STP, *g_SCP);
 
         // Load program into RAM
         g_PhysicalMMU.WriteBuffer(0xF000'0000, program, size);
 
-        g_IP = new Register(RegisterType::Instruction, 0, false, 0xF000'0000); // explicitly initialise instruction pointer to start of BIOS region
+        g_IP = new SafeRegister(RegisterType::Instruction, 0, false, 0xF000'0000); // explicitly initialise instruction pointer to start of BIOS region
         g_NextIP = 0;
 
         g_EmulatorRunning = true;
@@ -374,18 +374,16 @@ namespace Emulator {
         for (int i = 0; i < 16; i++)
             g_GPR[i] = new Register(RegisterType::GeneralPurpose, i, true);
 
-        g_SCP = new Register(RegisterType::Stack, 0, true);
-        g_SBP = new Register(RegisterType::Stack, 1, true);
-        g_STP = new Register(RegisterType::Stack, 2, true);
-
         for (int i = 0; i < 8; i++)
-            g_Control[i] = new Register(RegisterType::Control, i, true);
+            g_Control[i] = new SafeSyncingRegister(RegisterType::Control, i, true);
 
-        g_STS = new Register(RegisterType::Status, 0, false);
+        g_STS = new SafeRegister(RegisterType::Status, 0, false);
 
         g_registersInitialised = true;
 
         SyncRegisters();
+
+        InitInsCache(g_IP->GetValue(), &g_PhysicalMMU);
 
         // setup instruction switch handling
         EmulatorThread = new std::thread(WaitForOperation);
@@ -394,7 +392,7 @@ namespace Emulator {
         g_InstructionInProgress = false;
 
         // begin instruction loop.
-        ExecutionThread = new std::thread(ExecutionLoop, &g_PhysicalMMU, std::ref(g_CurrentState), std::ref(last_error));
+        ExecutionThread = new std::thread(ExecutionLoop);
 
         // join with the emulator thread
         EmulatorThread->join();
@@ -429,41 +427,19 @@ namespace Emulator {
     }
 
     [[noreturn]] void JumpToIP(uint64_t value) {
-        g_events.lock();
-        g_events.insert(new Event{EventType::SwitchToIP, value});
-        g_events.unlock();
+        RaiseEvent({EventType::SwitchToIP, value});
         EmulatorThread->join();
         Crash("Emulator thread exited unexpectedly"); // should be unreachable
     }
 
     void JumpToIPExternal(uint64_t value) {
         SetCPU_IP(value);
-        ExecutionThread = new std::thread(ExecutionLoop, g_CurrentMMU, std::ref(g_CurrentState), std::ref(last_error));
+        InsCache_MaybeSetBaseAddress(value);
+        ExecutionThread = new std::thread(ExecutionLoop);
     }
 
 
     void SyncRegisters() {
-        if (g_SBP->IsDirty()) {
-            g_stack->setStackBase(g_SBP->GetValue());
-            g_SBP->SetDirty(false);
-        } else {
-            g_SBP->SetValue(g_stack->getStackBase());
-            g_SBP->SetDirty(false);
-        }
-        if (g_STP->IsDirty()) {
-            g_stack->setStackTop(g_STP->GetValue());
-            g_STP->SetDirty(false);
-        } else {
-            g_STP->SetValue(g_stack->getStackTop());
-            g_STP->SetDirty(false);
-        }
-        if (g_SCP->IsDirty()) {
-            g_stack->setStackPointer(g_SCP->GetValue());
-            g_SCP->SetDirty(false);
-        } else {
-            g_SCP->SetValue(g_stack->getStackPointer());
-            g_SCP->SetDirty(false);
-        }
         if (g_Control[0]->IsDirty()) {
             uint64_t control = g_Control[0]->GetValue();
             bool wasInProtectedMode = g_isInProtectedMode;
@@ -491,9 +467,7 @@ namespace Emulator {
                 }
                 g_Control[0]->SetDirty(false);
                 g_IP->SetValue(g_NextIP);
-                g_events.lock();
-                g_events.insert(new Event{EventType::NewMMU, 0});
-                g_events.unlock();
+                RaiseEvent({EventType::NewMMU, 0});
                 EmulatorThread->join();
                 Crash("Emulator thread exited unexpectedly"); // should be unreachable
             }

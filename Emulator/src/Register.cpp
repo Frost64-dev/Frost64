@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,16 +22,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "Instruction/Operand.hpp"
 
 Register::Register()
-    : m_index(0), m_ID(0xFF), m_value(0), m_type(RegisterType::Unknown), m_dirty(false), m_writable(false) {
+    : m_dirty(false), m_writable(false), m_value(0), m_type(RegisterType::Unknown), m_index(0), m_ID(0xFF) {
 }
 
 Register::Register(uint8_t ID, bool writable, uint64_t value)
-    : m_index(0), m_ID(ID), m_value(value), m_type(RegisterType::Unknown), m_dirty(false), m_writable(writable) {
+    : m_dirty(false), m_writable(writable), m_value(value), m_type(RegisterType::Unknown), m_index(0), m_ID(ID) {
     DecodeID(ID);
 }
 
 Register::Register(RegisterType type, uint8_t index, bool writable, uint64_t value)
-    : m_index(index), m_ID(0xFF), m_value(value), m_type(type), m_dirty(false), m_writable(writable) {
+    : m_dirty(false), m_writable(writable), m_value(value), m_type(type), m_index(index), m_ID(0xFF) {
     switch (type) {
     case RegisterType::GeneralPurpose:
         m_ID = index;
@@ -55,18 +55,6 @@ Register::Register(RegisterType type, uint8_t index, bool writable, uint64_t val
 }
 
 Register::~Register() {
-}
-
-RegisterType Register::GetType() const {
-    return m_type;
-}
-
-uint8_t Register::GetIndex() const {
-    return m_index;
-}
-
-uint8_t Register::GetID() const {
-    return m_ID;
 }
 
 uint64_t Register::GetValue() const {
@@ -96,25 +84,12 @@ uint64_t Register::GetValue(OperandSize size) const {
     }
 }
 
-bool Register::SetValue(uint64_t value, bool force) {
-    if (!force && !m_writable)
-        return false;
-    if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
-    }
+bool Register::SetValue(uint64_t value, bool) {
     m_value = value;
-    m_dirty = true;
     return true;
 }
 
 bool Register::SetValue(uint64_t value, OperandSize size) {
-    if (!m_writable)
-        return false;
-    if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
-    }
     switch (size) {
     case OperandSize::BYTE:
         m_value = (m_value & 0xFFFF'FFFF'FFFF'FF00) | (value & 0xFF);
@@ -131,24 +106,7 @@ bool Register::SetValue(uint64_t value, OperandSize size) {
     default:
         return false;
     }
-    m_dirty = true;
     return true;
-}
-
-Register& Register::operator=(const uint64_t value) {
-    m_value = value;
-    m_dirty = true;
-    return *this;
-}
-
-Register* Register::operator=(const uint64_t* value) {
-    m_value = *value;
-    m_dirty = true;
-    return this;
-}
-
-uint64_t Register::operator=(const Register& reg) const {
-    return reg.m_value;
 }
 
 const char* Register::GetName() const {
@@ -231,13 +189,6 @@ const char* Register::GetName() const {
     }
 }
 
-void Register::SetDirty(bool dirty) {
-    m_dirty = dirty;
-}
-
-bool Register::IsDirty() const {
-    return m_dirty;
-}
 
 void Register::DecodeID(uint8_t ID) {
     uint8_t type = ID >> 4;
@@ -266,5 +217,207 @@ void Register::DecodeID(uint8_t ID) {
         break;
     default:
         break;
+    }
+}
+
+SyncingRegister::SyncingRegister()
+    : Register() {
+}
+
+SyncingRegister::SyncingRegister(uint8_t ID, bool writable, uint64_t value)
+    : Register(ID, writable, value) {
+}
+
+SyncingRegister::SyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
+    : Register(type, index, writable, value) {
+}
+
+SyncingRegister::~SyncingRegister() {
+}
+
+bool SyncingRegister::SetValue(uint64_t value, bool) {
+    m_value = value;
+    m_dirty = true;
+    return true;
+}
+
+bool SyncingRegister::SetValue(uint64_t value, OperandSize size) {
+    switch (size) {
+    case OperandSize::BYTE:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'FF00) | (value & 0xFF);
+        break;
+    case OperandSize::WORD:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'0000) | (value & 0xFFFF);
+        break;
+    case OperandSize::DWORD:
+        m_value = (m_value & 0xFFFF'FFFF'0000'0000) | (value & 0xFFFF'FFFF);
+        break;
+    case OperandSize::QWORD:
+        m_value = value;
+        break;
+    default:
+        return false;
+    }
+    m_dirty = true;
+    return true;
+}
+
+SafeSyncingRegister::SafeSyncingRegister()
+    : Register() {
+}
+
+SafeSyncingRegister::SafeSyncingRegister(uint8_t ID, bool writable, uint64_t value)
+    : Register(ID, writable, value) {
+}
+
+SafeSyncingRegister::SafeSyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
+    : Register(type, index, writable, value) {
+}
+
+SafeSyncingRegister::~SafeSyncingRegister() {
+}
+
+bool SafeSyncingRegister::SetValue(uint64_t value, bool force) {
+    if (!force && !m_writable)
+        return false;
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    m_value = value;
+    m_dirty = true;
+    return true;
+}
+
+bool SafeSyncingRegister::SetValue(uint64_t value, OperandSize size) {
+    if (!m_writable)
+        return false;
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    switch (size) {
+    case OperandSize::BYTE:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'FF00) | (value & 0xFF);
+        break;
+    case OperandSize::WORD:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'0000) | (value & 0xFFFF);
+        break;
+    case OperandSize::DWORD:
+        m_value = (m_value & 0xFFFF'FFFF'0000'0000) | (value & 0xFFFF'FFFF);
+        break;
+    case OperandSize::QWORD:
+        m_value = value;
+        break;
+    default:
+        return false;
+    }
+    m_dirty = true;
+    return true;
+}
+
+uint64_t SafeSyncingRegister::GetValue() const {
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    return m_value;
+}
+
+uint64_t SafeSyncingRegister::GetValue(OperandSize size) const {
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    switch (size) {
+    case OperandSize::BYTE:
+        return m_value & 0xFF;
+    case OperandSize::WORD:
+        return m_value & 0xFFFF;
+    case OperandSize::DWORD:
+        return m_value & 0xFFFF'FFFF;
+    case OperandSize::QWORD:
+        return m_value;
+    default:
+        return 0;
+    }
+}
+
+SafeRegister::SafeRegister()
+    : Register() {
+}
+
+SafeRegister::SafeRegister(uint8_t ID, bool writable, uint64_t value)
+    : Register(ID, writable, value) {
+}
+
+SafeRegister::SafeRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
+    : Register(type, index, writable, value) {
+}
+
+SafeRegister::~SafeRegister() {
+}
+
+bool SafeRegister::SetValue(uint64_t value, bool force) {
+    if (!force && !m_writable)
+        return false;
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    m_value = value;
+    return true;
+}
+
+bool SafeRegister::SetValue(uint64_t value, OperandSize size) {
+    if (!m_writable)
+        return false;
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    switch (size) {
+    case OperandSize::BYTE:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'FF00) | (value & 0xFF);
+        break;
+    case OperandSize::WORD:
+        m_value = (m_value & 0xFFFF'FFFF'FFFF'0000) | (value & 0xFFFF);
+        break;
+    case OperandSize::DWORD:
+        m_value = (m_value & 0xFFFF'FFFF'0000'0000) | (value & 0xFFFF'FFFF);
+        break;
+    case OperandSize::QWORD:
+        m_value = value;
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
+uint64_t SafeRegister::GetValue() const {
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    return m_value;
+}
+
+uint64_t SafeRegister::GetValue(OperandSize size) const {
+    if (m_type == RegisterType::Control) {
+        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
+            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    }
+    switch (size) {
+    case OperandSize::BYTE:
+        return m_value & 0xFF;
+    case OperandSize::WORD:
+        return m_value & 0xFFFF;
+    case OperandSize::DWORD:
+        return m_value & 0xFFFF'FFFF;
+    case OperandSize::QWORD:
+        return m_value;
+    default:
+        return 0;
     }
 }

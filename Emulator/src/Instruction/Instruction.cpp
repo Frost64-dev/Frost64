@@ -16,7 +16,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include "Instruction.hpp"
-#include "InstructionBuffer.hpp"
+#include "InstructionCache.hpp"
 
 #include <atomic>
 #include <utility>
@@ -55,12 +55,26 @@ std::atomic_uchar g_breakpointsEnabled = 0;
 std::pair<uint64_t, std::function<void(uint64_t)>> g_CurrentBreakpoint;
 bool g_breakpointHit = false;
 
+InstructionCache g_insCache;
+
 struct InstructionExecutionRunState {
     bool Allowed;
     bool Running;
     bool Terminate;
     bool AllowOne;
 };
+
+void InitInsCache(uint64_t starting_IP, MMU *mmu) {
+    g_insCache.Init(mmu, starting_IP);
+}
+
+void UpdateInsCacheMMU(MMU *mmu) {
+    g_insCache.UpdateMMU(mmu);
+}
+
+void InsCache_MaybeSetBaseAddress(uint64_t IP) {
+    g_insCache.MaybeSetBaseAddress(IP);
+}
 
 void StopExecution(void** state) {
     if (state != nullptr) {
@@ -123,7 +137,7 @@ void RemoveBreakpoint(uint64_t address) {
     spinlock_release(&g_breakpointsLock);
 }
 
-bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, char const*& last_error) {
+bool ExecuteInstruction(uint64_t IP) {
     if (g_TerminateExecution.load() == 1) {
         g_ExecutionRunning.store(0);
         g_ExecutionRunning.notify_all();
@@ -179,11 +193,8 @@ bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, c
         spinlock_release(&g_breakpointsLock);
     }
 
-    (void)CurrentState;
-    (void)last_error;
-    InstructionBuffer buffer(mmu, IP);
     uint64_t current_offset = 0;
-    if (!DecodeInstruction(buffer, current_offset, &g_current_instruction, [](const char* message, void*) {
+    if (!DecodeInstruction(g_insCache, current_offset, &g_current_instruction, [](const char* message, void*) {
 #ifdef EMULATOR_DEBUG
         printf("Decoding error: %s\n", message);
 #else
@@ -305,10 +316,10 @@ bool ExecuteInstruction(uint64_t IP, MMU* mmu, InstructionState& CurrentState, c
     return true;
 }
 
-void ExecutionLoop(MMU* mmu, InstructionState& CurrentState, char const*& last_error) {
+void ExecutionLoop() {
     bool status = true;
     while (status)
-        status = ExecuteInstruction(Emulator::GetCPU_IP(), mmu, CurrentState, last_error);
+        status = ExecuteInstruction(Emulator::GetCPU_IP());
 }
 
 void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
@@ -425,22 +436,6 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
             if (argument_count != nullptr)
                 *argument_count = 1;
             return reinterpret_cast<void*>(ins_jnle);
-        case 0xb: // jg
-            if (argument_count != nullptr)
-                *argument_count = 1;
-            return reinterpret_cast<void*>(ins_jg);
-        case 0xc: // jge
-            if (argument_count != nullptr)
-                *argument_count = 1;
-            return reinterpret_cast<void*>(ins_jge);
-        case 0xd: // jng
-            if (argument_count != nullptr)
-                *argument_count = 1;
-            return reinterpret_cast<void*>(ins_jng);
-        case 0xe: // jnge
-            if (argument_count != nullptr)
-                *argument_count = 1;
-            return reinterpret_cast<void*>(ins_jnge);
         default:
             return nullptr;
         }
@@ -665,90 +660,96 @@ void ins_shr(Operand* dst, Operand* src) {
 
 void ins_ret() {
     PRINT_INS_INFO0();
-    Emulator::SetNextIP(g_stack->pop());
+    uint64_t IP = g_stack->pop();
+    Emulator::SetNextIP(IP);
+    g_insCache.MaybeSetBaseAddress(IP);
 }
 
 void ins_call(Operand* dst) {
     PRINT_INS_INFO1(dst);
     g_stack->push(Emulator::GetNextIP());
-    Emulator::SetNextIP(dst->GetValue());
+    uint64_t IP = dst->GetValue();
+    Emulator::SetNextIP(IP);
+    g_insCache.MaybeSetBaseAddress(IP);
 }
 
 void ins_jmp(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    Emulator::SetNextIP(dst->GetValue());
+    uint64_t IP = dst->GetValue();
+    Emulator::SetNextIP(IP);
+    g_insCache.MaybeSetBaseAddress(IP);
 }
 
 void ins_jc(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); flags & 1)
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); flags & 1) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jnc(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 1))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 1)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jz(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); flags & 2)
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); flags & 2) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jnz(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 2))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 2)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jl(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jle(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8) || (flags & 2))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8) || (flags & 2)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jnl(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_jnle(Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8) && !(flags & 2))
-        Emulator::SetNextIP(dst->GetValue());
-}
-
-void ins_jg(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 2) && (flags & 4) == (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
-}
-
-void ins_jge(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
-}
-
-void ins_jng(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 2) || (flags & 4) != (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
-}
-
-void ins_jnge(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8))
-        Emulator::SetNextIP(dst->GetValue());
+    if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8) && !(flags & 2)) {
+        uint64_t IP = dst->GetValue();
+        Emulator::SetNextIP(IP);
+        g_insCache.MaybeSetBaseAddress(IP);
+    }
 }
 
 void ins_mov(Operand* dst, Operand* src) {

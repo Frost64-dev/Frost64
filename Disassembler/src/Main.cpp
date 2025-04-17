@@ -16,7 +16,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -57,15 +56,8 @@ int main(int argc, char** argv) {
     fseek(file, 0, SEEK_END);
     size_t file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    uint8_t* buffer = new uint8_t[file_size];
-    if (!buffer) {
-        perror("Failed to allocate memory for program");
-        fclose(file);
-        return 1;
-    }
-    fread(buffer, 1, file_size, file);
 
-   g_out_file = fopen(output_path, "w");
+    g_out_file = fopen(output_path, "w");
 
     if (g_out_file == nullptr) {
         perror("Failed to open output file");

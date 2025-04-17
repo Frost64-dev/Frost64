@@ -238,3 +238,35 @@ void Buffer::DeleteBlock(uint64_t index) {
     m_size -= block->size;
     delete block;
 }
+
+void StreamBuffer::WriteStream8(uint8_t data) {
+    WriteStream(&data, sizeof(data));
+}
+
+void StreamBuffer::ReadStream8(uint8_t& data) {
+    ReadStream(&data, sizeof(data));
+}
+
+void StreamBuffer::WriteStream16(uint16_t data) {
+    WriteStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
+
+void StreamBuffer::ReadStream16(uint16_t& data) {
+    ReadStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
+
+void StreamBuffer::WriteStream32(uint32_t data) {
+    WriteStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
+
+void StreamBuffer::ReadStream32(uint32_t& data) {
+    ReadStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
+
+void StreamBuffer::WriteStream64(uint64_t data) {
+    WriteStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
+
+void StreamBuffer::ReadStream64(uint64_t& data) {
+    ReadStream(reinterpret_cast<uint8_t*>(&data), sizeof(data));
+}
