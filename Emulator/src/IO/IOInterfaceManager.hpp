@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define _IO_INTERFACE_MANAGER_HPP
 
 #include <cstddef>
+#include <cstdarg>
 #include <vector>
 
 #include "IOInterfaceItem.hpp"
