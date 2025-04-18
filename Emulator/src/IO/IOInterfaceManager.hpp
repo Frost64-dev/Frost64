@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _IO_INTERFACE_MANAGER_HPP
 #define _IO_INTERFACE_MANAGER_HPP
 
+#include <cstdarg>
 #include <cstddef>
 #include <vector>
 
