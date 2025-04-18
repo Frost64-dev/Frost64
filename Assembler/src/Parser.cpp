@@ -21,8 +21,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdlib>
 #include <cstring>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
+#include <LibArch/Operand.hpp>
 
 Parser::Parser()
     : m_base_address(0), m_opcodeTableInitialised(false), m_registerTableInitialised(false) {

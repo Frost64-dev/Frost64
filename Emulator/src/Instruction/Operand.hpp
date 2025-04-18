@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Register.hpp>
 
-#include <libarch/Instruction.hpp>
+#include <LibArch/Instruction.hpp>
 
 enum class OperandType {
     Register,

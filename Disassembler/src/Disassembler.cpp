@@ -27,9 +27,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <utility>
 #include <vector>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
-
 Disassembler::Disassembler(FileBuffer& buffer) : m_buffer(buffer), m_current_offset(0) {}
 Disassembler::~Disassembler() {
 }
