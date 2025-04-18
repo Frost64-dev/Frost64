@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 #include <common/ArgsParser.hpp>
 
@@ -53,20 +54,24 @@ int main(int argc, char** argv) {
 
     FILE* file = fopen(program.data(), "r");
     if (file == nullptr) {
-        printf("Error: could not open file %s\n", program.data());
+        printf("Error: could not open file %s: %s\n", program.data(), strerror(errno));
         return 1;
     }
 
     fseek(file, 0, SEEK_END);
-    size_t file_size = ftell(file);
+    size_t fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    uint8_t* file_contents = new uint8_t[file_size];
-    fread(file_contents, 1, file_size, file);
+    uint8_t* file_contents = new uint8_t[fileSize];
+    if (fread(file_contents, 1, fileSize, file) != fileSize) {
+        printf("Error: failed to read file %s: %s\n", program.data(), strerror(errno));
+        fclose(file);
+        return 1;
+    }
     fclose(file);
 
     PreProcessor pre_processor;
-    pre_processor.process(reinterpret_cast<const char*>(file_contents), file_size, program);
+    pre_processor.process(reinterpret_cast<const char*>(file_contents), fileSize, program);
     size_t processed_buffer_size = pre_processor.GetProcessedBufferSize();
     uint8_t* processed_buffer_data = new uint8_t[processed_buffer_size];
     pre_processor.ExportProcessedBuffer(processed_buffer_data);
@@ -96,12 +101,12 @@ int main(int argc, char** argv) {
 
     FILE* output_file = fopen(output.data(), "w");
     if (output_file == nullptr) {
-        printf("Error: could not open output file %s\n", output.data());
+        printf("Error: could not open output file %s: %s\n", output.data(), strerror(errno));
         return 1;
     }
 
     if (buffer_size != fwrite(buffer_data, 1, buffer_size, output_file)) {
-        perror("Error: could not write to output file");
+        printf("Error: could not write to output file %s: %s", output.data(), strerror(errno));
         return 1;
     }
     fclose(output_file);
@@ -111,12 +116,9 @@ int main(int argc, char** argv) {
     delete[] buffer_data;
 
     assembler.Clear();
-
     parser.Clear();
-
     lexer->Clear();
 
     delete lexer;
-
     return 0;
 }
