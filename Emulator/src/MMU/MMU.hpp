@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstddef>
 #include <cstdint>
 
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
 #include "MemoryRegion.hpp"
 

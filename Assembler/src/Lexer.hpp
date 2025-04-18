@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <string>
 
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
 #include "PreProcessor.hpp"
 

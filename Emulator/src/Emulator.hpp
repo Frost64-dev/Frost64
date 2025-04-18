@@ -24,7 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Register.hpp>
 
-#include <IO/devices/Video/VideoBackend.hpp>
+#include <IO/Devices/Video/VideoBackend.hpp>
 
 class DebugInterface;
 

@@ -24,7 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <functional>
 
-#include "../spinlock.h"
+#include "../Spinlock.hpp"
 
 namespace LinkedList {
 

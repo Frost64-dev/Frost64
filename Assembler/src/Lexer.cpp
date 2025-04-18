@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
 
-#include <common/util.h>
+#include <Common/Util.hpp>
 
 constexpr const char* instructions_str = "add mul sub div or xor nor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
 constexpr size_t instructions_str_len = sizeof(instructions_str) - 1;

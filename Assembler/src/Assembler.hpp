@@ -20,10 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 
-#include <common/Data-structures/LinkedList.hpp>
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
-#include <libarch/Instruction.hpp>
+#include <LibArch/Instruction.hpp>
 
 class Section {
 public:

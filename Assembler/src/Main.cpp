@@ -19,9 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdio>
 #include <cstring>
 
-#include <common/ArgsParser.hpp>
-
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/ArgsParser.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
 #include "Assembler.hpp"
 #include "Lexer.hpp"

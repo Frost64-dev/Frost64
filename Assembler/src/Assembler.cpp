@@ -21,9 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdlib>
 #include <cstring>
 
-#include <common/util.h>
-
-#include <libarch/Instruction.hpp>
+#include <Common/Util.hpp>
 
 Section::Section(char* name, uint64_t name_size, uint64_t offset)
     : m_name(name), m_name_size(name_size), m_offset(offset) {

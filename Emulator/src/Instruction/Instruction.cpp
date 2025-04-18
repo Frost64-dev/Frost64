@@ -34,10 +34,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <MMU/MMU.hpp>
 
-#include <common/spinlock.h>
+#include <Common/Spinlock.hpp>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
+#include <LibArch/Operand.hpp>
 
 std::atomic_uchar g_ExecutionAllowed = 1;
 std::atomic_uchar g_ExecutionRunning = 0;
@@ -522,7 +522,7 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
 
 #ifdef __x86_64__
 
-#include <arch/x86_64/ALUInstruction.h>
+#include <Platform/x86_64/ALUInstruction.h>
 
 #define ALU_INSTRUCTION2(name)                                                  \
     void ins_##name(Operand* dst, Operand* src) {                               \

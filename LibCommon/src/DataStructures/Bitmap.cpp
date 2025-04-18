@@ -15,9 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <Data-structures/Bitmap.hpp>
-
 #include <cstring>
+#include <DataStructures/Bitmap.hpp>
 
 Bitmap::Bitmap() : m_data(nullptr), m_size(0) {
 }

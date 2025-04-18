@@ -21,10 +21,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdint>
 #include <unordered_map>
 
-#include <common/Data-structures/Bitmap.hpp>
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/Bitmap.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
-#include <math.hpp>
+#include <Math.hpp>
 
 class MMU;
 class IODevice;

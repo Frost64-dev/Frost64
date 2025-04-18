@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 
-#include <spinlock.h>
+#include <Spinlock.hpp>
 
 namespace AVLTree {
 

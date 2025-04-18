@@ -17,36 +17,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Emulator.hpp"
 
+#include <Common/Util.hpp>
+
 #include <cstdint>
 #include <cstdio>
-#include <thread>
-
-#include <common/util.h>
-
 #include <DebugInterface.hpp>
 #include <Exceptions.hpp>
-#include <Interrupts.hpp>
-#include <Register.hpp>
-#include <Stack.hpp>
-
 #include <Instruction/Instruction.hpp>
 #include <Instruction/Operand.hpp>
-
-#include <IO/devices/Storage/StorageDevice.hpp>
-
-#include <IO/devices/Video/VideoDevice.hpp>
-
-#include <IO/devices/ConsoleDevice.hpp>
-
+#include <Interrupts.hpp>
+#include <IO/Devices/ConsoleDevice.hpp>
+#include <IO/Devices/Storage/StorageDevice.hpp>
+#include <IO/Devices/Video/VideoDevice.hpp>
 #include <IO/IOBus.hpp>
-#include <IO/IOMemoryRegion.hpp>
 #include <IO/IOInterfaceManager.hpp>
-
+#include <IO/IOMemoryRegion.hpp>
 #include <MMU/BIOSMemoryRegion.hpp>
 #include <MMU/MMU.hpp>
 #include <MMU/StandardMemoryRegion.hpp>
 #include <MMU/VirtualMMU.hpp>
-
+#include <Register.hpp>
+#include <Stack.hpp>
+#include <thread>
 
 namespace Emulator {
 

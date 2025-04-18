@@ -22,10 +22,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <string_view>
 
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
 
 #include "Lexer.hpp"
 

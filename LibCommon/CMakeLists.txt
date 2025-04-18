@@ -15,16 +15,16 @@
 
 if(BUILD_ARCHITECTURE STREQUAL "x86_64")
     set(libcommon_sources
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/spinlock.asm
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/Spinlock.asm
     )
 endif()
 
 set(libcommon_sources
     ${libcommon_sources}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/AVLTree.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Bitmap.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/Buffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Data-structures/LinkedList.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/DataStructures/AVLTree.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/DataStructures/Bitmap.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/DataStructures/Buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/DataStructures/LinkedList.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ArgsParser.cpp
 )
 
@@ -38,7 +38,7 @@ set_target_properties(common PROPERTIES C_EXTENSIONS OFF)
 set_target_properties(common PROPERTIES C_STANDARD_REQUIRED ON)
 
 target_include_directories(common PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(common PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/common)
+target_include_directories(common PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/Common)
 
 target_compile_options(common
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>

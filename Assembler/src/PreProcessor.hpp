@@ -23,7 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string>
 #include <string_view>
 
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
 class PreProcessor {
 public:

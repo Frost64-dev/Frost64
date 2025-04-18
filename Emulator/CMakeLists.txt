@@ -24,7 +24,7 @@ endif ()
 
 if (BUILD_ARCHITECTURE STREQUAL "x86_64")
     set(emulator_sources
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/arch/x86_64/ALUInstruction.asm
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/ALUInstruction.asm
     )
 endif ()
 
@@ -51,13 +51,13 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOBus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOMemoryRegion.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/ConsoleDevice.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Storage/PhysicalRegionListBuffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Storage/StorageDevice.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Storage/StorageFile.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Video/VideoBackend.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Video/VideoDevice.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Video/VideoMemoryRegion.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/ConsoleDevice.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/PhysicalRegionListBuffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageDevice.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageFile.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoBackend.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoDevice.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/BIOSMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MMU.cpp
@@ -68,7 +68,7 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Exceptions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Interrupts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/math.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Math.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Register.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Stack.cpp
 )
@@ -80,7 +80,7 @@ endif ()
 if (ENABLE_SDL STREQUAL "ON")
     set(emulator_sources
         ${emulator_sources}
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/devices/Video/backends/SDL/SDLVideoBackend.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/backends/SDL/SDLVideoBackend.cpp
     )
 endif ()
 
@@ -117,7 +117,7 @@ target_compile_options(Emulator
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fstack-protector>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-O1>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fno-omit-frame-pointer>
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+    # PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
     # PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fsanitize=undefined,address>
 )
 

@@ -28,7 +28,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <sys/socket.h>
 
-#include <common/spinlock.h>
+#include <Common/Spinlock.hpp>
 
 #include <Emulator.hpp>
 
