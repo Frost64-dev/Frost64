@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2025  Frosty515 & contributors
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,6 +13,10 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+Authors:
+- Frosty515
+- KevinAlavik
 */
 
 #include <cstdint>
@@ -53,7 +57,7 @@ int main(int argc, char** argv) {
 
     FILE* file = fopen(program.data(), "r");
     if (file == nullptr) {
-        printf("Error: could not open file %s: %s\n", program.data(), strerror(errno));
+        printf("Error: could not open input file %s: \"%s\"\n", program.data(), strerror(errno));
         return 1;
     }
 
@@ -63,7 +67,7 @@ int main(int argc, char** argv) {
 
     uint8_t* file_contents = new uint8_t[fileSize];
     if (fread(file_contents, 1, fileSize, file) != fileSize) {
-        printf("Error: failed to read file %s: %s\n", program.data(), strerror(errno));
+        printf("Error: failed to read input file %s: \"%s\"\n", program.data(), strerror(errno));
         fclose(file);
         return 1;
     }
@@ -100,12 +104,12 @@ int main(int argc, char** argv) {
 
     FILE* output_file = fopen(output.data(), "w");
     if (output_file == nullptr) {
-        printf("Error: could not open output file %s: %s\n", output.data(), strerror(errno));
+        printf("Error: could not open output file %s: \"%s\"\n", output.data(), strerror(errno));
         return 1;
     }
 
     if (buffer_size != fwrite(buffer_data, 1, buffer_size, output_file)) {
-        printf("Error: could not write to output file %s: %s", output.data(), strerror(errno));
+        printf("Error: could not write to output file %s: \"%s\"", output.data(), strerror(errno));
         return 1;
     }
     fclose(output_file);
