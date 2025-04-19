@@ -23,8 +23,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Common/Util.hpp>
 
-Section::Section(char* name, uint64_t name_size, uint64_t offset)
-    : m_name(name), m_name_size(name_size), m_offset(offset) {
+Section::Section(char* name, uint64_t nameSize, uint64_t offset)
+    : m_name(name), m_nameSize(nameSize), m_offset(offset) {
 }
 
 Section::~Section() {
@@ -35,7 +35,7 @@ char const* Section::GetName() const {
 }
 
 uint64_t Section::GetNameSize() const {
-    return m_name_size;
+    return m_nameSize;
 }
 
 uint64_t Section::GetOffset() const {
@@ -43,74 +43,74 @@ uint64_t Section::GetOffset() const {
 }
 
 Assembler::Assembler()
-    : m_current_offset(0), m_buffer() {
+    : m_currentOffset(0), m_buffer() {
 }
 
 Assembler::~Assembler() {
 }
 
-void Assembler::assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t base_address) {
+void Assembler::assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t baseAddress) {
     using namespace InsEncoding;
     labels.Enumerate([&](Label* label) {
         label->blocks.Enumerate([&](Block* block) {
-            size_t name_size = label->name_size + block->name_size;
-            char* name = new char[name_size + 1];
-            memcpy(name, label->name, label->name_size);
-            memcpy(reinterpret_cast<void*>(reinterpret_cast<uint64_t>(name) + label->name_size), block->name, block->name_size);
-            name[name_size] = '\0';
-            Section* section = new Section(name, name_size, m_current_offset);
+            size_t nameSize = label->nameSize + block->nameSize;
+            char* name = new char[nameSize + 1];
+            memcpy(name, label->name, label->nameSize);
+            memcpy(reinterpret_cast<void*>(reinterpret_cast<uint64_t>(name) + label->nameSize), block->name, block->nameSize);
+            name[nameSize] = '\0';
+            Section* section = new Section(name, nameSize, m_currentOffset);
             m_sections.insert(section);
 
-            block->data_blocks.Enumerate([&](Data* data) {
+            block->dataBlocks.Enumerate([&](Data* data) {
                 if (data->type) { // instruction
                     Instruction* instruction = static_cast<Instruction*>(data->data);
                     uint8_t i_data[64] = {};
-                    size_t bytes_written = EncodeInstruction(instruction, i_data, 64, m_current_offset);
-                    m_buffer.Write(m_current_offset, i_data, bytes_written);
-                    m_current_offset += bytes_written;
+                    size_t bytesWritten = EncodeInstruction(instruction, i_data, 64, m_currentOffset);
+                    m_buffer.Write(m_currentOffset, i_data, bytesWritten);
+                    m_currentOffset += bytesWritten;
                 } else { // raw data
-                    switch (RawData* raw_data = static_cast<RawData*>(data->data); raw_data->type) {
+                    switch (RawData* rawData = static_cast<RawData*>(data->data); rawData->type) {
                     case RawDataType::RAW:
-                        m_buffer.Write(m_current_offset, static_cast<uint8_t*>(raw_data->data), raw_data->data_size);
-                        m_current_offset += raw_data->data_size;
+                        m_buffer.Write(m_currentOffset, static_cast<uint8_t*>(rawData->data), rawData->dataSize);
+                        m_currentOffset += rawData->dataSize;
                         break;
                     case RawDataType::LABEL: {
-                        Label* i_label = static_cast<Label*>(raw_data->data);
+                        Label* i_label = static_cast<Label*>(rawData->data);
                         Block* i_block = i_label->blocks.get(0);
                         uint64_t* offset = new uint64_t;
-                        *offset = m_current_offset;
-                        i_block->jumps_to_here.insert(offset);
-                        uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
-                        m_buffer.Write(m_current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
-                        m_current_offset += 8;
+                        *offset = m_currentOffset;
+                        i_block->jumpsToHere.insert(offset);
+                        uint64_t tempOffset = 0xDEAD'BEEF'DEAD'BEEF;
+                        m_buffer.Write(m_currentOffset, reinterpret_cast<uint8_t*>(&tempOffset), 8);
+                        m_currentOffset += 8;
                         break;
                     }
                     case RawDataType::SUBLABEL: {
-                        Block* i_block = static_cast<Block*>(raw_data->data);
+                        Block* i_block = static_cast<Block*>(rawData->data);
                         uint64_t* offset = new uint64_t;
-                        *offset = m_current_offset;
-                        i_block->jumps_to_here.insert(offset);
-                        uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
-                        m_buffer.Write(m_current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
-                        m_current_offset += 8;
+                        *offset = m_currentOffset;
+                        i_block->jumpsToHere.insert(offset);
+                        uint64_t tempOffset = 0xDEAD'BEEF'DEAD'BEEF;
+                        m_buffer.Write(m_currentOffset, reinterpret_cast<uint8_t*>(&tempOffset), 8);
+                        m_currentOffset += 8;
                         break;
                     }
                     case RawDataType::ASCII:
                     case RawDataType::ASCIIZ: // null terminator is already handled by the parser
-                        m_buffer.Write(m_current_offset, static_cast<uint8_t*>(raw_data->data), raw_data->data_size);
-                        m_current_offset += raw_data->data_size;
+                        m_buffer.Write(m_currentOffset, static_cast<uint8_t*>(rawData->data), rawData->dataSize);
+                        m_currentOffset += rawData->dataSize;
                         break;
                     case RawDataType::ALIGNMENT: {
-                        uint64_t align = *static_cast<uint64_t*>(raw_data->data);
+                        uint64_t align = *static_cast<uint64_t*>(rawData->data);
                         if (!IS_POWER_OF_TWO(align))
-                            error("Alignment must be a power of 2", raw_data->file_name, raw_data->line);
-                        uint64_t bytes_to_add = ALIGN_UP_BASE2(m_current_offset, align) - m_current_offset;
+                            error("Alignment must be a power of 2", rawData->fileName, rawData->line);
+                        uint64_t bytesToAdd = ALIGN_UP_BASE2(m_currentOffset, align) - m_currentOffset;
                         // fill the space with `nop`s
-                        uint8_t* i_data = new uint8_t[bytes_to_add];
+                        uint8_t* i_data = new uint8_t[bytesToAdd];
                         uint8_t nop = static_cast<uint8_t>(Opcode::NOP);
-                        memset(i_data, nop, bytes_to_add);
-                        m_buffer.Write(m_current_offset, i_data, bytes_to_add);
-                        m_current_offset += bytes_to_add;
+                        memset(i_data, nop, bytesToAdd);
+                        m_buffer.Write(m_currentOffset, i_data, bytesToAdd);
+                        m_currentOffset += bytesToAdd;
                         delete[] i_data;
                         break;
                     }
@@ -120,15 +120,15 @@ void Assembler::assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Lab
         });
     });
     // Enumerate through the labels, and the blocks within them again and fill in the jumps
-    uint64_t section_index = 0;
+    uint64_t sectionIndex = 0;
     labels.Enumerate([&](Label* label) {
         label->blocks.Enumerate([&](Block* block) {
-            Section* section = m_sections.get(section_index);
-            uint64_t real_offset = section->GetOffset() + base_address;
-            block->jumps_to_here.Enumerate([&](const uint64_t* offset) {
-                m_buffer.Write(*offset, reinterpret_cast<uint8_t*>(&real_offset), 8);
+            Section* section = m_sections.get(sectionIndex);
+            uint64_t realOffset = section->GetOffset() + baseAddress;
+            block->jumpsToHere.Enumerate([&](const uint64_t* offset) {
+                m_buffer.Write(*offset, reinterpret_cast<uint8_t*>(&realOffset), 8);
             });
-            section_index++;
+            sectionIndex++;
         });
     });
 }
@@ -144,10 +144,10 @@ void Assembler::Clear() {
         delete section;
     });
     m_sections.clear();
-    m_current_offset = 0;
+    m_currentOffset = 0;
 }
 
-[[noreturn]] void Assembler::error(const char* message, const std::string& file_name, size_t line) {
-    fprintf(stderr, "Assembler error at %s:%zu: %s\n", file_name.c_str(), line, message);
+[[noreturn]] void Assembler::error(const char* message, const std::string& fileName, size_t line) {
+    fprintf(stderr, "Assembler error at %s:%zu: %s\n", fileName.c_str(), line, message);
     exit(1);
 }

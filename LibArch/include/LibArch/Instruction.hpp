@@ -112,14 +112,14 @@ namespace InsEncoding {
 
     struct Block {
         char* name;
-        size_t name_size;
-        LinkedList::RearInsertLinkedList<Data> data_blocks;
-        LinkedList::RearInsertLinkedList<uint64_t> jumps_to_here;
+        size_t nameSize;
+        LinkedList::RearInsertLinkedList<Data> dataBlocks;
+        LinkedList::RearInsertLinkedList<uint64_t> jumpsToHere;
     };
 
     struct Label {
         char* name;
-        size_t name_size;
+        size_t nameSize;
         LinkedList::RearInsertLinkedList<Block> blocks;
     };
 
@@ -164,15 +164,15 @@ namespace InsEncoding {
     struct ComplexOperandInfo {
         uint8_t type           : 2;
         uint8_t size           : 2;
-        uint8_t base_type      : 1;
-        uint8_t base_size      : 2;
-        uint8_t base_present   : 1;
-        uint8_t index_type     : 1;
-        uint8_t index_size     : 2;
-        uint8_t index_present  : 1;
-        uint8_t offset_type    : 1;
-        uint8_t offset_size    : 2;
-        uint8_t offset_present : 1;
+        uint8_t baseType      : 1;
+        uint8_t baseSize      : 2;
+        uint8_t basePresent   : 1;
+        uint8_t indexType     : 1;
+        uint8_t indexSize     : 2;
+        uint8_t indexPresent  : 1;
+        uint8_t offsetType    : 1;
+        uint8_t offsetSize    : 2;
+        uint8_t offsetPresent : 1;
     } __attribute__((packed));
 
     struct StandardOperandInfo {
@@ -192,10 +192,10 @@ namespace InsEncoding {
     } __attribute__((packed));
 
     struct StandardStandardOperandInfo {
-        uint8_t first_type  : 2;
-        uint8_t first_size  : 2;
-        uint8_t second_type : 2;
-        uint8_t second_size : 2;
+        uint8_t firstType  : 2;
+        uint8_t firstSize  : 2;
+        uint8_t secondType : 2;
+        uint8_t secondSize : 2;
     } __attribute__((packed));
 
     struct ComplexComplexOperandInfo {
@@ -214,16 +214,16 @@ namespace InsEncoding {
 
     struct RawData {
         void* data;
-        size_t data_size;
+        size_t dataSize;
         RawDataType type;
-        std::string file_name;
+        std::string fileName;
         size_t line;
     };
 
     class Instruction {
        public:
         Instruction();
-        Instruction(Opcode opcode, const std::string& file_name, size_t line);
+        Instruction(Opcode opcode, const std::string& fileName, size_t line);
         ~Instruction();
 
         void SetOpcode(Opcode opcode);
@@ -237,7 +237,7 @@ namespace InsEncoding {
 
        private:
         Opcode m_opcode;
-        std::string m_file_name;
+        std::string m_fileName;
         size_t m_line;
     };
 
@@ -252,7 +252,7 @@ namespace InsEncoding {
         Opcode GetOpcode() const;
 
         Operand operands[2];
-        size_t operand_count;
+        size_t operandCount;
 
        private:
         Opcode m_opcode;
@@ -261,8 +261,8 @@ namespace InsEncoding {
 
     const char* GetInstructionName(Opcode opcode);
 
-    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data = nullptr);
-    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset);
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, void (*errorHandler)(const char* message, void* data), void* errorData = nullptr);
+    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t dataSize, uint64_t globalOffset);
 } // namespace InsEncoding
 
 #endif /* _LIBARCH_INSTRUCTION_HPP */

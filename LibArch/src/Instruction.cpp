@@ -726,7 +726,7 @@ namespace InsEncoding {
                             Label* label = item->data.label;
                             uint64_t* offset = new uint64_t;
                             *offset = current_offset + global_offset;
-                            label->blocks.get(0)->jumps_to_here.insert(offset);
+                            label->blocks.get(0)->jumpsTo_here.insert(offset);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -736,7 +736,7 @@ namespace InsEncoding {
                             Block* block = item->data.sublabel;
                             uint64_t* offset = new uint64_t;
                             *offset = current_offset + global_offset;
-                            block->jumps_to_here.insert(offset);
+                            block->jumpsTo_here.insert(offset);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -752,7 +752,7 @@ namespace InsEncoding {
                 Block* i_block = i_label->blocks.get(0);
                 uint64_t* offset = new uint64_t;
                 *offset = current_offset + global_offset;
-                i_block->jumps_to_here.insert(offset);
+                i_block->jumpsTo_here.insert(offset);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;
@@ -760,7 +760,7 @@ namespace InsEncoding {
                 Block* i_block = static_cast<Block*>(operand->data);
                 uint64_t* offset = new uint64_t;
                 *offset = current_offset + global_offset;
-                i_block->jumps_to_here.insert(offset);
+                i_block->jumpsTo_here.insert(offset);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;

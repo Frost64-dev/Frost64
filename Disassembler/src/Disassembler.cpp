@@ -45,11 +45,11 @@ void Disassembler::Disassemble(std::function<void()> errorCallback) {
         // Print the instruction
         std::stringstream ss;
         ss << GetInstructionName(m_current_instruction.GetOpcode());
-        if (m_current_instruction.operand_count > 0)
+        if (m_current_instruction.operandCount > 0)
             ss << " ";
-        for (size_t i = 0; i < m_current_instruction.operand_count; i++) {
+        for (size_t i = 0; i < m_current_instruction.operandCount; i++) {
             StringifyOperand(m_current_instruction.operands[i], ss);
-            if (i != m_current_instruction.operand_count - 1)
+            if (i != m_current_instruction.operandCount - 1)
                 ss << ", ";
         }
         m_instructions.push_back(ss.str());
@@ -70,7 +70,7 @@ void Disassembler::PrintCurrentInstruction() const {
     using namespace InsEncoding;
     FILE* fd = stdout;
     fprintf(fd, "Instruction: \"%s\":\n", GetInstructionName(m_current_instruction.GetOpcode()));
-    for (size_t i = 0; i < m_current_instruction.operand_count; i++) {
+    for (size_t i = 0; i < m_current_instruction.operandCount; i++) {
         const Operand* operand = &(m_current_instruction.operands[i]);
         char const* operand_size = nullptr;
         switch (operand->size) {

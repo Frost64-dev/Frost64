@@ -204,7 +204,7 @@ bool ExecuteInstruction(uint64_t IP) {
     }))
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
     uint8_t Opcode = static_cast<uint8_t>(g_current_instruction.GetOpcode());
-    for (uint64_t i = 0; i < g_current_instruction.operand_count; i++) {
+    for (uint64_t i = 0; i < g_current_instruction.operandCount; i++) {
         switch (InsEncoding::Operand* op = &g_current_instruction.operands[i]; op->type) {
         case InsEncoding::OperandType::REGISTER: {
             InsEncoding::Register* temp_reg = static_cast<InsEncoding::Register*>(op->data);

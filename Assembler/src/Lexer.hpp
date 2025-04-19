@@ -45,8 +45,8 @@ enum class TokenType {
 struct Token {
     TokenType type;
     void* data;
-    size_t data_size;
-    std::string file_name;
+    size_t dataSize;
+    std::string fileName;
     size_t line;
 };
 
@@ -55,7 +55,7 @@ class Lexer {
     Lexer();
     ~Lexer();
 
-    void tokenize(const char* source, size_t source_size, const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& reference_points);
+    void tokenize(const char* source, size_t sourceSize, const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& referencePoints);
 
     [[nodiscard]] const LinkedList::RearInsertLinkedList<Token>& GetTokens() const;
 
@@ -64,9 +64,9 @@ class Lexer {
     void Clear();
 
    private:
-    void AddToken(const std::string& str_token, const std::string& file_name, size_t line);
+    void AddToken(const std::string& strToken, const std::string& fileName, size_t line);
 
-    static size_t GetLineDifference(const char* src, size_t src_offset, size_t dst_offset);
+    static size_t GetLineDifference(const char* src, size_t srcOffset, size_t dstOffset);
 
     [[noreturn]] void error(const char* message, Token* token);
     [[noreturn]] void error(const char* message, const std::string& file, size_t line);

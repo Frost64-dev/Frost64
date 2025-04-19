@@ -24,15 +24,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Common/Util.hpp>
 
-constexpr const char* instructions_str = "add mul sub div or xor nor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
-constexpr size_t instructions_str_len = sizeof(instructions_str) - 1;
+constexpr const char* INSTRUCTIONS_STR = "add mul sub div or xor nor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
+constexpr size_t INSTRUCTIONS_STR_LEN = 190 - 1;
 
 bool IsInstruction(const std::string& str) {
-    const char* raw_token = str.c_str();
-    if (const char* ins = strstr(instructions_str, raw_token); ins != nullptr) {
-        if (ins != instructions_str && ins[-1] != ' ')
+    const char* rawToken = str.c_str();
+    if (const char* ins = strstr(INSTRUCTIONS_STR, rawToken); ins != nullptr) {
+        if (ins != INSTRUCTIONS_STR && ins[-1] != ' ')
             return false;
-        if (size_t str_size = str.size(); instructions_str + instructions_str_len <= ins + str_size && ins[str_size] != ' ')
+        if (size_t strSize = str.size(); INSTRUCTIONS_STR + INSTRUCTIONS_STR_LEN <= ins + strSize && ins[strSize] != ' ')
             return false;
         return true;
     }
@@ -45,27 +45,27 @@ Lexer::Lexer() {
 Lexer::~Lexer() {
 }
 
-void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& reference_points) {
-    if (source == nullptr || source_size == 0)
+void Lexer::tokenize(const char* source, size_t sourceSize, const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& referencePoints) {
+    if (source == nullptr || sourceSize == 0)
         return;
 
-    bool start_of_token = true;
+    bool startOfToken = true;
     std::string token;
-    uint64_t current_offset_in_token = 0;
-    PreProcessor::ReferencePoint* current_reference_point = reference_points.get(0);
-    PreProcessor::ReferencePoint* next_reference_point = reference_points.get(1);
-    size_t current_reference_point_index = 0;
-#define APPEND_TOKEN(token) AddToken(token, current_reference_point->file_name, current_reference_point->line + GetLineDifference(source, current_reference_point->offset, i - current_offset_in_token))
-#define ERROR(msg) error(msg, current_reference_point->file_name, current_reference_point->line + GetLineDifference(source, current_reference_point->offset, i))
-    for (uint64_t i = 0; i < source_size; i++) {
-        if (start_of_token) {
+    uint64_t currentOffsetInToken = 0;
+    PreProcessor::ReferencePoint* currentReferencePoint = referencePoints.get(0);
+    PreProcessor::ReferencePoint* nextReferencePoint = referencePoints.get(1);
+    size_t currentReferencePointIndex = 0;
+#define APPEND_TOKEN(token) AddToken(token, currentReferencePoint->fileName, currentReferencePoint->line + GetLineDifference(source, currentReferencePoint->offset, i - currentOffsetInToken))
+#define ERROR(msg) error(msg, currentReferencePoint->fileName, currentReferencePoint->line + GetLineDifference(source, currentReferencePoint->offset, i))
+    for (uint64_t i = 0; i < sourceSize; i++) {
+        if (startOfToken) {
             if (source[i] == ' ' || source[i] == '\n' || source[i] == '\t')
                 continue;
-            else if ((source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '+' || source[i] == '*') || (source[i] == '-' && ((i + 1) >= source_size || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
+            else if ((source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '+' || source[i] == '*') || (source[i] == '-' && ((i + 1) >= sourceSize || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
             } else if (source[i] == '\"') {
                 char const* end;
                 uint64_t offset = i;
@@ -80,10 +80,10 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
                 token = std::string(&source[i], end + 1);
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
                 i = end - source;
             } else if (source[i] == '\'') {
-                if ((i + 2) >= source_size)
+                if ((i + 2) >= sourceSize)
                     ERROR("Invalid character literal");
                 i++;
                 if (source[i] == '\'')
@@ -91,7 +91,7 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
                 char c = 0;
                 if (source[i] == '\\') {
                     i++;
-                    if ((i + 1) >= source_size)
+                    if ((i + 1) >= sourceSize)
                         ERROR("Invalid character literal");
                     switch (source[i]) {
                     case 'n':
@@ -117,7 +117,7 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
                         break;
                     case 'x': {
                         i++;
-                        if ((i + 2) >= source_size)
+                        if ((i + 2) >= sourceSize)
                             ERROR("Invalid character literal");
                         uint8_t hex = 0;
                         for (uint8_t j = 0; j < 2; j++) {
@@ -157,60 +157,60 @@ void Lexer::tokenize(const char* source, size_t source_size, const LinkedList::R
                 }
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
             } else {
-                start_of_token = false;
+                startOfToken = false;
                 token += source[i];
-                current_offset_in_token++;
+                currentOffsetInToken++;
             }
         } else {
             if (source[i] == ' ' || source[i] == '\n' || source[i] == '\t') {
-                start_of_token = true;
+                startOfToken = true;
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
             } else if (source[i] == '[' || source[i] == ']' || source[i] == ',') {
-                start_of_token = true;
+                startOfToken = true;
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
             } else if (source[i] == '+' || source[i] == '*' || source[i] == '-') {
-                if (source[i] == '-' && (i + 1) < source_size) {
+                if (source[i] == '-' && (i + 1) < sourceSize) {
                     if (source[i + 1] >= '0' && source[i + 1] <= '9') { // do not read outside of bounds
-                        start_of_token = true;
+                        startOfToken = true;
                         APPEND_TOKEN(token);
                         token = "";
                         token += source[i];
-                        current_offset_in_token = 1;
+                        currentOffsetInToken = 1;
                         continue;
                     }
                 }
-                start_of_token = true;
+                startOfToken = true;
                 APPEND_TOKEN(token);
                 token = "";
-                current_offset_in_token = 0;
+                currentOffsetInToken = 0;
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
             } else {
                 token += source[i];
-                current_offset_in_token++;
+                currentOffsetInToken++;
             }
         }
-        if (next_reference_point != nullptr && i + 1 >= next_reference_point->offset) {
-            current_reference_point_index++;
-            current_reference_point = next_reference_point;
-            next_reference_point = reference_points.get(current_reference_point_index + 1);
+        if (nextReferencePoint != nullptr && i + 1 >= nextReferencePoint->offset) {
+            currentReferencePointIndex++;
+            currentReferencePoint = nextReferencePoint;
+            nextReferencePoint = referencePoints.get(currentReferencePointIndex + 1);
         }
     }
 #undef APPEND_TOKEN
 #undef ERROR
-    for (uint64_t i = 0; i < current_offset_in_token; i++) {
+    for (uint64_t i = 0; i < currentOffsetInToken; i++) {
         if (!(token[i] == ' ' || token[i] == '\n' || token[i] == '\t')) {
-            AddToken(token, current_reference_point->file_name, current_reference_point->line + GetLineDifference(source, current_reference_point->offset, source_size - current_offset_in_token));
+            AddToken(token, currentReferencePoint->fileName, currentReferencePoint->line + GetLineDifference(source, currentReferencePoint->offset, sourceSize - currentOffsetInToken));
             break;
         }
     }
@@ -265,81 +265,81 @@ void Lexer::Clear() {
     m_tokens.clear();
 }
 
-void Lexer::AddToken(const std::string& str_token, const std::string& file_name, size_t line) {
-    std::string lower_token;
-    for (char c : str_token) { // convert the token to lowercase
+void Lexer::AddToken(const std::string& strToken, const std::string& fileName, size_t line) {
+    std::string lowerToken;
+    for (char c : strToken) { // convert the token to lowercase
         if (c >= 'A' && c <= 'Z')
             c = c - 'A' + 'a';
-        lower_token += c;
+        lowerToken += c;
     }
-    Token* new_token = new Token;
-    new_token->file_name = file_name;
-    new_token->line = line;
-    new_token->data = new char[lower_token.size() + 1];
-    memcpy(new_token->data, lower_token.c_str(), lower_token.size());
-    static_cast<char*>(new_token->data)[lower_token.size()] = 0;
-    new_token->data_size = lower_token.size();
+    Token* newToken = new Token;
+    newToken->fileName = fileName;
+    newToken->line = line;
+    newToken->data = new char[lowerToken.size() + 1];
+    memcpy(newToken->data, lowerToken.c_str(), lowerToken.size());
+    static_cast<char*>(newToken->data)[lowerToken.size()] = 0;
+    newToken->dataSize = lowerToken.size();
 
     /* now we identify the token type */
 #define IS_REGISTER(token) ((token) == "r0" || (token) == "r1" || (token) == "r2" || (token) == "r3" || (token) == "r4" || (token) == "r5" || (token) == "r6" || (token) == "r7" || (token) == "r8" || (token) == "r9" || (token) == "r10" || (token) == "r11" || (token) == "r12" || (token) == "r13" || (token) == "r14" || (token) == "r15" || (token) == "scp" || (token) == "sbp" || (token) == "stp" || (token) == "cr0" || (token) == "cr1" || (token) == "cr2" || (token) == "cr3" || (token) == "cr4" || (token) == "cr5" || (token) == "cr6" || (token) == "cr7" || (token) == "sts" || (token) == "ip")
-    if IS_REGISTER (lower_token)
-        new_token->type = TokenType::REGISTER;
-    else if (IsInstruction(lower_token))
-        new_token->type = TokenType::INSTRUCTION;
-    else if (lower_token == "[")
-        new_token->type = TokenType::LBRACKET;
-    else if (lower_token == "]")
-        new_token->type = TokenType::RBRACKET;
-    else if (lower_token == ",")
-        new_token->type = TokenType::COMMA;
-    else if (lower_token == "db" || lower_token == "dw" || lower_token == "dd" || lower_token == "dq" || lower_token == "org" || lower_token == "ascii" || lower_token == "asciiz" || lower_token == "align")
-        new_token->type = TokenType::DIRECTIVE;
-    else if (lower_token == "byte" || lower_token == "word" || lower_token == "dword" || lower_token == "qword")
-        new_token->type = TokenType::SIZE;
-    else if (lower_token == "+" || lower_token == "-" || lower_token == "*")
-        new_token->type = TokenType::OPERATOR;
-    else if (lower_token[0] == '\"' && lower_token[lower_token.size() - 1] == '\"')
-        new_token->type = TokenType::STRING;
+    if IS_REGISTER (lowerToken)
+        newToken->type = TokenType::REGISTER;
+    else if (IsInstruction(lowerToken))
+        newToken->type = TokenType::INSTRUCTION;
+    else if (lowerToken == "[")
+        newToken->type = TokenType::LBRACKET;
+    else if (lowerToken == "]")
+        newToken->type = TokenType::RBRACKET;
+    else if (lowerToken == ",")
+        newToken->type = TokenType::COMMA;
+    else if (lowerToken == "db" || lowerToken == "dw" || lowerToken == "dd" || lowerToken == "dq" || lowerToken == "org" || lowerToken == "ascii" || lowerToken == "asciiz" || lowerToken == "align")
+        newToken->type = TokenType::DIRECTIVE;
+    else if (lowerToken == "byte" || lowerToken == "word" || lowerToken == "dword" || lowerToken == "qword")
+        newToken->type = TokenType::SIZE;
+    else if (lowerToken == "+" || lowerToken == "-" || lowerToken == "*")
+        newToken->type = TokenType::OPERATOR;
+    else if (lowerToken[0] == '\"' && lowerToken[lowerToken.size() - 1] == '\"')
+        newToken->type = TokenType::STRING;
     else {
-        if (uint64_t size = lower_token.size(); size == 0)
-            new_token->type = TokenType::UNKNOWN;
+        if (uint64_t size = lowerToken.size(); size == 0)
+            newToken->type = TokenType::UNKNOWN;
         else {
             uint64_t offset = 0;
-            if (lower_token[0] == '.')
+            if (lowerToken[0] == '.')
                 offset++;
-            if (lower_token[size - 1] == ':')
+            if (lowerToken[size - 1] == ':')
                 size--;
 
-            bool is_label = true;
+            bool isLabel = true;
 
             for (uint64_t i = 0; (i + offset) < size; i++) {
-                if (!((lower_token[i + offset] >= 'a' && lower_token[i + offset] <= 'z') || (i > 0 && lower_token[i + offset] >= '0' && lower_token[i + offset] <= '9') || ((i + offset + 1) < size && lower_token[i + offset] == '_'))) {
-                    is_label = false;
+                if (!((lowerToken[i + offset] >= 'a' && lowerToken[i + offset] <= 'z') || (i > 0 && lowerToken[i + offset] >= '0' && lowerToken[i + offset] <= '9') || ((i + offset + 1) < size && lowerToken[i + offset] == '_'))) {
+                    isLabel = false;
                     break;
                 }
             }
 
-            if (is_label) {
-                if (offset == 0 && size == lower_token.size())
-                    new_token->type = TokenType::LABEL;
-                else if (offset == 1 && size == lower_token.size())
-                    new_token->type = TokenType::SUBLABEL;
-                else if (offset == 0 && size < lower_token.size())
-                    new_token->type = TokenType::BLABEL;
-                else if (offset == 1 && size < lower_token.size())
-                    new_token->type = TokenType::BSUBLABEL;
+            if (isLabel) {
+                if (offset == 0 && size == lowerToken.size())
+                    newToken->type = TokenType::LABEL;
+                else if (offset == 1 && size == lowerToken.size())
+                    newToken->type = TokenType::SUBLABEL;
+                else if (offset == 0 && size < lowerToken.size())
+                    newToken->type = TokenType::BLABEL;
+                else if (offset == 1 && size < lowerToken.size())
+                    newToken->type = TokenType::BSUBLABEL;
             } else {
-                bool is_number = true;
+                bool isNumber = true;
                 uint8_t base = 10;
                 uint64_t i = 0;
-                if (lower_token[0] == '+' || lower_token[0] == '-') {
+                if (lowerToken[0] == '+' || lowerToken[0] == '-') {
                     i++;
-                    if (i >= lower_token.size()) {
-                        is_number = false;
+                    if (i >= lowerToken.size()) {
+                        isNumber = false;
                     }
-                } else if (lower_token[0] == '0') {
+                } else if (lowerToken[0] == '0') {
                     i += 2;
-                    switch (lower_token[1]) {
+                    switch (lowerToken[1]) {
                     case 'x':
                         base = 16;
                         break;
@@ -354,69 +354,69 @@ void Lexer::AddToken(const std::string& str_token, const std::string& file_name,
                         i -= 2;
                         break;
                     }
-                    if (i >= lower_token.size())
-                        is_number = false;
+                    if (i >= lowerToken.size())
+                        isNumber = false;
                 }
 
-                for (; i < lower_token.size(); i++) {
+                for (; i < lowerToken.size(); i++) {
                     if (base == 16) {
-                        if (!((lower_token[i] >= '0' && lower_token[i] <= '9') || (lower_token[i] >= 'a' && lower_token[i] <= 'f'))) {
-                            is_number = false;
+                        if (!((lowerToken[i] >= '0' && lowerToken[i] <= '9') || (lowerToken[i] >= 'a' && lowerToken[i] <= 'f'))) {
+                            isNumber = false;
                             break;
                         }
                     } else if (base == 2) {
-                        if (lower_token[i] != '0' && lower_token[i] != '1') {
-                            is_number = false;
+                        if (lowerToken[i] != '0' && lowerToken[i] != '1') {
+                            isNumber = false;
                             break;
                         }
                     } else if (base == 8) {
-                        if (lower_token[i] < '0' || lower_token[i] > '7') {
-                            is_number = false;
+                        if (lowerToken[i] < '0' || lowerToken[i] > '7') {
+                            isNumber = false;
                             break;
                         }
                     } else {
-                        if (lower_token[i] < '0' || lower_token[i] > '9') {
-                            is_number = false;
+                        if (lowerToken[i] < '0' || lowerToken[i] > '9') {
+                            isNumber = false;
                             break;
                         }
                     }
                 }
-                if (is_number)
-                    new_token->type = TokenType::NUMBER;
+                if (isNumber)
+                    newToken->type = TokenType::NUMBER;
                 else
-                    new_token->type = TokenType::UNKNOWN;
+                    newToken->type = TokenType::UNKNOWN;
             }
         }
     }
-    if (new_token->type == TokenType::STRING || new_token->type == TokenType::LABEL || new_token->type == TokenType::SUBLABEL || new_token->type == TokenType::BLABEL || new_token->type == TokenType::BSUBLABEL) {
+    if (newToken->type == TokenType::STRING || newToken->type == TokenType::LABEL || newToken->type == TokenType::SUBLABEL || newToken->type == TokenType::BLABEL || newToken->type == TokenType::BSUBLABEL) {
         // need to switch to the unmodified token
-        delete[] static_cast<char*>(new_token->data);
-        new_token->data = new char[str_token.size() + 1];
-        memcpy(new_token->data, str_token.c_str(), str_token.size());
-        static_cast<char*>(new_token->data)[str_token.size()] = 0;
-        new_token->data_size = str_token.size();
+        delete[] static_cast<char*>(newToken->data);
+        newToken->data = new char[strToken.size() + 1];
+        memcpy(newToken->data, strToken.c_str(), strToken.size());
+        static_cast<char*>(newToken->data)[strToken.size()] = 0;
+        newToken->dataSize = strToken.size();
     }
-    m_tokens.insert(new_token);
+    m_tokens.insert(newToken);
 #ifdef ASSEMBLER_DEBUG
-    printf("Token: \"%s\" at %s:%zu, type = %s\n", lower_token.c_str(), new_token->file_name.c_str(), new_token->line, TokenTypeToString(new_token->type));
+    printf("Token: \"%s\" at %s:%zu, type = %s\n", lowerToken.c_str(), newToken->fileName.c_str(), newToken->line, TokenTypeToString(newToken->type));
 #endif
 }
 
-size_t Lexer::GetLineDifference(const char* src, size_t src_offset, size_t dst_offset) {
-    char const* line_start = src + src_offset;
+size_t Lexer::GetLineDifference(const char* src, size_t srcOffset, size_t dstOffset) {
+    char const* lineStart = src + srcOffset;
     size_t line = 0;
     while (true) {
-        line_start = strchr(line_start, '\n');
-        if (line_start > src + dst_offset || line_start == nullptr)
+        lineStart = strchr(lineStart, '\n');
+        if (lineStart > src + dstOffset || lineStart == nullptr)
             break;
-        line_start++;
+        lineStart++;
         line++;
     }
     return line;
 }
 
 [[noreturn]] void Lexer::error(const char* message, Token* token) {
-    error(message, token->file_name, token->line);
+    error(message, token->fileName, token->line);
 }
 
 [[noreturn]] void Lexer::error(const char* message, const std::string& file, size_t line) {
