@@ -42,8 +42,7 @@ namespace Emulator {
 
     void EmulatorMain();
 
-    struct
-    {
+    struct CPURegisters {
         SafeRegister* IP;
         Register* SCP;
         Register* SBP;
