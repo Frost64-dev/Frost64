@@ -51,7 +51,7 @@ namespace Emulator {
 
     void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write);
 
-    int Start(uint8_t* program, size_t size, size_t RAM, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display = false, VideoBackendType displayType = VideoBackendType::NONE, bool has_drive = false, const char* drivePath = nullptr);
+    int Start(uint8_t* program, size_t size, size_t ramSize, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display = false, VideoBackendType displayType = VideoBackendType::NONE, bool has_drive = false, const char* drivePath = nullptr);
     int RequestEmulatorStop();
     int SendInstruction(uint64_t instruction);
 

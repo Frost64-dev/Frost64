@@ -15,8 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _EMULATOR_UTIL_H
-#define _EMULATOR_UTIL_H
+#ifndef _EMULATOR_UTIL_HPP
+#define _EMULATOR_UTIL_HPP
 
 #define KiB(x) ((uint64_t)x * 1024)
 #define MiB(x) (KiB(x) * 1024)
@@ -63,4 +63,4 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 #endif
 
-#endif /* _EMULATOR_UTIL_H */
+#endif /* _EMULATOR_UTIL_HPP */
