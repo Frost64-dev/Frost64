@@ -25,21 +25,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "Operand.hpp"
 
 
-void InitInsCache(uint64_t starting_IP, MMU* mmu);
+void InitInsCache(uint64_t startingIP, MMU* mmu);
 void UpdateInsCacheMMU(MMU* mmu);
 void InsCache_MaybeSetBaseAddress(uint64_t IP);
 
 bool ExecuteInstruction(uint64_t IP);
 void ExecutionLoop();
 void StopExecution(void** state = nullptr); // If state is non-NULL, a new object of will be allocated with new, and deleted when parsed to the next AllowExecution call.
-void AllowExecution(void** old_state = nullptr); // If old_state is non-NULL, it will be deleted after restoring the state.
+void AllowExecution(void** oldState = nullptr); // If oldState is non-NULL, it will be deleted after restoring the state.
 void PauseExecution();
 void AllowOneInstruction();
 void AddBreakpoint(uint64_t address, std::function<void(uint64_t)> callback);
 void RemoveBreakpoint(uint64_t address);
 
-// return function pointer to instruction based on opcode, output argument count into argument_count if non-null.
-void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count);
+// return function pointer to instruction based on opcode, output argument count into argumentCount if non-null.
+void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount);
 
 void ins_add(Operand* dst, Operand* src);
 void ins_mul(Operand* dst, Operand* src);

@@ -68,7 +68,7 @@
 | Emulator/Instruction/InstructionCache.cpp                            | ❌         |
 | Emulator/Instruction/Operand.hpp                                     | ❌         |
 | Emulator/Instruction/Operand.cpp                                     | ❌         |
-| Emulator/Instruction/Instruction.cpp                                 | ❌         |
-| Emulator/Instruction/Instruction.hpp                                 | ❌         |
+| Emulator/Instruction/Instruction.cpp                                 | ✅         |
+| Emulator/Instruction/Instruction.hpp                                 | ✅         |
 | Emulator/Instruction/InstructionCache.hpp                            | ❌         |
 
