@@ -23,20 +23,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string>
 #include <string_view>
 
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
 class PreProcessor {
 public:
     struct ReferencePoint {
         size_t line;
-        std::string file_name;
+        std::string fileName;
         size_t offset; // offset in the preprocessed buffer
     };
 
     PreProcessor();
     ~PreProcessor();
 
-    void process(const char* source, size_t source_size, const std::string_view& file_name);
+    void process(const char* source, size_t sourceSize, const std::string_view& fileName);
 
     [[nodiscard]] size_t GetProcessedBufferSize() const;
     void ExportProcessedBuffer(uint8_t* data) const;
@@ -44,21 +44,21 @@ public:
     [[nodiscard]] const LinkedList::RearInsertLinkedList<ReferencePoint>& GetReferencePoints() const;
 
 private:
-    static char* GetLine(char* source, size_t source_size, size_t& line_size);
+    static char* GetLine(char* source, size_t sourceSize, size_t& lineSize);
 
-    void HandleIncludes(const char* source, size_t source_size, const std::string_view& file_name);
+    void HandleIncludes(const char* source, size_t sourceSize, const std::string_view& fileName);
 
     static size_t GetLineCount(const char* src, const char* dst);
 
-    ReferencePoint* CreateReferencePoint(const char* source, size_t source_offset, const std::string& file_name, size_t offset);
-    ReferencePoint* CreateReferencePoint(size_t line, const std::string& file_name, size_t offset);
+    ReferencePoint* CreateReferencePoint(const char* source, size_t sourceOffset, const std::string& fileName, size_t offset);
+    ReferencePoint* CreateReferencePoint(size_t line, const std::string& fileName, size_t offset);
 
     [[noreturn]] static void error(const char* message, const std::string& file, size_t line);
     [[noreturn]] static void internal_error(const char* message);
 
 private:
     Buffer m_buffer;
-    uint64_t m_current_offset;
+    uint64_t m_currentOffset;
     LinkedList::RearInsertLinkedList<ReferencePoint> m_referencePoints;
 };
 

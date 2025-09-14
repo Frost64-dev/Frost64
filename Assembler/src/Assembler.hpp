@@ -20,16 +20,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 
-#include <common/Data-structures/LinkedList.hpp>
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
-#include <libarch/Instruction.hpp>
+#include <LibArch/Instruction.hpp>
 
 class Section {
 public:
     
 
-    Section(char* name, uint64_t name_size, uint64_t offset);
+    Section(char* name, uint64_t nameSize, uint64_t offset);
     ~Section();
 
     [[nodiscard]] char const* GetName() const;
@@ -38,7 +38,7 @@ public:
 
 private:
     char* m_name;
-    uint64_t m_name_size;
+    uint64_t m_nameSize;
     uint64_t m_offset;
 };
 
@@ -47,7 +47,7 @@ public:
     Assembler();
     ~Assembler();
 
-    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t base_address);
+    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t baseAddress);
 
     [[nodiscard]] const Buffer& GetBuffer() const;
 
@@ -55,9 +55,9 @@ public:
 
 private:
 
-    [[noreturn]] static void error(const char* message, const std::string& file_name, size_t line);
+    [[noreturn]] static void error(const char* message, const std::string& fileName, size_t line);
 
-    uint64_t m_current_offset;
+    uint64_t m_currentOffset;
     Buffer m_buffer;
     LinkedList::RearInsertLinkedList<Section> m_sections;
 };

@@ -30,9 +30,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <utility>
 #include <vector>
 
-#include <common/spinlock.h>
-#include <common/util.h>
-
 #include <Emulator.hpp>
 
 #include <Instruction/Instruction.hpp>
@@ -44,6 +41,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <OSSpecific/Signal.hpp>
 
+#include <Common/Util.hpp>
 
 DebugInterface::DebugInterface(IOInterfaceType type, MMU* physicalMMU, VirtualMMU* virtualMMU, const std::string_view& data) : IOInterfaceItem(type, data), m_physicalMMU(physicalMMU), m_virtualMMU(virtualMMU), m_thread(nullptr), m_waitLock(0), m_eventPending(0), m_handlingEvents(0) {
 }

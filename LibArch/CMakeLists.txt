@@ -29,7 +29,7 @@ set_target_properties(arch PROPERTIES C_EXTENSIONS OFF)
 set_target_properties(arch PROPERTIES C_STANDARD_REQUIRED ON)
 
 target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/libarch)
+target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/LibArch)
 target_include_directories(arch PUBLIC ${CMAKE_SOURCE_DIR}/LibCommon/include)
 
 target_compile_options(arch

@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <MMU/MMU.hpp>
 
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
 #define INSTRUCTION_CACHE_SIZE 256 // Size of the instruction cache in bytes
 

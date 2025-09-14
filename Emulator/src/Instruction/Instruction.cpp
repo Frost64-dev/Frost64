@@ -34,17 +34,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <MMU/MMU.hpp>
 
-#include <common/spinlock.h>
+#include <Common/Spinlock.hpp>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
+#include <LibArch/Operand.hpp>
 
 std::atomic_uchar g_ExecutionAllowed = 1;
 std::atomic_uchar g_ExecutionRunning = 0;
 std::atomic_uchar g_TerminateExecution = 0;
 std::atomic_uchar g_AllowOneInstruction = 0;
 
-InsEncoding::SimpleInstruction g_current_instruction;
+InsEncoding::SimpleInstruction g_currentInstruction;
 
 Operand g_currentOperands[2];
 ComplexData g_complex[2];
@@ -64,8 +64,8 @@ struct InstructionExecutionRunState {
     bool AllowOne;
 };
 
-void InitInsCache(uint64_t starting_IP, MMU *mmu) {
-    g_insCache.Init(mmu, starting_IP);
+void InitInsCache(uint64_t startingIP, MMU *mmu) {
+    g_insCache.Init(mmu, startingIP);
 }
 
 void UpdateInsCacheMMU(MMU *mmu) {
@@ -96,9 +96,9 @@ void PauseExecution() {
     g_ExecutionRunning.wait(1);
 }
 
-void AllowExecution(void** old_state) {
-    if (old_state != nullptr) {
-        InstructionExecutionRunState* s = static_cast<InstructionExecutionRunState*>(*old_state);
+void AllowExecution(void** oldState) {
+    if (oldState != nullptr) {
+        InstructionExecutionRunState* s = static_cast<InstructionExecutionRunState*>(*oldState);
         g_AllowOneInstruction.store(s->AllowOne);
         g_ExecutionAllowed.store(s->Allowed);
         g_TerminateExecution.store(s->Terminate);
@@ -193,8 +193,8 @@ bool ExecuteInstruction(uint64_t IP) {
         spinlock_release(&g_breakpointsLock);
     }
 
-    uint64_t current_offset = 0;
-    if (!DecodeInstruction(g_insCache, current_offset, &g_current_instruction, [](const char* message, void*) {
+    uint64_t currentOffset = 0;
+    if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction, [](const char* message, void*) {
 #ifdef EMULATOR_DEBUG
         printf("Decoding error: %s\n", message);
 #else
@@ -203,12 +203,12 @@ bool ExecuteInstruction(uint64_t IP) {
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
     }))
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-    uint8_t Opcode = static_cast<uint8_t>(g_current_instruction.GetOpcode());
-    for (uint64_t i = 0; i < g_current_instruction.operand_count; i++) {
-        switch (InsEncoding::Operand* op = &g_current_instruction.operands[i]; op->type) {
+    uint8_t Opcode = static_cast<uint8_t>(g_currentInstruction.GetOpcode());
+    for (uint64_t i = 0; i < g_currentInstruction.operandCount; i++) {
+        switch (InsEncoding::Operand* op = &g_currentInstruction.operands[i]; op->type) {
         case InsEncoding::OperandType::REGISTER: {
-            InsEncoding::Register* temp_reg = static_cast<InsEncoding::Register*>(op->data);
-            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*temp_reg));
+            InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
+            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
             g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Register, reg);
             break;
         }
@@ -246,8 +246,8 @@ bool ExecuteInstruction(uint64_t IP) {
             g_complex[i].offset.present = temp->offset.present;
             if (g_complex[i].base.present) {
                 if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* temp_reg = temp->base.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*temp_reg));
+                    InsEncoding::Register* tempReg = temp->base.data.reg;
+                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
                     g_complex[i].base.data.reg = reg;
                     g_complex[i].base.type = ComplexItem::Type::REGISTER;
                 } else {
@@ -259,8 +259,8 @@ bool ExecuteInstruction(uint64_t IP) {
                 g_complex[i].base.present = false;
             if (g_complex[i].index.present) {
                 if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* temp_reg = temp->index.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*temp_reg));
+                    InsEncoding::Register* tempReg = temp->index.data.reg;
+                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
                     g_complex[i].index.data.reg = reg;
                     g_complex[i].index.type = ComplexItem::Type::REGISTER;
                 } else {
@@ -272,8 +272,8 @@ bool ExecuteInstruction(uint64_t IP) {
                 g_complex[i].index.present = false;
             if (g_complex[i].offset.present) {
                 if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* temp_reg = temp->offset.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*temp_reg));
+                    InsEncoding::Register* tempReg = temp->offset.data.reg;
+                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
                     g_complex[i].offset.data.reg = reg;
                     g_complex[i].offset.type = ComplexItem::Type::REGISTER;
                     g_complex[i].offset.sign = temp->offset.sign;
@@ -294,20 +294,20 @@ bool ExecuteInstruction(uint64_t IP) {
     }
 
     // Get the instruction
-    uint8_t argument_count = 0;
-    void* ins = DecodeOpcode(Opcode, &argument_count);
+    uint8_t argumentCount = 0;
+    void* ins = DecodeOpcode(Opcode, &argumentCount);
     if (ins == nullptr)
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 
     // Increment instruction pointer
-    Emulator::SetNextIP(IP + current_offset);
+    Emulator::SetNextIP(IP + currentOffset);
 
     // Execute the instruction
-    if (argument_count == 0)
+    if (argumentCount == 0)
         reinterpret_cast<void (*)()>(ins)();
-    else if (argument_count == 1)
+    else if (argumentCount == 1)
         reinterpret_cast<void (*)(Operand*)>(ins)(&g_currentOperands[0]);
-    else if (argument_count == 2)
+    else if (argumentCount == 2)
         reinterpret_cast<void (*)(Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1]);
 
     Emulator::SyncRegisters();
@@ -322,70 +322,70 @@ void ExecutionLoop() {
         status = ExecuteInstruction(Emulator::GetCPU_IP());
 }
 
-void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
+void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
     uint8_t offset = opcode & 0x0f;
     switch ((opcode >> 4) & 0x07) {
     case 0: // ALU
         switch (offset) {
         case 0: // add
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_add);
         case 1: // mul
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_mul);
         case 2: // sub
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_sub);
         case 3: // div
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_div);
         case 4: // or
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_or);
         case 5: // xor
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_xor);
         case 6: // nor
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_nor);
         case 7: // and
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_and);
         case 8: // nand
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_nand);
         case 9: // not
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_not);
         case 0xa: // cmp
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_cmp);
         case 0xb: // inc
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_inc);
         case 0xc: // dec
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_dec);
         case 0xd: // shl
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_shl);
         case 0xe: // shr
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_shr);
         default:
             return nullptr;
@@ -393,48 +393,48 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
     case 1: // control flow
         switch (offset) {
         case 0: // ret
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_ret);
         case 1: // call
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_call);
         case 2: // jmp
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jmp);
         case 3: // jc
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jc);
         case 4: // jnc
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jnc);
         case 5: // jz
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jz);
         case 6: // jnz
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jnz);
         case 7: // jl
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jl);
         case 8: // jle
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jle);
         case 9: // jnl
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jnl);
         case 0xa: // jnle
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_jnle);
         default:
             return nullptr;
@@ -442,56 +442,56 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
     case 2: // other
         switch (offset) {
         case 0: // mov
-            if (argument_count != nullptr)
-                *argument_count = 2;
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
             return reinterpret_cast<void*>(ins_mov);
         case 1: // nop
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_nop);
         case 2: // hlt
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_hlt);
         case 3: // push
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_push);
         case 4: // pop
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_pop);
         case 5: // pusha
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_pusha);
         case 6: // popa
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_popa);
         case 7: // int
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_int);
         case 8: // lidt
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_lidt);
         case 9: // iret
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_iret);
         case 0xa: // syscall
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_syscall);
         case 0xb: // sysret
-            if (argument_count != nullptr)
-                *argument_count = 0;
+            if (argumentCount != nullptr)
+                *argumentCount = 0;
             return reinterpret_cast<void*>(ins_sysret);
         case 0xc: // enteruser
-            if (argument_count != nullptr)
-                *argument_count = 1;
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
             return reinterpret_cast<void*>(ins_enteruser);
         default:
             return nullptr;
@@ -522,7 +522,7 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argument_count) {
 
 #ifdef __x86_64__
 
-#include <arch/x86_64/ALUInstruction.h>
+#include <Platform/x86_64/ALUInstruction.h>
 
 #define ALU_INSTRUCTION2(name)                                                  \
     void ins_##name(Operand* dst, Operand* src) {                               \
@@ -557,11 +557,11 @@ ALU_INSTRUCTION2(sub)
 
 void ins_div(Operand* src1, Operand* src2) {
     PRINT_INS_INFO2(src1, src2);
-    uint64_t src_val = src2->GetValue();
-    if (src_val == 0)
+    uint64_t srcVal = src2->GetValue();
+    if (srcVal == 0)
         g_ExceptionHandler->RaiseException(Exception::DIV_BY_ZERO);
     uint64_t flags = 0;
-    x86_64_DivResult result = x86_64_div(src1->GetValue(), src_val, &flags);
+    x86_64_DivResult result = x86_64_div(src1->GetValue(), srcVal, &flags);
     Emulator::GetRegisterPointer(RegisterID_R0)->SetValue(result.quotient);
     Emulator::GetRegisterPointer(RegisterID_R1)->SetValue(result.remainder);
     Emulator::ClearCPUStatus(0xF);

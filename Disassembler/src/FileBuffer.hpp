@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdint>
 #include <cstdio>
 
-#include <common/Data-structures/Buffer.hpp>
+#include <Common/DataStructures/Buffer.hpp>
 
 class FileBuffer : public StreamBuffer {
    public:

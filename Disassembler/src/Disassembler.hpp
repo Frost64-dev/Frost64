@@ -26,8 +26,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
+#include <LibArch/Operand.hpp>
 
 class Disassembler {
 public:

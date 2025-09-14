@@ -15,13 +15,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <Data-structures/AVLTree.hpp>
+#include <Util.hpp>
 
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
-
-#include <util.h>
+#include <DataStructures/AVLTree.hpp>
 
 namespace AVLTree {
 

@@ -22,10 +22,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <string_view>
 
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
-#include <libarch/Instruction.hpp>
-#include <libarch/Operand.hpp>
+#include <LibArch/Instruction.hpp>
 
 #include "Lexer.hpp"
 
@@ -41,21 +40,21 @@ public:
     void Clear();
 
     const LinkedList::RearInsertLinkedList<InsEncoding::Label>& GetLabels() const;
-    uint64_t GetBaseAddress() const { return m_base_address; }
+    uint64_t GetBaseAddress() const { return m_baseAddress; }
 
 private:
-    InsEncoding::Opcode GetOpcode(const char* name, size_t name_size);
-    InsEncoding::Register GetRegister(const char* name, size_t name_size);
+    InsEncoding::Opcode GetOpcode(const char* name, size_t nameSize);
+    InsEncoding::Register GetRegister(const char* name, size_t nameSize);
 
     // if the token is going to be printed, a colon followed by a space is insert after the message, then the token is printed inside double quotes
-    static void error(const char* message, Token* token, bool print_token = false);
+    static void error(const char* message, Token* token, bool printToken = false);
 
     static const char* GetInstructionName(InsEncoding::Opcode opcode);
     static const char* GetRegisterName(InsEncoding::Register reg);
 
 private:
     LinkedList::RearInsertLinkedList<InsEncoding::Label> m_labels;
-    uint64_t m_base_address;
+    uint64_t m_baseAddress;
     std::unordered_map<std::string_view, InsEncoding::Opcode> m_opcodes;
     bool m_opcodeTableInitialised;
     std::unordered_map<std::string_view, InsEncoding::Register> m_registers;

@@ -15,12 +15,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <Util.hpp>
+
 #include <cstdio>
 #include <cstdlib>
-
-#include <util.h>
-
-#include <Data-structures/LinkedList.hpp>
+#include <DataStructures/LinkedList.hpp>
 
 bool operator==(const LinkedList::Node& left, const LinkedList::Node& right) {
     return ((left.data == right.data) && (left.next == right.next) && (left.previous == right.previous));

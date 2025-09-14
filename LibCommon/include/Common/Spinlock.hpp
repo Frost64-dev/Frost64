@@ -15,8 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _SPINLOCK_H
-#define _SPINLOCK_H
+#ifndef _SPINLOCK_HPP
+#define _SPINLOCK_HPP
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,4 +38,4 @@ void spinlock_release(spinlock_t* lock);
 }
 #endif
 
-#endif /* _SPINLOCK_H */
+#endif /* _SPINLOCK_HPP */

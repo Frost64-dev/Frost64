@@ -15,29 +15,25 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <Common/ArgsParser.hpp>
+#include <Common/Util.hpp>
+
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
-#include <cstring> 
-
-#include <common/ArgsParser.hpp>
-#include <common/util.h>
-
+#include <cstring>
 #include <Emulator.hpp>
-
-#include <IO/devices/Video/VideoBackend.hpp>
+#include <IO/Devices/Video/VideoBackend.hpp>
 
 #define MAX_PROGRAM_FILE_SIZE 0x1000'0000
 #define MIN_PROGRAM_FILE_SIZE 1
 
 #define DEFAULT_RAM MiB(1)
 
-/* Argument layout: <file name> [RAM size]*/
 ArgsParser* g_args = nullptr;
-
 int main(int argc, char** argv) {
+    // Setup program arguments
     g_args = new ArgsParser();
-
     g_args->AddOption('p', "program", "Program file to run", true);
     g_args->AddOption('m', "ram", "RAM size in bytes", false);
 #ifdef ENABLE_SDL
@@ -52,6 +48,7 @@ int main(int argc, char** argv) {
 
     g_args->ParseArgs(argc, argv);
 
+    // Handle special arguments
     if (g_args->HasOption('h')) {
         printf("%s", g_args->GetHelpMessage().c_str());
         return 0;
@@ -62,30 +59,29 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Handle emulation arguments
     std::string_view program = g_args->GetOption('p');
 
-    size_t RAM_Size;
-
+    size_t ramSize;
     if (g_args->HasOption('m'))
-        RAM_Size = strtoull(g_args->GetOption('m').data(), nullptr, 0); // automatically detects base
+        ramSize = strtoull(g_args->GetOption('m').data(), nullptr, 0); // automatically detects base
     else
-        RAM_Size = DEFAULT_RAM;
+        ramSize = DEFAULT_RAM;
 
-    // open and read file
+    // Open and read program file
     FILE* fp = fopen(program.data(), "r");
     if (fp == nullptr) {
-        perror("fopen");
+        fprintf(stderr, "Error: could not open file %s: %s\n", program.data(), strerror(errno));
         return 1;
     }
 
     int rc = fseek(fp, 0, SEEK_END);
     if (rc != 0) {
-        perror("fseek");
+        fprintf(stderr, "Error: could not seek end of file %s: %s\n", program.data(), strerror(errno));
         return 1;
     }
 
     size_t fileSize = ftell(fp);
-
     if (fileSize < MIN_PROGRAM_FILE_SIZE) {
         printf("File is too small to be a valid program.\n");
         return 1;
@@ -98,34 +94,30 @@ int main(int argc, char** argv) {
 
     rc = fseek(fp, 0, SEEK_SET);
     if (rc != 0) {
-        perror("fseek");
+        fprintf(stderr, "Error: could not seek start of file %s: %s\n", program.data(), strerror(errno));
         return 1;
     }
 
     uint8_t* data = new uint8_t[fileSize];
-
-    for (size_t i = 0; i < fileSize; i++) {
-        int c = fgetc(fp);
-        if (c == EOF)
-            break;
-        data[i] = static_cast<uint8_t>(c);
+    size_t bytesRead = fread(data, 1, fileSize, fp);
+    if (bytesRead != fileSize) {
+        fprintf(stderr, "Error: failed to read file %s: %s\n", program.data(), strerror(errno));
+        delete[] data;
+        return 1;
     }
 
     fclose(fp);
 
-    // get the display type
+    // Get the display type
     VideoBackendType displayType = VideoBackendType::NONE;
-    bool has_display = g_args->HasOption('d');
-    if (has_display) {
-        std::string_view raw_display = g_args->GetOption('d');
+    bool hasDisplay = g_args->HasOption('d');
+    if (hasDisplay) {
+        std::string_view rawDisplay = g_args->GetOption('d');
         std::string display;
 
-        // convert display to lowercase
-        for (char c : raw_display) {
-            if (isupper(c))
-                display += tolower(c);
-            else
-                display += c;
+        // Convert display to lowercase
+        for (char c : rawDisplay) {
+            display += std::tolower(static_cast<unsigned char>(c));
         }
 
 #ifdef ENABLE_SDL
@@ -138,38 +130,36 @@ int main(int argc, char** argv) {
         else if (display == "none")
             displayType = VideoBackendType::NONE;
         else {
-            printf("Invalid display type: %s\n", display.c_str());
+            fprintf(stderr, "Error: Invalid display type: %s\n", display.c_str());
             return 1;
         }
     }
 
     std::string_view drive;
-    bool has_drive = g_args->HasOption('D');
-    if (has_drive)
+    bool hasDrive = g_args->HasOption('D');
+    if (hasDrive)
         drive = g_args->GetOption('D');
 
-    // get the console type
+    // Get the console type
     std::string_view console = "stdio";
     if (g_args->HasOption('c'))
         console = g_args->GetOption('c');
 
-    // get the debug console type
+    // Get the debug console type
     std::string_view debug = "disabled";
     if (g_args->HasOption("debug"))
         debug = g_args->GetOption("debug");
 
-    // delete the args parser
+    // Delete the args parser
     delete g_args;
 
     // Actually start emulator
-
-    if (int status = Emulator::Start(data, fileSize, RAM_Size, console, debug, has_display, displayType, has_drive, drive.data()); status != 0) {
-        printf("Emulator failed to start: %d\n", status);
+    if (int status = Emulator::Start(data, fileSize, ramSize, console, debug, hasDisplay, displayType, hasDrive, drive.data()); status != 0) {
+        fprintf(stderr, "Error: Emulator failed to start: %d\n", status);
         return 1;
     }
 
     // Cleanup
-
     delete[] data;
 
     return 0;

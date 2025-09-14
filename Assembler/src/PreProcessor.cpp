@@ -33,30 +33,30 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endif
 
 PreProcessor::PreProcessor()
-    : m_current_offset(0) {
+    : m_currentOffset(0) {
 }
 
 PreProcessor::~PreProcessor() {
 }
 
-void PreProcessor::process(const char* source, size_t source_size, const std::string_view& file_name) {
+void PreProcessor::process(const char* source, size_t sourceSize, const std::string_view& fileName) {
     // 1. resolve includes in %include "file" format
     {
-        char* source_i = new char[source_size + 1];
-        strncpy(source_i, source, source_size);
-        source_i[source_size] = '\0';
+        char* source_i = new char[sourceSize + 1];
+        strncpy(source_i, source, sourceSize);
+        source_i[sourceSize] = '\0';
         source = source_i;
     }
-    const char* original_source = source;
+    const char* originalSource = source;
 
-    CreateReferencePoint(1, file_name.data(), 0);
-    HandleIncludes(source, source_size, file_name);
-    CreateReferencePoint(source, source_size, file_name.data(), m_current_offset);
+    CreateReferencePoint(1, fileName.data(), 0);
+    HandleIncludes(source, sourceSize, fileName);
+    CreateReferencePoint(source, sourceSize, fileName.data(), m_currentOffset);
 
-    delete[] original_source;
+    delete[] originalSource;
 
     // export the buffer to a char const* and size
-    size_t source2_size = m_current_offset;
+    size_t source2_size = m_currentOffset;
     char const* source2;
     {
         char* source2_i = new char[source2_size + 1];
@@ -67,38 +67,38 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
 
     // clear the buffer
     m_buffer.Clear();
-    m_current_offset = 0;
+    m_currentOffset = 0;
 
-    const char* original_source2 = source2;
+    const char* originalSource2 = source2;
 
     // 2. remove single line comments starting with ;
     while (true) {
-        if (char const* comment_start = strchr(source2, ';'); comment_start == nullptr) {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source2), source2_size - (source2 - original_source2));
-            m_current_offset += source2_size - (source2 - original_source2);
+        if (char const* commentStart = strchr(source2, ';'); commentStart == nullptr) {
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source2), source2_size - (source2 - originalSource2));
+            m_currentOffset += source2_size - (source2 - originalSource2);
             break;
         } else {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source2), comment_start - source2);
-            m_current_offset += comment_start - source2;
-            source2 = comment_start;
-            char const* comment_end = strchr(source2, '\n');
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source2), commentStart - source2);
+            m_currentOffset += commentStart - source2;
+            source2 = commentStart;
+            char const* commentEnd = strchr(source2, '\n');
             // need to update all the reference points
             m_referencePoints.Enumerate([&](ReferencePoint* ref) {
-                if (ref->offset >= m_current_offset)
-                    ref->offset -= comment_end - comment_start;
+                if (ref->offset >= m_currentOffset)
+                    ref->offset -= commentEnd - commentStart;
             });
-            if (comment_end == nullptr) {
-                comment_end = original_source2 + source2_size;
+            if (commentEnd == nullptr) {
+                commentEnd = originalSource2 + source2_size;
                 break;
             }
-            source2 = comment_end;
+            source2 = commentEnd;
         }
     }
 
-    delete[] original_source2;
+    delete[] originalSource2;
 
     // export the buffer to a char const* and size
-    size_t source3_size = m_current_offset;
+    size_t source3_size = m_currentOffset;
     char const* source3;
     {
         char* source3_i = new char[source3_size + 1];
@@ -109,68 +109,68 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
 
     // clear the buffer
     m_buffer.Clear();
-    m_current_offset = 0;
+    m_currentOffset = 0;
 
-    const char* original_source3 = source3;
+    const char* originalSource3 = source3;
 
     // 3. remove multi line comments starting with /* and ending with */
     while (true) {
-        if (char const* comment_start = strstr(source3, "/*"); comment_start == nullptr) {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source3), source3_size - (source3 - original_source3));
-            m_current_offset += source3_size - (source3 - original_source3);
+        if (char const* commentStart = strstr(source3, "/*"); commentStart == nullptr) {
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source3), source3_size - (source3 - originalSource3));
+            m_currentOffset += source3_size - (source3 - originalSource3);
             break;
         } else {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source3), comment_start - source3);
-            m_current_offset += comment_start - source3;
-            source3 = comment_start;
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source3), commentStart - source3);
+            m_currentOffset += commentStart - source3;
+            source3 = commentStart;
             // need to add a reference point prior to the comment
             uint64_t index = 0;
             ReferencePoint* ref = nullptr;
-            m_referencePoints.EnumerateReverse([&](ReferencePoint* current_ref, uint64_t i) {
-                if (current_ref->offset < static_cast<size_t>(source3 - original_source3)) {
-                    ReferencePoint* new_ref = new ReferencePoint{GetLineCount(original_source3 + current_ref->offset, source3), current_ref->file_name, m_current_offset - 1};
-                    m_referencePoints.insertAt(i, new_ref);
+            m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef, uint64_t i) {
+                if (currentRef->offset < static_cast<size_t>(source3 - originalSource3)) {
+                    ReferencePoint* newRef = new ReferencePoint{GetLineCount(originalSource3 + currentRef->offset, source3), currentRef->fileName, m_currentOffset - 1};
+                    m_referencePoints.insertAt(i, newRef);
                     index = i;
-                    ref = new_ref;
+                    ref = newRef;
                     return false;
                 }
                 return true;
             });
             if (ref == nullptr)
                 internal_error("Unable to find previous reference point whilst resolving a multiline include.");
-            char const* comment_end = strstr(source3, "*/");
-            if (comment_end == nullptr)
-                error("Unterminated multiline comment", ref->file_name, ref->line);
-            source3 = comment_end + 2;
+            char const* commentEnd = strstr(source3, "*/");
+            if (commentEnd == nullptr)
+                error("Unterminated multiline comment", ref->fileName, ref->line);
+            source3 = commentEnd + 2;
             // insert a reference point after the comment
-            ReferencePoint* new_ref = new ReferencePoint{GetLineCount(original_source3, source3 - 2), ref->file_name, m_current_offset};
-            m_referencePoints.insertAt(index + 1, new_ref);
+            ReferencePoint* newRef = new ReferencePoint{GetLineCount(originalSource3, source3 - 2), ref->fileName, m_currentOffset};
+            m_referencePoints.insertAt(index + 1, newRef);
             // now need to update all the reference points
-            m_referencePoints.Enumerate([&](ReferencePoint* current_ref, uint64_t) {
-                if (current_ref->offset >= m_current_offset + (comment_end - comment_start) + 2)
-                    current_ref->offset -= (comment_end - comment_start) + 2;
+            m_referencePoints.Enumerate([&](ReferencePoint* currentRef, uint64_t) {
+                if (currentRef->offset >= m_currentOffset + (commentEnd - commentStart) + 2)
+                    currentRef->offset -= (commentEnd - commentStart) + 2;
                 return true;
             });
         }
     }
 
-    delete[] original_source3;
+    delete[] originalSource3;
 
     // export the buffer to a char const* and size
-    size_t source4_size = m_current_offset;
+    size_t source4Size = m_currentOffset;
     char const* source4;
     {
-        char* source4_i = new char[source4_size + 1];
-        m_buffer.Read(0, reinterpret_cast<uint8_t*>(source4_i), source4_size);
-        source4_i[source4_size] = '\0';
+        char* source4_i = new char[source4Size + 1];
+        m_buffer.Read(0, reinterpret_cast<uint8_t*>(source4_i), source4Size);
+        source4_i[source4Size] = '\0';
         source4 = source4_i;
     }
 
     // clear the buffer
     m_buffer.Clear();
-    m_current_offset = 0;
+    m_currentOffset = 0;
 
-    const char* original_source4 = source4;
+    const char* originalSource4 = source4;
 
     // 4. resolve macros in %define name value format
 
@@ -184,65 +184,65 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
 
     // start by finding all the macros and making a list of them
     while (true) {
-        char* define_start = strstr(const_cast<char*>(source4), "%define ");
-        if (define_start == nullptr)
+        char* defineStart = strstr(const_cast<char*>(source4), "%define ");
+        if (defineStart == nullptr)
             break;
-        define_start += 8;
-        char* define_end = strchr(define_start, ' ');
-        if (define_end == nullptr) {
+        defineStart += 8;
+        char* defineEnd = strchr(defineStart, ' ');
+        if (defineEnd == nullptr) {
             // need to find the previous reference point
             ReferencePoint* ref = nullptr;
-            m_referencePoints.EnumerateReverse([&](ReferencePoint* current_ref) {
-                if (current_ref->offset < static_cast<size_t>(define_start - source4)) {
-                    ref = current_ref;
+            m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef) {
+                if (currentRef->offset < static_cast<size_t>(defineStart - source4)) {
+                    ref = currentRef;
                     return false;
                 }
                 return true;
             });
             if (ref == nullptr)
                 internal_error("Unable to find previous reference point whilst handling a define directive error.");
-            error("Invalid define directive", ref->file_name, ref->line + GetLineCount(original_source4 + ref->offset, define_start));
+            error("Invalid define directive", ref->fileName, ref->line + GetLineCount(originalSource4 + ref->offset, defineStart));
         }
-        char* value_end = strchr(define_end + 1, '\n');
-        if (value_end == nullptr) {
+        char* valueEnd = strchr(defineEnd + 1, '\n');
+        if (valueEnd == nullptr) {
             // need to find the previous reference point
             ReferencePoint* ref = nullptr;
-            m_referencePoints.EnumerateReverse([&](ReferencePoint* current_ref) {
-                if (current_ref->offset < static_cast<size_t>(define_start - source4)) {
-                    ref = current_ref;
+            m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef) {
+                if (currentRef->offset < static_cast<size_t>(defineStart - source4)) {
+                    ref = currentRef;
                     return false;
                 }
                 return true;
             });
             if (ref == nullptr)
                 internal_error("Unable to find previous reference point whilst handling a define directive error.");
-            error("Unterminated define directive", ref->file_name, ref->line + GetLineCount(original_source4 + ref->offset, define_start));
+            error("Unterminated define directive", ref->fileName, ref->line + GetLineCount(originalSource4 + ref->offset, defineStart));
         }
-        defines.push_back({std::string(define_start, define_end), std::string(define_end + 1, value_end), define_start - 8});
-        source4 = value_end + 1;
+        defines.push_back({std::string(defineStart, defineEnd), std::string(defineEnd + 1, valueEnd), defineStart - 8});
+        source4 = valueEnd + 1;
     }
 
-    source4 = original_source4;
+    source4 = originalSource4;
 
     // then remove the macros from the source
     for (Define& define : defines) {
-        m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source4), define.start - source4);
-        m_current_offset += define.start - source4;
+        m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source4), define.start - source4);
+        m_currentOffset += define.start - source4;
         source4 = define.start + define.name.size() + define.value.size() + 9;
         // update all the reference points
         m_referencePoints.Enumerate([&](ReferencePoint* ref) {
-            if (ref->offset >= m_current_offset)
+            if (ref->offset >= m_currentOffset)
                 ref->offset -= define.name.size() + define.value.size() + 9;
         });
     }
     // write the rest of the source
-    m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source4), source4_size - (source4 - original_source4));
-    m_current_offset += source4_size - (source4 - original_source4);
+    m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source4), source4Size - (source4 - originalSource4));
+    m_currentOffset += source4Size - (source4 - originalSource4);
 
     // export into source 5
-    delete[] original_source4;
+    delete[] originalSource4;
 
-    size_t source5_size = m_current_offset;
+    size_t source5_size = m_currentOffset;
     char const* source5;
     {
         char* source5_i = new char[source5_size + 1];
@@ -253,9 +253,9 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
 
     // clear the buffer
     m_buffer.Clear();
-    m_current_offset = 0;
+    m_currentOffset = 0;
 
-    char const* original_source5 = source5;
+    char const* originalSource5 = source5;
 
     // make a list of all references to the macros
     struct DefineReference {
@@ -263,181 +263,181 @@ void PreProcessor::process(const char* source, size_t source_size, const std::st
         char const* start;
     };
 
-    std::map<size_t /* offset */, Define&> define_references;
+    std::map<size_t /* offset */, Define&> defineReferences;
 
     for (Define& define : defines) {
-        char* define_start = const_cast<char*>(source5);
-        while (define_start != nullptr) {
-            define_start = strstr(define_start, define.name.c_str());
-            if (define_start != nullptr) {
-                define_references.insert({define_start - source5, define});
-                define_start += define.name.size();
+        char* defineStart = const_cast<char*>(source5);
+        while (defineStart != nullptr) {
+            defineStart = strstr(defineStart, define.name.c_str());
+            if (defineStart != nullptr) {
+                defineReferences.insert({defineStart - source5, define});
+                defineStart += define.name.size();
             }
         }
     }
 
-    for (auto& [offset, define] : define_references) {
-        if (offset < m_current_offset) { // possible overlap
+    for (auto& [offset, define] : defineReferences) {
+        if (offset < m_currentOffset) { // possible overlap
             // need to ensure it does overlap and isn't before. if it is before, then an error has occurred
-            if (offset + define.name.size() <= m_current_offset)
+            if (offset + define.name.size() <= m_currentOffset)
                 internal_error("Illegal define reference.");
 
             // no need to copy before the offset
-            m_buffer.Write(m_current_offset - (m_current_offset - offset), reinterpret_cast<const uint8_t*>(define.value.c_str()), define.value.size());
-            m_current_offset += define.value.size() - (m_current_offset - offset);
-            source5 += define.name.size() - (m_current_offset - offset);
+            m_buffer.Write(m_currentOffset - (m_currentOffset - offset), reinterpret_cast<const uint8_t*>(define.value.c_str()), define.value.size());
+            m_currentOffset += define.value.size() - (m_currentOffset - offset);
+            source5 += define.name.size() - (m_currentOffset - offset);
             // update all the reference points
             m_referencePoints.Enumerate([&](ReferencePoint* ref) {
-                    if (ref->offset >= m_current_offset)
-                    ref->offset += define.value.size() - (m_current_offset - offset);
+                    if (ref->offset >= m_currentOffset)
+                    ref->offset += define.value.size() - (m_currentOffset - offset);
             });
         } else {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source5), offset - (source5 - original_source5));
-            m_current_offset += offset - (source5 - original_source5);
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(define.value.c_str()), define.value.size());
-            m_current_offset += define.value.size();
-            source5 += offset - (source5 - original_source5) + define.name.size();
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source5), offset - (source5 - originalSource5));
+            m_currentOffset += offset - (source5 - originalSource5);
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(define.value.c_str()), define.value.size());
+            m_currentOffset += define.value.size();
+            source5 += offset - (source5 - originalSource5) + define.name.size();
             // update all the reference points
             m_referencePoints.Enumerate([&](ReferencePoint* ref) {
-                if (ref->offset >= m_current_offset)
+                if (ref->offset >= m_currentOffset)
                     ref->offset += define.value.size() - define.name.size();
             });
         }
     }
 
     // copy the rest of the source
-    m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(source5), source5_size - (source5 - original_source5));
-    m_current_offset += source5_size - (source5 - original_source5);
+    m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(source5), source5_size - (source5 - originalSource5));
+    m_currentOffset += source5_size - (source5 - originalSource5);
 
-    delete[] original_source5;
+    delete[] originalSource5;
 }
 
 size_t PreProcessor::GetProcessedBufferSize() const {
-    return m_current_offset;
+    return m_currentOffset;
 }
 
 void PreProcessor::ExportProcessedBuffer(uint8_t* data) const {
-    m_buffer.Read(0, data, m_current_offset);
+    m_buffer.Read(0, data, m_currentOffset);
 }
 
 const LinkedList::RearInsertLinkedList<PreProcessor::ReferencePoint>& PreProcessor::GetReferencePoints() const {
     return m_referencePoints;
 }
 
-char* PreProcessor::GetLine(char* source, size_t source_size, size_t& line_size) {
-    if (void* line = memchr(source, '\n', source_size); line != nullptr) {
-        line_size = static_cast<char*>(line) - source;
+char* PreProcessor::GetLine(char* source, size_t sourceSize, size_t& lineSize) {
+    if (void* line = memchr(source, '\n', sourceSize); line != nullptr) {
+        lineSize = static_cast<char*>(line) - source;
         return static_cast<char*>(line) + 1;
     }
-    line_size = source_size;
+    lineSize = sourceSize;
     return nullptr;
 }
 
-void PreProcessor::HandleIncludes(const char* source, size_t source_size, const std::string_view& file_name) {
-    char* include_start = const_cast<char*>(source);
-    char* include_end = nullptr;
+void PreProcessor::HandleIncludes(const char* source, size_t sourceSize, const std::string_view& fileName) {
+    char* includeStart = const_cast<char*>(source);
+    char* includeEnd = nullptr;
     char const* i_source = source;
 
-    while (include_start != nullptr) {
-        include_start = strstr(include_start, "%include \"");
-        if (include_start != nullptr) {
-            m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(i_source), include_start - i_source);
-            m_current_offset += include_start - i_source;
-            ReferencePoint* start_ref = CreateReferencePoint(source, include_start - source, file_name.data(), m_current_offset);
-            include_start += 10;
-            include_end = strchr(include_start, '"');
-            if (include_end != nullptr) {
-                std::string include_string = std::filesystem::path(file_name).replace_filename(std::string(include_start, include_end));
+    while (includeStart != nullptr) {
+        includeStart = strstr(includeStart, "%include \"");
+        if (includeStart != nullptr) {
+            m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(i_source), includeStart - i_source);
+            m_currentOffset += includeStart - i_source;
+            ReferencePoint* startRef = CreateReferencePoint(source, includeStart - source, fileName.data(), m_currentOffset);
+            includeStart += 10;
+            includeEnd = strchr(includeStart, '"');
+            if (includeEnd != nullptr) {
+                std::string includeString = std::filesystem::path(fileName).replace_filename(std::string(includeStart, includeEnd));
 
-                std::ifstream file(include_string, std::ios::binary);
+                std::ifstream file(includeString, std::ios::binary);
                 if (file) {
-                    std::vector<char> file_data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    std::vector<char> fileData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
                     file.close();
 
                     PreProcessor preprocessor;
-                    preprocessor.CreateReferencePoint(1, include_string, 0);
-                    preprocessor.HandleIncludes(file_data.data(), file_data.size(), include_string);
-                    preprocessor.CreateReferencePoint(file_data.data(), file_data.size(), include_string, preprocessor.m_current_offset);
-                    size_t processed_size = preprocessor.GetProcessedBufferSize();
+                    preprocessor.CreateReferencePoint(1, includeString, 0);
+                    preprocessor.HandleIncludes(fileData.data(), fileData.size(), includeString);
+                    preprocessor.CreateReferencePoint(fileData.data(), fileData.size(), includeString, preprocessor.m_currentOffset);
+                    size_t processedSize = preprocessor.GetProcessedBufferSize();
                     
-                    std::vector<uint8_t> processed_data(processed_size);
-                    preprocessor.ExportProcessedBuffer(processed_data.data());
+                    std::vector<uint8_t> processedData(processedSize);
+                    preprocessor.ExportProcessedBuffer(processedData.data());
 
-                    m_buffer.Write(m_current_offset, processed_data.data(), processed_size);
-                    m_current_offset += processed_size;
+                    m_buffer.Write(m_currentOffset, processedData.data(), processedSize);
+                    m_currentOffset += processedSize;
 
                     preprocessor.m_referencePoints.Enumerate([&](ReferencePoint* ref) {
-                        ref->offset += m_current_offset - processed_size;
+                        ref->offset += m_currentOffset - processedSize;
                         m_referencePoints.insert(ref);
                     });
                     preprocessor.m_referencePoints.clear();
                 } else {
 #ifdef ENABLE_CXX20_FORMAT
-                    error(std::format("Could not open included file \"{}\": {}", include_string, strerror(errno)).c_str(), start_ref->file_name, start_ref->line);
+                    error(std::format("Could not open included file \"{}\": {}", includeString, strerror(errno)).c_str(), startRef->fileName, startRef->line);
 #else
                     std::stringstream ss;
-                    ss << "Could not open included file \"" << include_string << "\"";
+                    ss << "Could not open included file \"" << includeString << "\"";
                     ss << ": " << strerror(errno);
-                    error(ss.str().c_str(), start_ref->file_name, start_ref->line);                    
+                    error(ss.str().c_str(), startRef->fileName, startRef->line);                    
 #endif
                 }
-                i_source = include_end + 1;
-                CreateReferencePoint(source, i_source - source, file_name.data(), m_current_offset);
+                i_source = includeEnd + 1;
+                CreateReferencePoint(source, i_source - source, fileName.data(), m_currentOffset);
             } else {
                 // need to find the previous reference point
                 ReferencePoint* ref = nullptr;
-                m_referencePoints.EnumerateReverse([&](ReferencePoint* current_ref) {
-                    if (current_ref->offset < static_cast<size_t>(include_start - source)) {
-                        ref = current_ref;
+                m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef) {
+                    if (currentRef->offset < static_cast<size_t>(includeStart - source)) {
+                        ref = currentRef;
                         return false;
                     }
                     return true;
                 });
                 if (ref == nullptr)
                     internal_error("Unable to find previous reference point whilst handling an include directive error.");
-                error("Unterminated include directive", start_ref->file_name, start_ref->line);
+                error("Unterminated include directive", startRef->fileName, startRef->line);
             }
         }
     }
     // read the rest of the source
-    if (include_end == nullptr)
-        include_end = const_cast<char*>(source);
+    if (includeEnd == nullptr)
+        includeEnd = const_cast<char*>(source);
     else
-        include_end += 1;
+        includeEnd += 1;
 
-    m_buffer.Write(m_current_offset, reinterpret_cast<const uint8_t*>(include_end), source_size - (include_end - source));
-    m_current_offset += source_size - (include_end - source);
+    m_buffer.Write(m_currentOffset, reinterpret_cast<const uint8_t*>(includeEnd), sourceSize - (includeEnd - source));
+    m_currentOffset += sourceSize - (includeEnd - source);
 }
 
 size_t PreProcessor::GetLineCount(const char* src, const char* dst) {
-    char const* line_start = src;
+    char const* lineStart = src;
     size_t line = 1;
-    while (line_start < dst) {
-        line_start = strchr(line_start, '\n');
-        if (line_start == nullptr)
+    while (lineStart < dst) {
+        lineStart = strchr(lineStart, '\n');
+        if (lineStart == nullptr)
             break;
-        line_start += 1;
+        lineStart += 1;
         line += 1;
     }
     return line;
 }
 
-PreProcessor::ReferencePoint* PreProcessor::CreateReferencePoint(const char* source, size_t source_offset, const std::string& file_name, size_t offset) {
+PreProcessor::ReferencePoint* PreProcessor::CreateReferencePoint(const char* source, size_t sourceOffset, const std::string& fileName, size_t offset) {
     // need to get the line number using strchr
-    char const* line_start = source;
+    char const* lineStart = source;
     size_t line = 1;
-    while (line_start < source + source_offset) {
-        line_start = strchr(line_start, '\n');
-        if (line_start == nullptr)
+    while (lineStart < source + sourceOffset) {
+        lineStart = strchr(lineStart, '\n');
+        if (lineStart == nullptr)
             break;
-        line_start += 1;
+        lineStart += 1;
         line += 1;
     }
-    return CreateReferencePoint(line, file_name, offset);
+    return CreateReferencePoint(line, fileName, offset);
 }
 
-PreProcessor::ReferencePoint* PreProcessor::CreateReferencePoint(size_t line, const std::string& file_name, size_t offset) {
-    ReferencePoint* ref = new ReferencePoint{line, file_name, offset};
+PreProcessor::ReferencePoint* PreProcessor::CreateReferencePoint(size_t line, const std::string& fileName, size_t offset) {
+    ReferencePoint* ref = new ReferencePoint{line, fileName, offset};
     m_referencePoints.insert(ref);
     return ref;
 }

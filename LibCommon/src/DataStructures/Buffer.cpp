@@ -15,11 +15,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <Util.hpp>
+
 #include <cstring>
-
-#include <util.h>
-
-#include <Data-structures/Buffer.hpp>
+#include <DataStructures/Buffer.hpp>
 
 Buffer::Buffer()
     : m_size(0), m_blockSize(DEFAULT_BUFFER_BLOCK_SIZE) {

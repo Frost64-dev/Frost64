@@ -31,11 +31,11 @@ namespace InsEncoding {
     uint64_t g_rawData[48]; // maximum of 6 in an operand, maximum of 8 bytes each, totalling 48 bytes
 
     Instruction::Instruction()
-        : m_opcode(Opcode::UNKNOWN), m_file_name(), m_line(0) {
+        : m_opcode(Opcode::UNKNOWN), m_fileName(), m_line(0) {
     }
 
     Instruction::Instruction(Opcode opcode, const std::string& file_name, size_t line)
-        : m_opcode(opcode), m_file_name(file_name), m_line(line) {
+        : m_opcode(opcode), m_fileName(file_name), m_line(line) {
     }
 
     Instruction::~Instruction() {
@@ -50,7 +50,7 @@ namespace InsEncoding {
     }
 
     const std::string& Instruction::GetFileName() const {
-        return m_file_name;
+        return m_fileName;
     }
 
     size_t Instruction::GetLine() const {
@@ -58,11 +58,11 @@ namespace InsEncoding {
     }
 
     SimpleInstruction::SimpleInstruction()
-        : operand_count(0), m_opcode(Opcode::UNKNOWN) {
+        : operandCount(0), m_opcode(Opcode::UNKNOWN) {
     }
 
     SimpleInstruction::SimpleInstruction(Opcode opcode)
-        : operand_count(0), m_opcode(opcode) {
+        : operandCount(0), m_opcode(opcode) {
     }
 
     SimpleInstruction::~SimpleInstruction() {
@@ -125,7 +125,7 @@ namespace InsEncoding {
         return reg_id;
     }
 
-    Register GetRegisterFromID(RegisterID reg_id, void (*error_handler)(const char* message, void* data), void* data) {
+    Register GetRegisterFromID(RegisterID reg_id, void (*errorHandler)(const char* message, void* data), void* data) {
         Register reg;
         switch (reg_id.type) {
 #define REG_CASE(name, num)   \
@@ -151,7 +151,7 @@ namespace InsEncoding {
                 REG_CASE(r14, 14)
                 REG_CASE(r15, 15)
             default:
-                error_handler("Invalid register number", data);
+                errorHandler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
@@ -161,7 +161,7 @@ namespace InsEncoding {
                 REG_CASE(sbp, 1)
                 REG_CASE(stp, 2)
             default:
-                error_handler("Invalid register number", data);
+                errorHandler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
@@ -178,12 +178,12 @@ namespace InsEncoding {
                 REG_CASE(sts, 8)
                 REG_CASE(ip, 9)
             default:
-                error_handler("Invalid register number", data);
+                errorHandler("Invalid register number", data);
                 __builtin_unreachable();
             }
             break;
         default:
-            error_handler("Invalid register type", data);
+            errorHandler("Invalid register type", data);
             __builtin_unreachable();
         }
 #undef REG_CASE
@@ -300,7 +300,7 @@ namespace InsEncoding {
         current_offset++;
 
         g_currentInstruction.SetOpcode(static_cast<Opcode>(raw_opcode));
-        g_currentInstruction.operand_count = 0;
+        g_currentInstruction.operandCount = 0;
 
         uint8_t arg_count = GetArgCountForOpcode(g_currentInstruction.GetOpcode());
         if (arg_count == 0) {
@@ -362,10 +362,10 @@ namespace InsEncoding {
                 }
             } else {
                 StandardStandardOperandInfo* temp_standard_info = reinterpret_cast<StandardStandardOperandInfo*>(&raw_operand_info);
-                operand_types[0] = static_cast<OperandType>(temp_standard_info->first_type);
-                operand_sizes[0] = static_cast<OperandSize>(temp_standard_info->first_size);
-                operand_types[1] = static_cast<OperandType>(temp_standard_info->second_type);
-                operand_sizes[1] = static_cast<OperandSize>(temp_standard_info->second_size);
+                operand_types[0] = static_cast<OperandType>(temp_standard_info->firstType);
+                operand_sizes[0] = static_cast<OperandSize>(temp_standard_info->firstSize);
+                operand_types[1] = static_cast<OperandType>(temp_standard_info->secondType);
+                operand_sizes[1] = static_cast<OperandSize>(temp_standard_info->secondSize);
 
                 if (operand_types[1] == OperandType::COMPLEX) {
                     StandardComplexOperandInfo temp_complex_info{};
@@ -390,13 +390,13 @@ namespace InsEncoding {
             case OperandType::COMPLEX: {
                 ComplexOperandInfo complex_info = complex_infos[i];
                 ComplexData* complex = &g_complexData[i];
-                complex->base.present = complex_info.base_present;
+                complex->base.present = complex_info.basePresent;
                 if (complex->base.present) {
-                    complex->base.type = complex_info.base_type == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
+                    complex->base.type = complex_info.baseType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->base.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->base.data.imm.size = static_cast<OperandSize>(complex_info.base_size);
+                        complex->base.data.imm.size = static_cast<OperandSize>(complex_info.baseSize);
                         complex->base.data.imm.data = &g_rawData[i * 3];
-                        switch (complex_info.base_size) {
+                        switch (complex_info.baseSize) {
 #define SIZE_CASE(bytes, bits) \
         case bytes: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->base.data.imm.data)); \
@@ -407,7 +407,7 @@ namespace InsEncoding {
                         SIZE_CASE(3, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.base_size;
+                        current_offset += 1 << complex_info.baseSize;
                     } else if (complex->base.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
@@ -416,13 +416,13 @@ namespace InsEncoding {
                         *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
-                complex->index.present = complex_info.index_present;
+                complex->index.present = complex_info.indexPresent;
                 if (complex->index.present) {
-                    complex->index.type = complex_info.index_type == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
+                    complex->index.type = complex_info.indexType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->index.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->index.data.imm.size = static_cast<OperandSize>(complex_info.index_size);
+                        complex->index.data.imm.size = static_cast<OperandSize>(complex_info.indexSize);
                         complex->index.data.imm.data = &g_rawData[i * 3 + 1];
-                        switch (complex_info.index_size) {
+                        switch (complex_info.indexSize) {
 #define SIZE_CASE(bytes, bits) \
         case bytes: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->index.data.imm.data)); \
@@ -433,7 +433,7 @@ namespace InsEncoding {
                         SIZE_CASE(3, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.index_size;
+                        current_offset += 1 << complex_info.indexSize;
                     } else if (complex->index.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
@@ -442,13 +442,13 @@ namespace InsEncoding {
                         *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
-                complex->offset.present = complex_info.offset_present;
+                complex->offset.present = complex_info.offsetPresent;
                 if (complex->offset.present) {
-                    complex->offset.type = complex_info.offset_type == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
+                    complex->offset.type = complex_info.offsetType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->offset.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->offset.data.imm.size = static_cast<OperandSize>(complex_info.offset_size);
+                        complex->offset.data.imm.size = static_cast<OperandSize>(complex_info.offsetSize);
                         complex->offset.data.imm.data = &g_rawData[i * 3 + 2];
-                        switch (complex_info.offset_size) {
+                        switch (complex_info.offsetSize) {
 #define SIZE_CASE(bytes, bits) \
         case bytes: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->offset.data.imm.data)); \
@@ -459,14 +459,14 @@ namespace InsEncoding {
                         SIZE_CASE(3, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.offset_size;
+                        current_offset += 1 << complex_info.offsetSize;
                     } else if (complex->offset.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         current_offset += sizeof(RegisterID);
                         complex->offset.data.reg = &g_currentRegisters[i * 3 + 2];
                         *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
-                        complex->offset.sign = complex_info.offset_size;
+                        complex->offset.sign = complex_info.offsetSize;
                     }
                 }
                 operand.data = complex;
@@ -509,8 +509,8 @@ namespace InsEncoding {
                 error_handler("Invalid operand type", error_data);
             }
 
-            g_currentInstruction.operands[g_currentInstruction.operand_count] = operand;
-            g_currentInstruction.operand_count++;
+            g_currentInstruction.operands[g_currentInstruction.operandCount] = operand;
+            g_currentInstruction.operandCount++;
         }
 
         *out = g_currentInstruction;
@@ -545,15 +545,15 @@ namespace InsEncoding {
                 ComplexOperandInfo info{};
                 info.type = static_cast<uint8_t>(OperandType::COMPLEX);
                 info.size = static_cast<uint8_t>(operands[0]->size);
-                info.base_type = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.base_size = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
-                info.base_present = complex->base.present;
-                info.index_type = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.index_size = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
-                info.index_present = complex->index.present;
-                info.offset_type = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.offset_size = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
-                info.offset_present = complex->offset.present;
+                info.baseType = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.baseSize = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
+                info.basePresent = complex->base.present;
+                info.indexType = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.indexSize = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
+                info.indexPresent = complex->index.present;
+                info.offsetType = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.offsetSize = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
+                info.offsetPresent = complex->offset.present;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexOperandInfo));
                 current_offset += sizeof(ComplexOperandInfo);
             } else {
@@ -586,15 +586,15 @@ namespace InsEncoding {
                 ComplexData* complex = static_cast<ComplexData*>(operands[operands[0]->type == OperandType::COMPLEX ? 0 : 1]->data);
                 info.complex.type = static_cast<uint8_t>(OperandType::COMPLEX);
                 info.complex.size = static_cast<uint8_t>(operands[operands[0]->type == OperandType::COMPLEX ? 0 : 1]->size);
-                info.complex.base_type = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.base_size = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
-                info.complex.base_present = complex->base.present;
-                info.complex.index_type = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.index_size = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
-                info.complex.index_present = complex->index.present;
-                info.complex.offset_type = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.offset_size = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
-                info.complex.offset_present = complex->offset.present;
+                info.complex.baseType = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.complex.baseSize = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
+                info.complex.basePresent = complex->base.present;
+                info.complex.indexType = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.complex.indexSize = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
+                info.complex.indexPresent = complex->index.present;
+                info.complex.offsetType = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.complex.offsetSize = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
+                info.complex.offsetPresent = complex->offset.present;
                 if (operands[0]->type == OperandType::COMPLEX) {
                     ComplexStandardOperandInfo temp{};
                     temp.complex = info.complex;
@@ -612,43 +612,43 @@ namespace InsEncoding {
                 ComplexData* complex1 = static_cast<ComplexData*>(operands[1]->data);
                 info.first.type = static_cast<uint8_t>(OperandType::COMPLEX);
                 info.first.size = static_cast<uint8_t>(operands[0]->size);
-                info.first.base_type = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.base_size = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->base.type == ComplexItem::Type::LABEL || complex0->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->base.data.imm.size));
-                info.first.base_present = complex0->base.present;
-                info.first.index_type = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.index_size = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->index.type == ComplexItem::Type::LABEL || complex0->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->index.data.imm.size));
-                info.first.index_present = complex0->index.present;
-                info.first.offset_type = complex0->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.offset_size = complex0->offset.type == ComplexItem::Type::REGISTER ? complex0->offset.sign : ((complex0->offset.type == ComplexItem::Type::LABEL || complex0->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->offset.data.imm.size));
-                info.first.offset_present = complex0->offset.present;
+                info.first.baseType = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.first.baseSize = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->base.type == ComplexItem::Type::LABEL || complex0->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->base.data.imm.size));
+                info.first.basePresent = complex0->base.present;
+                info.first.indexType = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.first.indexSize = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->index.type == ComplexItem::Type::LABEL || complex0->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->index.data.imm.size));
+                info.first.indexPresent = complex0->index.present;
+                info.first.offsetType = complex0->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.first.offsetSize = complex0->offset.type == ComplexItem::Type::REGISTER ? complex0->offset.sign : ((complex0->offset.type == ComplexItem::Type::LABEL || complex0->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->offset.data.imm.size));
+                info.first.offsetPresent = complex0->offset.present;
                 info.second.type = static_cast<uint8_t>(OperandType::COMPLEX);
                 info.second.size = static_cast<uint8_t>(operands[1]->size);
-                info.second.base_type = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.base_size = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->base.type == ComplexItem::Type::LABEL || complex1->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->base.data.imm.size));
-                info.second.base_present = complex1->base.present;
-                info.second.index_type = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.index_size = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->index.type == ComplexItem::Type::LABEL || complex1->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->index.data.imm.size));
-                info.second.index_present = complex1->index.present;
-                info.second.offset_type = complex1->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.offset_size = complex1->offset.type == ComplexItem::Type::REGISTER ? complex1->offset.sign : ((complex1->offset.type == ComplexItem::Type::LABEL || complex1->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->offset.data.imm.size));
-                info.second.offset_present = complex1->offset.present;
+                info.second.baseType = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.second.baseSize = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->base.type == ComplexItem::Type::LABEL || complex1->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->base.data.imm.size));
+                info.second.basePresent = complex1->base.present;
+                info.second.indexType = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.second.indexSize = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->index.type == ComplexItem::Type::LABEL || complex1->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->index.data.imm.size));
+                info.second.indexPresent = complex1->index.present;
+                info.second.offsetType = complex1->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
+                info.second.offsetSize = complex1->offset.type == ComplexItem::Type::REGISTER ? complex1->offset.sign : ((complex1->offset.type == ComplexItem::Type::LABEL || complex1->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->offset.data.imm.size));
+                info.second.offsetPresent = complex1->offset.present;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexComplexOperandInfo));
                 current_offset += sizeof(ComplexComplexOperandInfo);
             } else if (operands[0]->type != OperandType::COMPLEX && operands[1]->type != OperandType::COMPLEX) {
                 StandardStandardOperandInfo info{};
                 if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL) {
-                    info.first_type = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                    info.first_size = 3;
+                    info.firstType = static_cast<uint8_t>(OperandType::IMMEDIATE);
+                    info.firstSize = 3;
                 } else {
-                    info.first_type = static_cast<uint8_t>(operands[0]->type);
-                    info.first_size = static_cast<uint8_t>(operands[0]->size);
+                    info.firstType = static_cast<uint8_t>(operands[0]->type);
+                    info.firstSize = static_cast<uint8_t>(operands[0]->size);
                 }
                 if (operands[1]->type == OperandType::LABEL || operands[1]->type == OperandType::SUBLABEL) {
-                    info.second_type = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                    info.second_size = 3;
+                    info.secondType = static_cast<uint8_t>(OperandType::IMMEDIATE);
+                    info.secondSize = 3;
                 } else {
-                    info.second_type = static_cast<uint8_t>(operands[1]->type);
-                    info.second_size = static_cast<uint8_t>(operands[1]->size);
+                    info.secondType = static_cast<uint8_t>(operands[1]->type);
+                    info.secondSize = static_cast<uint8_t>(operands[1]->size);
                 }
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(StandardStandardOperandInfo));
                 current_offset += sizeof(StandardStandardOperandInfo);
@@ -726,7 +726,7 @@ namespace InsEncoding {
                             Label* label = item->data.label;
                             uint64_t* offset = new uint64_t;
                             *offset = current_offset + global_offset;
-                            label->blocks.get(0)->jumps_to_here.insert(offset);
+                            label->blocks.get(0)->jumpsToHere.insert(offset);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -736,7 +736,7 @@ namespace InsEncoding {
                             Block* block = item->data.sublabel;
                             uint64_t* offset = new uint64_t;
                             *offset = current_offset + global_offset;
-                            block->jumps_to_here.insert(offset);
+                            block->jumpsToHere.insert(offset);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -752,7 +752,7 @@ namespace InsEncoding {
                 Block* i_block = i_label->blocks.get(0);
                 uint64_t* offset = new uint64_t;
                 *offset = current_offset + global_offset;
-                i_block->jumps_to_here.insert(offset);
+                i_block->jumpsToHere.insert(offset);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;
@@ -760,7 +760,7 @@ namespace InsEncoding {
                 Block* i_block = static_cast<Block*>(operand->data);
                 uint64_t* offset = new uint64_t;
                 *offset = current_offset + global_offset;
-                i_block->jumps_to_here.insert(offset);
+                i_block->jumpsToHere.insert(offset);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;

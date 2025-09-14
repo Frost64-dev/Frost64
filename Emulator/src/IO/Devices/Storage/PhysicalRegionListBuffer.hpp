@@ -18,8 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _PHYSICAL_REGION_LIST_BUFFER_HPP
 #define _PHYSICAL_REGION_LIST_BUFFER_HPP
 
-#include <common/Data-structures/Buffer.hpp>
-#include <common/Data-structures/LinkedList.hpp>
+#include <Common/DataStructures/Buffer.hpp>
+#include <Common/DataStructures/LinkedList.hpp>
 
 #include <MMU/MMU.hpp>
 
