@@ -192,10 +192,11 @@ namespace InsEncoding {
 
     uint8_t GetArgCountForOpcode(Opcode opcode) {
         switch (opcode) {
-        case Opcode::ADD:
         case Opcode::MUL:
-        case Opcode::SUB:
         case Opcode::DIV:
+            return 3;
+        case Opcode::ADD:
+        case Opcode::SUB:
         case Opcode::OR:
         case Opcode::XOR:
         case Opcode::NOR:
@@ -287,6 +288,65 @@ namespace InsEncoding {
     #undef NAME_CASE
         return "UNKNOWN";
     }
+
+    CompactOperandType GetCompactOperandTypeFromComplex(ComplexItem::Type* types, bool basePresent, bool indexPresent, bool offsetPresent, Instruction* instruction) {
+        CompactOperandType type = CompactOperandType::RESERVED;
+        if (!basePresent)
+            EncodingError("Complex operand must have at least a base", instruction);
+        if (indexPresent) {
+            if (types[0] != ComplexItem::Type::REGISTER)
+                EncodingError("Base of complex operand with index must be a register", instruction);
+            if (offsetPresent) {
+                // base, index, offset
+                if (types[1] == ComplexItem::Type::REGISTER && types[2] == ComplexItem::Type::REGISTER)
+                    type = CompactOperandType::MEM_BASE_IDX_OFF_REG;
+                else if (types[1] == ComplexItem::Type::REGISTER && types[2] == ComplexItem::Type::IMMEDIATE)
+                    type = CompactOperandType::MEM_BASE_IDX_OFF_REG2_IMM;
+                else if (types[1] == ComplexItem::Type::IMMEDIATE && types[2] == ComplexItem::Type::REGISTER)
+                    type = CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM_REG;
+                else if (types[1] == ComplexItem::Type::IMMEDIATE && types[2] == ComplexItem::Type::IMMEDIATE)
+                    type = CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2;
+                else
+                    EncodingError("Invalid complex operand type", instruction);
+            }
+            else {
+                // base, index
+                if (types[1] == ComplexItem::Type::REGISTER)
+                    type = CompactOperandType::MEM_BASE_IDX_REG;
+                else if (types[1] == ComplexItem::Type::IMMEDIATE)
+                    type = CompactOperandType::MEM_BASE_IDX_REG_IMM;
+                else
+                    EncodingError("Invalid complex operand type", instruction);
+            }
+        }
+        else if (offsetPresent) {
+            // base, offset
+            if (types[0] == ComplexItem::Type::IMMEDIATE) {
+                if (types[2] == ComplexItem::Type::REGISTER)
+                    type = CompactOperandType::MEM_BASE_OFF_IMM_REG;
+                else
+                    EncodingError("Invalid complex operand type", instruction);
+            }
+            else if (types[2] == ComplexItem::Type::REGISTER)
+                type = CompactOperandType::MEM_BASE_OFF_REG;
+            else if (types[2] == ComplexItem::Type::IMMEDIATE)
+                type = CompactOperandType::MEM_BASE_OFF_REG_IMM;
+            else
+                EncodingError("Invalid complex operand type", instruction);
+        }
+        else {
+            // base only
+            if (types[0] == ComplexItem::Type::REGISTER)
+                type = CompactOperandType::MEM_BASE_REG;
+            else if (types[0] == ComplexItem::Type::IMMEDIATE)
+                type = CompactOperandType::MEM_BASE_IMM;
+            else
+                EncodingError("Invalid complex operand type", instruction);
+        }
+        return type;
+    }
+
+    /*
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
@@ -518,13 +578,13 @@ namespace InsEncoding {
     }
 
 #pragma GCC diagnostic pop
-
+*/
     size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset) {
         Buffer buffer;
         uint64_t current_offset = 0;
 
-        if (instruction->operands.getCount() > 2)
-            EncodingError("Instruction has more than 2 operands", instruction);
+        if (instruction->operands.getCount() > 3)
+            EncodingError("Instruction has more than 3 operands", instruction);
 
         uint8_t arg_count = GetArgCountForOpcode(instruction->GetOpcode());
         if (instruction->operands.getCount() != arg_count)
@@ -535,125 +595,241 @@ namespace InsEncoding {
         buffer.Write(current_offset, &opcode, 1);
         current_offset++;
 
-        Operand* operands[2] = {nullptr, nullptr};
+        Operand* operands[3] = {nullptr, nullptr};
         for (uint64_t l = 0; l < instruction->operands.getCount(); l++)
             operands[l] = instruction->operands.get(l);
 
         if (arg_count == 1) {
             if (operands[0]->type == OperandType::COMPLEX) {
                 ComplexData* complex = static_cast<ComplexData*>(operands[0]->data);
-                ComplexOperandInfo info{};
-                info.type = static_cast<uint8_t>(OperandType::COMPLEX);
-                info.size = static_cast<uint8_t>(operands[0]->size);
-                info.baseType = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.baseSize = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
-                info.basePresent = complex->base.present;
-                info.indexType = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.indexSize = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
-                info.indexPresent = complex->index.present;
-                info.offsetType = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.offsetSize = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
-                info.offsetPresent = complex->offset.present;
-                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexOperandInfo));
-                current_offset += sizeof(ComplexOperandInfo);
-            } else {
-                StandardOperandInfo info{};
-                if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL) {
-                    info.type = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                    info.size = 3;
-                } else {
-                    info.type = static_cast<uint8_t>(operands[0]->type);
-                    info.size = static_cast<uint8_t>(operands[0]->size);
+                // need to detect how many immediates there are to know what size to use. Also helpful to determine exact type
+                ComplexItem::Type types[3] = {ComplexItem::Type::REGISTER, ComplexItem::Type::REGISTER, ComplexItem::Type::REGISTER};
+                types[0] = complex->base.present ? (complex->base.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                types[1] = complex->index.present ? (complex->index.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                types[2] = complex->offset.present ? (complex->offset.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                CompactOperandType type = GetCompactOperandTypeFromComplex(types, complex->base.present, complex->index.present, complex->offset.present, instruction);
+                if (type == CompactOperandType::RESERVED)
+                    EncodingError("Invalid complex operand type", instruction);
+                if (type == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                    // Extended operand type, needs 2 bytes
+                    ExtendedOperandInfo ext_info;
+                    ext_info.type = type;
+                    ext_info.size = operands[0]->size;
+                    ext_info.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                    ext_info.imm1Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
+                    ext_info.reserved = 0;
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&ext_info), sizeof(ExtendedOperandInfo));
+                    current_offset += sizeof(ExtendedOperandInfo);
                 }
-                info._padding = 0;
-                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(StandardOperandInfo));
-                current_offset += sizeof(StandardOperandInfo);
+                else {
+                    BasicOperandInfo info;
+                    info.type = type;
+                    info.size = operands[0]->size;
+                    if (type == CompactOperandType::MEM_BASE_IMM || type == CompactOperandType::MEM_BASE_OFF_IMM_REG)
+                        info.imm0Size = complex->base.type == ComplexItem::Type::IMMEDIATE ? complex->base.data.imm.size : OperandSize::QWORD;
+                    else if (type == CompactOperandType::MEM_BASE_IDX_REG_IMM || type == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM_REG)
+                        info.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                    else if (type == CompactOperandType::MEM_BASE_OFF_REG_IMM || type == CompactOperandType::MEM_BASE_IDX_OFF_REG2_IMM)
+                        info.imm0Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
+                    else if (!(type == CompactOperandType::MEM_BASE_REG || type == CompactOperandType::MEM_BASE_OFF_REG || type == CompactOperandType::MEM_BASE_IDX_REG || type == CompactOperandType::MEM_BASE_IDX_OFF_REG))
+                        EncodingError("Invalid complex operand type", instruction);
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(BasicOperandInfo));
+                    current_offset += sizeof(BasicOperandInfo);
+                }
             }
-        } else if (arg_count == 2) {
-            if ((operands[0]->type == OperandType::COMPLEX && operands[1]->type != OperandType::COMPLEX) || (operands[1]->type == OperandType::COMPLEX && operands[0]->type != OperandType::COMPLEX)) {
-                // start with a StandardComplexOperandInfo, and swap at the end if needed
-                StandardComplexOperandInfo info{};
-                {
-                    if (Operand* temp = operands[operands[0]->type != OperandType::COMPLEX ? 0 : 1]; temp->type == OperandType::LABEL || temp->type == OperandType::SUBLABEL) {
-                        info.standard.type = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                        info.standard.size = 3;
+            else {
+                BasicOperandInfo info;
+
+                if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL)
+                    info.type = CompactOperandType::IMM;
+                else if (operands[0]->type == OperandType::REGISTER || operands[0]->type == OperandType::IMMEDIATE)
+                    info.type = static_cast<CompactOperandType>(operands[0]->type);
+                else
+                    EncodingError("Invalid operand type for single-argument instruction", instruction);
+
+                info.size = operands[0]->size;
+                info.imm0Size = operands[0]->size; // no point in doing a check, will only be read if type is IMM
+                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(BasicOperandInfo));
+                current_offset += sizeof(BasicOperandInfo);
+            }
+        }
+        else if (arg_count == 2 || arg_count == 3) {
+            CompactOperandType types[3] = {CompactOperandType::RESERVED, CompactOperandType::RESERVED, CompactOperandType::RESERVED};
+            union {
+                BasicOperandInfo info;
+                ExtendedOperandInfo extendedInfo;
+            } infos[3];
+            for (uint8_t i = 0; i < arg_count; i++) {
+                if (operands[i]->type == OperandType::COMPLEX) {
+                    ComplexData* complex = static_cast<ComplexData*>(operands[i]->data);
+                    ComplexItem::Type item_types[3] = {ComplexItem::Type::REGISTER, ComplexItem::Type::REGISTER, ComplexItem::Type::REGISTER};
+                    item_types[0] = complex->base.present ? (complex->base.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                    item_types[1] = complex->index.present ? (complex->index.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                    item_types[2] = complex->offset.present ? (complex->offset.type == ComplexItem::Type::REGISTER ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE) : ComplexItem::Type::REGISTER;
+                    types[i] = GetCompactOperandTypeFromComplex(item_types, complex->base.present, complex->index.present, complex->offset.present, instruction);
+                    if (types[i] == CompactOperandType::RESERVED)
+                        EncodingError("Invalid complex operand type", instruction);
+                    if (types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                        infos[i].extendedInfo = {};
+                        infos[i].extendedInfo.type = types[i];
+                        infos[i].extendedInfo.size = operands[i]->size;
+                        infos[i].extendedInfo.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                        infos[i].extendedInfo.imm1Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
+                        infos[i].extendedInfo.reserved = 0;
                     } else {
-                        info.standard.type = static_cast<uint8_t>(temp->type);
-                        info.standard.size = static_cast<uint8_t>(temp->size);
+                        infos[i].info = {};
+                        infos[i].info.type = types[i];
+                        infos[i].info.size = operands[i]->size;
+                        if (types[i] == CompactOperandType::MEM_BASE_IMM || types[i] == CompactOperandType::MEM_BASE_OFF_IMM_REG)
+                            infos[i].info.imm0Size = complex->base.type == ComplexItem::Type::IMMEDIATE ? complex->base.data.imm.size : OperandSize::QWORD;
+                        else if (types[i] == CompactOperandType::MEM_BASE_IDX_REG_IMM || types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM_REG)
+                            infos[i].info.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                        else if (types[i] == CompactOperandType::MEM_BASE_OFF_REG_IMM || types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG2_IMM)
+                            infos[i].info.imm0Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
+                        else if (!(types[i] == CompactOperandType::MEM_BASE_REG || types[i] == CompactOperandType::MEM_BASE_OFF_REG || types[i] == CompactOperandType::MEM_BASE_IDX_REG || types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG))
+                            EncodingError("Invalid complex operand type", instruction);
+                    }
+                } else {
+                    infos[i].info = {};
+                    if (operands[i]->type == OperandType::LABEL || operands[i]->type == OperandType::SUBLABEL)
+                        infos[i].info.type = CompactOperandType::IMM;
+                    else if (operands[i]->type == OperandType::REGISTER || operands[i]->type == OperandType::IMMEDIATE)
+                        infos[i].info.type = static_cast<CompactOperandType>(operands[i]->type);
+                    else
+                        EncodingError("Invalid operand type for multi-argument instruction", instruction);
+                    infos[i].info.size = operands[i]->size;
+                    infos[i].info.imm0Size = operands[i]->size; // no point in doing a check, will only be read if type is IMM
+                    types[i] = infos[i].info.type;
+                }
+            }
+            if (arg_count == 2) {
+                // 4 cases: both basic, first basic + second extended, first extended + second basic, both extended
+                // only extended if type is MEM_BASE_IDX_OFF_REG_IMM2. can write individually for all cases except both extended
+                if (!(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 && types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)) {
+                    // not both extended, can write individually
+                    size_t sizes[2] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
+                    for (uint8_t i = 0; i < 2; i++) {
+                        buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[i]), sizes[i]);
+                        current_offset += sizes[i];
                     }
                 }
-                info.standard._padding = 0;
-                ComplexData* complex = static_cast<ComplexData*>(operands[operands[0]->type == OperandType::COMPLEX ? 0 : 1]->data);
-                info.complex.type = static_cast<uint8_t>(OperandType::COMPLEX);
-                info.complex.size = static_cast<uint8_t>(operands[operands[0]->type == OperandType::COMPLEX ? 0 : 1]->size);
-                info.complex.baseType = complex->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.baseSize = complex->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex->base.type == ComplexItem::Type::LABEL || complex->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->base.data.imm.size));
-                info.complex.basePresent = complex->base.present;
-                info.complex.indexType = complex->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.indexSize = complex->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex->index.type == ComplexItem::Type::LABEL || complex->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->index.data.imm.size));
-                info.complex.indexPresent = complex->index.present;
-                info.complex.offsetType = complex->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.complex.offsetSize = complex->offset.type == ComplexItem::Type::REGISTER ? complex->offset.sign : ((complex->offset.type == ComplexItem::Type::LABEL || complex->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex->offset.data.imm.size));
-                info.complex.offsetPresent = complex->offset.present;
-                if (operands[0]->type == OperandType::COMPLEX) {
-                    ComplexStandardOperandInfo temp{};
-                    temp.complex = info.complex;
-                    temp.standard = info.standard;
-                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp), sizeof(ComplexStandardOperandInfo));
-                    current_offset += sizeof(ComplexStandardOperandInfo);
-                } else {
-                    info.standard._padding = info.complex.type;
-                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(StandardComplexOperandInfo));
-                    current_offset += sizeof(StandardComplexOperandInfo);
+                else {
+                    // both extended, need to convert to a combined struct
+                    DoubleExtendedOperandInfo combined_info{};
+                    combined_info.first.type = infos[0].extendedInfo.type;
+                    combined_info.first.size = infos[0].extendedInfo.size;
+                    combined_info.first.imm0Size = infos[0].extendedInfo.imm0Size;
+                    combined_info.first.imm1Size = infos[0].extendedInfo.imm1Size;
+                    combined_info.first.reserved = 0;
+                    combined_info.second.type = infos[1].extendedInfo.type;
+                    combined_info.second.size = infos[1].extendedInfo.size;
+                    combined_info.second.imm0Size = infos[1].extendedInfo.imm0Size;
+                    combined_info.second.imm1Size = infos[1].extendedInfo.imm1Size;
+                    combined_info.second.reserved = 0;
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(DoubleExtendedOperandInfo));
+                    current_offset += sizeof(DoubleExtendedOperandInfo);
                 }
-            } else if (operands[0]->type == OperandType::COMPLEX && operands[1]->type == OperandType::COMPLEX) {
-                ComplexComplexOperandInfo info{};
-                ComplexData* complex0 = static_cast<ComplexData*>(operands[0]->data);
-                ComplexData* complex1 = static_cast<ComplexData*>(operands[1]->data);
-                info.first.type = static_cast<uint8_t>(OperandType::COMPLEX);
-                info.first.size = static_cast<uint8_t>(operands[0]->size);
-                info.first.baseType = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.baseSize = complex0->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->base.type == ComplexItem::Type::LABEL || complex0->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->base.data.imm.size));
-                info.first.basePresent = complex0->base.present;
-                info.first.indexType = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.indexSize = complex0->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex0->index.type == ComplexItem::Type::LABEL || complex0->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->index.data.imm.size));
-                info.first.indexPresent = complex0->index.present;
-                info.first.offsetType = complex0->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.first.offsetSize = complex0->offset.type == ComplexItem::Type::REGISTER ? complex0->offset.sign : ((complex0->offset.type == ComplexItem::Type::LABEL || complex0->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex0->offset.data.imm.size));
-                info.first.offsetPresent = complex0->offset.present;
-                info.second.type = static_cast<uint8_t>(OperandType::COMPLEX);
-                info.second.size = static_cast<uint8_t>(operands[1]->size);
-                info.second.baseType = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.baseSize = complex1->base.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->base.type == ComplexItem::Type::LABEL || complex1->base.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->base.data.imm.size));
-                info.second.basePresent = complex1->base.present;
-                info.second.indexType = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.indexSize = complex1->index.type == ComplexItem::Type::REGISTER ? 0 : ((complex1->index.type == ComplexItem::Type::LABEL || complex1->index.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->index.data.imm.size));
-                info.second.indexPresent = complex1->index.present;
-                info.second.offsetType = complex1->offset.type == ComplexItem::Type::REGISTER ? 0 : 1;
-                info.second.offsetSize = complex1->offset.type == ComplexItem::Type::REGISTER ? complex1->offset.sign : ((complex1->offset.type == ComplexItem::Type::LABEL || complex1->offset.type == ComplexItem::Type::SUBLABEL) ? 3 : static_cast<uint8_t>(complex1->offset.data.imm.size));
-                info.second.offsetPresent = complex1->offset.present;
-                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(ComplexComplexOperandInfo));
-                current_offset += sizeof(ComplexComplexOperandInfo);
-            } else if (operands[0]->type != OperandType::COMPLEX && operands[1]->type != OperandType::COMPLEX) {
-                StandardStandardOperandInfo info{};
-                if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL) {
-                    info.firstType = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                    info.firstSize = 3;
-                } else {
-                    info.firstType = static_cast<uint8_t>(operands[0]->type);
-                    info.firstSize = static_cast<uint8_t>(operands[0]->size);
+            } else {
+                /* 8 cases:
+                 * All 3 basic - just write 3 basic infos in a row
+                 * First & second basic, third extended - write all in a row
+                 * First basic, second extended, third basic - write all in a row
+                 * First basic, second and third extended - need to combine second and third extended into a double extended struct, write first basic then combined
+                 * First extended, second and third basic - write all in a row
+                 * First extended, second basic, third extended - need to combine all 3 into 1 struct
+                 * First and second extended, third basic - need to combine first and second extended into a double extended struct, write combined then third basic
+                 * All 3 extended - need to combine first and second into a double extended struct, write combined then third extended
+                 *
+                 * This results in 3 options - either write all 3 individually, combine to into a struct, or combine all 3 into a struct
+                 */
+#define BASIC !=
+#define EXTENDED ==
+#define CHECK_TYPES(type1, type2, type3) (types[0] type1 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 \
+                                          && types[1] type2 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 \
+                                          && types[2] type3 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)
+
+                if (CHECK_TYPES(BASIC, BASIC, BASIC) || CHECK_TYPES(BASIC, BASIC, EXTENDED) || CHECK_TYPES(BASIC, EXTENDED, BASIC) || CHECK_TYPES(EXTENDED, BASIC, BASIC)) {
+                    // case 1, write all 3 individually
+                    size_t sizes[3] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
+                    for (uint8_t i = 0; i < 3; i++) {
+                        buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[i]), sizes[i]);
+                        current_offset += sizes[i];
+                    }
                 }
-                if (operands[1]->type == OperandType::LABEL || operands[1]->type == OperandType::SUBLABEL) {
-                    info.secondType = static_cast<uint8_t>(OperandType::IMMEDIATE);
-                    info.secondSize = 3;
-                } else {
-                    info.secondType = static_cast<uint8_t>(operands[1]->type);
-                    info.secondSize = static_cast<uint8_t>(operands[1]->size);
+                else if (CHECK_TYPES(BASIC, EXTENDED, EXTENDED)) {
+                    // case 2, need to combine second and third into a double extended struct
+                    DoubleExtendedOperandInfo combined_info{};
+                    combined_info.first.type = infos[1].extendedInfo.type;
+                    combined_info.first.size = infos[1].extendedInfo.size;
+                    combined_info.first.imm0Size = infos[1].extendedInfo.imm0Size;
+                    combined_info.first.imm1Size = infos[1].extendedInfo.imm1Size;
+                    combined_info.first.reserved = 0;
+                    combined_info.second.type = infos[2].extendedInfo.type;
+                    combined_info.second.size = infos[2].extendedInfo.size;
+                    combined_info.second.imm0Size = infos[2].extendedInfo.imm0Size;
+                    combined_info.second.imm1Size = infos[2].extendedInfo.imm1Size;
+                    combined_info.second.reserved = 0;
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[0].info), sizeof(BasicOperandInfo));
+                    current_offset += sizeof(BasicOperandInfo);
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(DoubleExtendedOperandInfo));
+                    current_offset += sizeof(DoubleExtendedOperandInfo);
                 }
-                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(StandardStandardOperandInfo));
-                current_offset += sizeof(StandardStandardOperandInfo);
-            } else
-                EncodingError("Invalid operand combination", instruction);
+                else if (CHECK_TYPES(EXTENDED, BASIC, EXTENDED)) {
+                    // case 3, need to combine all 3 into a triple extended struct
+                    TripleExtendedOperandInfo combined_info{};
+                    combined_info.first.type = infos[0].extendedInfo.type;
+                    combined_info.first.size = infos[0].extendedInfo.size;
+                    combined_info.first.imm0Size = infos[0].extendedInfo.imm0Size;
+                    combined_info.first.imm1Size = infos[0].extendedInfo.imm1Size;
+                    combined_info.first.reserved = 0;
+                    combined_info.second.type = infos[1].info.type;
+                    combined_info.second.size = infos[1].info.size;
+                    combined_info.second.imm0Size = infos[1].info.imm0Size;
+                    combined_info.third.type = infos[2].extendedInfo.type;
+                    combined_info.third.size = infos[2].extendedInfo.size;
+                    combined_info.third.imm0Size = infos[2].extendedInfo.imm0Size;
+                    combined_info.third.imm1Size = infos[2].extendedInfo.imm1Size;
+                    combined_info.third.reserved = 0;
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(TripleExtendedOperandInfo));
+                    current_offset += sizeof(TripleExtendedOperandInfo);
+                }
+                else if (CHECK_TYPES(EXTENDED, EXTENDED, BASIC) | CHECK_TYPES(EXTENDED, EXTENDED, EXTENDED)) {
+                    // case 4, need to combine first and second into a double extended struct
+                    DoubleExtendedOperandInfo combined_info{};
+                    combined_info.first.type = infos[0].extendedInfo.type;
+                    combined_info.first.size = infos[0].extendedInfo.size;
+                    combined_info.first.imm0Size = infos[0].extendedInfo.imm0Size;
+                    combined_info.first.imm1Size = infos[0].extendedInfo.imm1Size;
+                    combined_info.first.reserved = 0;
+                    combined_info.second.type = infos[1].extendedInfo.type;
+                    combined_info.second.size = infos[1].extendedInfo.size;
+                    combined_info.second.imm0Size = infos[1].extendedInfo.imm0Size;
+                    combined_info.second.imm1Size = infos[1].extendedInfo.imm1Size;
+                    combined_info.second.reserved = 0;
+                    buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(DoubleExtendedOperandInfo));
+                    current_offset += sizeof(DoubleExtendedOperandInfo);
+                    if (types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                        buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[2].extendedInfo), sizeof(ExtendedOperandInfo));
+                        current_offset += sizeof(ExtendedOperandInfo);
+                    }
+                    else {
+                        buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[2].info), sizeof(BasicOperandInfo));
+                        current_offset += sizeof(BasicOperandInfo);
+                    }
+                }
+                else {
+                    EncodingError("Invalid combination of operand types", instruction);
+                }
+
+#undef CHECK_TYPES
+#undef EXTENDED
+#undef BASIC
+            }
+        } else if (arg_count > 3) {
+            EncodingError("Too many arguments for instruction", instruction);
         }
 
         for (uint64_t l = 0; l < instruction->operands.getCount(); l++) {
@@ -695,7 +871,10 @@ namespace InsEncoding {
                         case ComplexItem::Type::REGISTER: {
                             Register* reg = item->data.reg;
                             RegisterID reg_id = GetRegisterID(*reg, instruction);
-                            buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&reg_id), sizeof(RegisterID));
+                            uint8_t* reg_data = reinterpret_cast<uint8_t*>(&reg_id);
+                            if (i == 2 && item->sign) // offset register with sign, need to set the highest bit
+                                reg_data[0] |= 0x80;
+                            buffer.Write(current_offset, reg_data, sizeof(RegisterID));
                             current_offset += sizeof(RegisterID);
                             break;
                         }

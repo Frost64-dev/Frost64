@@ -79,8 +79,8 @@ int main(int argc, char** argv) {
     uint8_t* processedBufferData = new uint8_t[processedBufferSize];
     preProcessor.ExportProcessedBuffer(processedBufferData);
 #ifdef ASSEMBLER_DEBUG
-    pre_processor.GetReferencePoints().Enumerate([](PreProcessor::ReferencePoint* ref) {
-        printf("Reference point: %s:%zu @ %zu\n", ref->file_name.c_str(), ref->line, ref->offset);
+    preProcessor.GetReferencePoints().Enumerate([](PreProcessor::ReferencePoint* ref) {
+        printf("Reference point: %s:%zu @ %zu\n", ref->fileName.c_str(), ref->line, ref->offset);
     });
 #endif
 

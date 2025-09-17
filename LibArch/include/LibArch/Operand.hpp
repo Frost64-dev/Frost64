@@ -22,13 +22,30 @@ namespace InsEncoding {
 
     enum class OperandType {
         REGISTER = 0,
-        IMMEDIATE = 1,
-        MEMORY = 2,
-        COMPLEX = 3,
+        IMMEDIATE,
+        MEMORY,
+        COMPLEX,
         POTENTIAL_MEMORY, // not sure if it is memory or complex
         LABEL,
         SUBLABEL,
         UNKNOWN
+    };
+
+    enum class CompactOperandType {
+        REG = 0,
+        IMM,
+        MEM_BASE_REG,
+        MEM_BASE_IMM,
+        MEM_BASE_OFF_REG,
+        MEM_BASE_OFF_REG_IMM,
+        MEM_BASE_OFF_IMM_REG,
+        MEM_BASE_IDX_REG,
+        MEM_BASE_IDX_REG_IMM,
+        MEM_BASE_IDX_OFF_REG,
+        MEM_BASE_IDX_OFF_REG2_IMM,
+        MEM_BASE_IDX_OFF_REG_IMM_REG,
+        MEM_BASE_IDX_OFF_REG_IMM2,
+        RESERVED
     };
 
     enum class OperandSize {
@@ -45,6 +62,7 @@ namespace InsEncoding {
         ~Operand();
 
         OperandType type;
+        CompactOperandType fullType;
         OperandSize size;
         void* data;
         bool complete;

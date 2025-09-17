@@ -124,13 +124,13 @@ void PreProcessor::process(const char* source, size_t sourceSize, const std::str
             m_currentOffset += commentStart - source3;
             source3 = commentStart;
             // need to add a reference point prior to the comment
-            uint64_t index = 0;
+            uint64_t refOffset = 0;
             ReferencePoint* ref = nullptr;
-            m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef, uint64_t i) {
+            m_referencePoints.EnumerateReverse([&](ReferencePoint* currentRef, uint64_t) {
                 if (currentRef->offset < static_cast<size_t>(source3 - originalSource3)) {
                     ReferencePoint* newRef = new ReferencePoint{GetLineCount(originalSource3 + currentRef->offset, source3), currentRef->fileName, m_currentOffset - 1};
-                    m_referencePoints.insertAt(i, newRef);
-                    index = i;
+                    m_referencePoints.insertAfter(currentRef, newRef);
+                    refOffset = currentRef->offset;
                     ref = newRef;
                     return false;
                 }
@@ -143,8 +143,8 @@ void PreProcessor::process(const char* source, size_t sourceSize, const std::str
                 error("Unterminated multiline comment", ref->fileName, ref->line);
             source3 = commentEnd + 2;
             // insert a reference point after the comment
-            ReferencePoint* newRef = new ReferencePoint{GetLineCount(originalSource3, source3 - 2), ref->fileName, m_currentOffset};
-            m_referencePoints.insertAt(index + 1, newRef);
+            ReferencePoint* newRef = new ReferencePoint{GetLineCount(originalSource3 + refOffset, source3 - 2), ref->fileName, m_currentOffset};
+            m_referencePoints.insertAfter(ref, newRef);
             // now need to update all the reference points
             m_referencePoints.Enumerate([&](ReferencePoint* currentRef, uint64_t) {
                 if (currentRef->offset >= m_currentOffset + (commentEnd - commentStart) + 2)

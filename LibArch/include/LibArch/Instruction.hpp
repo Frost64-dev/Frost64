@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _LIBARCH_INSTRUCTION_HPP
 #define _LIBARCH_INSTRUCTION_HPP
 
+#include <iterator>
 #include <string>
 
 #include <Common/DataStructures/Buffer.hpp>
@@ -161,47 +162,61 @@ namespace InsEncoding {
         uint8_t type   : 4;
     } __attribute__((packed));
 
-    struct ComplexOperandInfo {
-        uint8_t type           : 2;
-        uint8_t size           : 2;
-        uint8_t baseType      : 1;
-        uint8_t baseSize      : 2;
-        uint8_t basePresent   : 1;
-        uint8_t indexType     : 1;
-        uint8_t indexSize     : 2;
-        uint8_t indexPresent  : 1;
-        uint8_t offsetType    : 1;
-        uint8_t offsetSize    : 2;
-        uint8_t offsetPresent : 1;
+
+
+    struct BasicOperandInfo {
+        CompactOperandType type : 4;
+        OperandSize size : 2;
+        OperandSize imm0Size : 2; // size of immediate 0 if present
     } __attribute__((packed));
 
-    struct StandardOperandInfo {
-        uint8_t type     : 2;
-        uint8_t size     : 2;
-        uint8_t _padding : 4;
+    struct ExtendedOperandInfo {
+        CompactOperandType type : 4;
+        OperandSize size : 2;
+        OperandSize imm0Size : 2; // size of immediate 0 if present
+        OperandSize imm1Size : 2; // size of immediate 1 if present
+        uint8_t reserved : 6;
     } __attribute__((packed));
 
-    struct ComplexStandardOperandInfo {
-        ComplexOperandInfo complex;
-        StandardOperandInfo standard;
+    struct DoubleExtendedOperandInfo { // this one needs to be done differently so that a byte isn't wasted on padding
+        struct {
+            CompactOperandType type : 4;
+            OperandSize size : 2;
+            OperandSize imm0Size : 2; // size of immediate 0 if present
+            OperandSize imm1Size : 2; // size of immediate 1 if present
+            uint8_t reserved : 2;
+        } __attribute__((packed)) first;
+        struct {
+            CompactOperandType type : 4;
+            OperandSize size : 2;
+            OperandSize imm0Size : 2; // size of immediate 0 if present
+            OperandSize imm1Size : 2; // size of immediate 1 if present
+            uint8_t reserved : 2;
+        } __attribute__((packed)) second;
     } __attribute__((packed));
 
-    struct StandardComplexOperandInfo {
-        StandardOperandInfo standard;
-        ComplexOperandInfo complex;
+    struct TripleExtendedOperandInfo { // this one needs to be done differently so that a byte isn't wasted on padding
+        struct {
+            CompactOperandType type : 4;
+            OperandSize size : 2;
+            OperandSize imm0Size : 2; // size of immediate 0 if present
+            OperandSize imm1Size : 2; // size of immediate 1 if present
+            uint8_t reserved : 2;
+        } __attribute__((packed)) first;
+        struct {
+            CompactOperandType type : 4;
+            OperandSize size : 2;
+            OperandSize imm0Size : 2; // size of immediate 0 if present
+        } __attribute__((packed)) second;
+        struct {
+            CompactOperandType type : 4;
+            OperandSize size : 2;
+            OperandSize imm0Size : 2; // size of immediate 0 if present
+            OperandSize imm1Size : 2; // size of immediate 1 if present
+            uint8_t reserved : 2;
+        } __attribute__((packed)) third;
     } __attribute__((packed));
 
-    struct StandardStandardOperandInfo {
-        uint8_t firstType  : 2;
-        uint8_t firstSize  : 2;
-        uint8_t secondType : 2;
-        uint8_t secondSize : 2;
-    } __attribute__((packed));
-
-    struct ComplexComplexOperandInfo {
-        ComplexOperandInfo first;
-        ComplexOperandInfo second;
-    } __attribute__((packed));
 
     enum class RawDataType {
         RAW,

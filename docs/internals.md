@@ -11,20 +11,77 @@ First 2 bytes are for the instruction stuff, and data follows it
 
 ### Argument info layout
 
-- bits 0-1 are data type (0 for register, 1 for memory address, 2 for literal, 3 for complex memory address)
-- bits 2-3 are the operand size (0 for 8-bit, 1 for 16-bit, 2 for 32-bit, 3 for 64-bit), also the size for literals
+- bits 0-3 is the argument type
+    - 0: register
+    - 1: immediate
+    - 2: MEM (base only, reg)
+    - 3: MEM (base only, imm)
+    - 4: MEM (base + offset, reg, reg)
+    - 5: MEM (base + offset, reg, imm)
+    - 6: MEM (base + offset, imm, reg)
+    - 7: MEM (base * index, reg, reg)
+    - 8: MEM (base * index, reg, imm)
+    - 9: MEM (base * index + offset, reg, reg, reg)
+    - a: MEM (base * index + offset, reg, reg, imm)
+    - b: MEM (base * index + offset, reg, imm, reg)
+    - c: MEM (base * index + offset, reg, imm, imm)
+    - d-f: reserved
+- bits 4-5 is for the size of the entire operation
+    - 0: BYTE (8-bit)
+    - 1: WORD (16-bit)
+    - 2: DWORD (32-bit)
+    - 3: QWORD (64-bit)
+- bits 6-7 are for the size of the first immediate if it exists
+    - 0: BYTE (8-bit)
+    - 1: WORD (16-bit)
+    - 2: DWORD (32-bit)
+    - 3: QWORD (64-bit)
+- bits 8-9 are for the size of the second immediate if it exists
+    - 0: BYTE (8-bit)
+    - 1: WORD (16-bit)
+    - 2: DWORD (32-bit)
+    - 3: QWORD (64-bit)
+- bits 10-11 are reserved and should be 0
 
-#### complex memory address
+bits 8-11 are only present if the argument type requires it, otherwise they are omitted.
+The highest bit of the Register ID is used to encode the sign of the offset register, where positive is 1, and negative is 0.
 
-- bit 4 is the type of the base (0 for register, 1 for literal)
-- bit 5-6 is the size of the base (0 for 8-bit, 1 for 16-bit, 2 for 32-bit, 3 for 64-bit) if it is a literal
-- bit 7 is set if the base is present
-- bits 8 is the type of the index (0 for register, 1 for literal)
-- bits 9-10 is the size of the index (0 for 8-bit, 1 for 16-bit, 2 for 32-bit, 3 for 64-bit) if it is a literal
-- bit 11 is set if the index is present
-- bit 12 is the type of the offset (0 for register, 1 for literal)
-- bits 13-14 is the size of the offset (0 for 8-bit, 1 for 16-bit, 2 for 32-bit, 3 for 64-bit) if it is a literal or the sign of the offset if it is a register
-- bit 15 is set if the offset is present
+#### Argument info layouts for multiple operands
+
+- 1 argument, basic data:
+    - bits 0-7 are all that is needed
+- 1 argument, complex data:
+    - bits 0-11 are used
+    - bits 12-15 are padding (0)
+- 2 arguments, both basic data:
+    - bits 0-7 for arg 1
+    - bits 8-15 for arg 2
+- 2 arguments, arg 1 basic data, arg 2 complex data:
+    - bits 0-7 for arg 1
+    - bits 8-11 padding (0)
+    - bits 12-23 for arg 2
+- 2 arguments, arg 1 complex data, arg 2 basic data:
+    - bits 0-11 for arg 1
+    - bits 12-15 padding (0)
+    - bits 16-23 for arg 2
+- 2 arguments, both complex data:
+    - bits 0-11 for arg 1
+    - bits 12-23 for arg 2
+- 3 arguments, all basic data:
+    - bits 0-7 for arg 1
+    - bits 8-15 for arg 2
+    - bits 16-23 for arg 3
+- 3 arguments, arg 1 & 2 basic data, arg 3 complex data:
+    - bits 0-7 for arg 1
+    - bits 8-15 for arg 2
+    - bits 16-19 padding (0)
+    - bits 20-31 for arg 3
+- 3 arguments, arg 1 basic data, arg 2 complex data, arg 3 basic data:
+    - bits 0-7 for arg 1
+    - bits 8-11 padding (0)
+    - bits 12-23 for arg 2
+    - bits 24-31 for arg 3
+- 3 arguments, arg 1 complex data, arg 2 & 3 basic data
 
 ### Register ID
 

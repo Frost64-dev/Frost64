@@ -86,7 +86,7 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
 
     tokens.Enumerate([&](Token* token, uint64_t index) -> bool {
 #ifdef ASSEMBLER_DEBUG
-        printf("Token: \"%.*s\", index = %lu, type = %lu\n", static_cast<int>(token->dataSize), static_cast<char*>(token->data), index, static_cast<unsigned long int>(token->type));
+        // printf("Token: \"%.*s\", index = %lu, type = %lu\n", static_cast<int>(token->dataSize), static_cast<char*>(token->data), index, static_cast<unsigned long int>(token->type));
 #else
         (void)index;
 #endif
@@ -460,6 +460,8 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
                         }
                         ComplexData* data = static_cast<ComplexData*>(currentOperand->data);
                         long imm = strtoll(static_cast<const char*>(token->data), nullptr, 0);
+                        if (data->stage == ComplexData::Stage::OFFSET && !data->offset.sign)
+                            imm *= -1;
                         void* i_data;
                         OperandSize dataSize;
                         bool negative = imm < 0;
@@ -1021,7 +1023,7 @@ void Parser::PrintSections(FILE* fd) const {
                             fprintf(fd, "Register: \"%s\"\n", GetRegisterName(*static_cast<Register*>(operand->data)));
                             break;
                         case OperandType::MEMORY:
-                            fprintf(fd, "Memory address: %#18lx\n", *static_cast<uint64_t*>(operand->data));
+                            fprintf(fd, "Memory address: %#018lx\n", *static_cast<uint64_t*>(operand->data));
                             break;
                         case OperandType::COMPLEX: {
                             ComplexData* complexData = static_cast<ComplexData*>(operand->data);
@@ -1034,16 +1036,16 @@ void Parser::PrintSections(FILE* fd) const {
                                 case ComplexItem::Type::IMMEDIATE:
                                     switch (complexData->base.data.imm.size) {
                                     case OperandSize::BYTE:
-                                        fprintf(fd, "size = 1, immediate = %#4hhx\n", *static_cast<uint8_t*>(complexData->base.data.imm.data));
+                                        fprintf(fd, "size = byte, immediate = %#04hhx\n", *static_cast<uint8_t*>(complexData->base.data.imm.data));
                                         break;
                                     case OperandSize::WORD:
-                                        fprintf(fd, "size = 2, immediate = %#6hx\n", *static_cast<uint16_t*>(complexData->base.data.imm.data));
+                                        fprintf(fd, "size = word, immediate = %#06hx\n", *static_cast<uint16_t*>(complexData->base.data.imm.data));
                                         break;
                                     case OperandSize::DWORD:
-                                        fprintf(fd, "size = 4, immediate = %#10x\n", *static_cast<uint32_t*>(complexData->base.data.imm.data));
+                                        fprintf(fd, "size = dword, immediate = %#010x\n", *static_cast<uint32_t*>(complexData->base.data.imm.data));
                                         break;
                                     case OperandSize::QWORD:
-                                        fprintf(fd, "size = 8, immediate = %#18lx\n", *static_cast<uint64_t*>(complexData->base.data.imm.data));
+                                        fprintf(fd, "size = qword, immediate = %#018lx\n", *static_cast<uint64_t*>(complexData->base.data.imm.data));
                                         break;
                                     }
                                     break;
@@ -1078,16 +1080,16 @@ void Parser::PrintSections(FILE* fd) const {
                                 case ComplexItem::Type::IMMEDIATE:
                                     switch (complexData->index.data.imm.size) {
                                     case OperandSize::BYTE:
-                                        fprintf(fd, "size = 1, immediate = %#4hhx\n", *static_cast<uint8_t*>(complexData->index.data.imm.data));
+                                        fprintf(fd, "size = byte, immediate = %#04hhx\n", *static_cast<uint8_t*>(complexData->index.data.imm.data));
                                         break;
                                     case OperandSize::WORD:
-                                        fprintf(fd, "size = 2, immediate = %#6hx\n", *static_cast<uint16_t*>(complexData->index.data.imm.data));
+                                        fprintf(fd, "size = word, immediate = %#06hx\n", *static_cast<uint16_t*>(complexData->index.data.imm.data));
                                         break;
                                     case OperandSize::DWORD:
-                                        fprintf(fd, "size = 4, immediate = %#10x\n", *static_cast<uint32_t*>(complexData->index.data.imm.data));
+                                        fprintf(fd, "size = dword, immediate = %#010x\n", *static_cast<uint32_t*>(complexData->index.data.imm.data));
                                         break;
                                     case OperandSize::QWORD:
-                                        fprintf(fd, "size = 8, immediate = %#18lx\n", *static_cast<uint64_t*>(complexData->index.data.imm.data));
+                                        fprintf(fd, "size = qword, immediate = %#018lx\n", *static_cast<uint64_t*>(complexData->index.data.imm.data));
                                         break;
                                     }
                                     break;
@@ -1122,16 +1124,16 @@ void Parser::PrintSections(FILE* fd) const {
                                 case ComplexItem::Type::IMMEDIATE:
                                     switch (complexData->offset.data.imm.size) {
                                     case OperandSize::BYTE:
-                                        fprintf(fd, "size = 1, immediate = %#4hhx\n", *static_cast<uint8_t*>(complexData->offset.data.imm.data));
+                                        fprintf(fd, "size = byte, immediate = %#04hhx\n", *static_cast<uint8_t*>(complexData->offset.data.imm.data));
                                         break;
                                     case OperandSize::WORD:
-                                        fprintf(fd, "size = 2, immediate = %#6hx\n", *static_cast<uint16_t*>(complexData->offset.data.imm.data));
+                                        fprintf(fd, "size = word, immediate = %#06hx\n", *static_cast<uint16_t*>(complexData->offset.data.imm.data));
                                         break;
                                     case OperandSize::DWORD:
-                                        fprintf(fd, "size = 4, immediate = %#10x\n", *static_cast<uint32_t*>(complexData->offset.data.imm.data));
+                                        fprintf(fd, "size = dword, immediate = %#010x\n", *static_cast<uint32_t*>(complexData->offset.data.imm.data));
                                         break;
                                     case OperandSize::QWORD:
-                                        fprintf(fd, "size = 8, immediate = %#18lx\n", *static_cast<uint64_t*>(complexData->offset.data.imm.data));
+                                        fprintf(fd, "size = qword, immediate = %#018lx\n", *static_cast<uint64_t*>(complexData->offset.data.imm.data));
                                         break;
                                     }
                                     break;
@@ -1165,16 +1167,16 @@ void Parser::PrintSections(FILE* fd) const {
                         case OperandType::IMMEDIATE:
                             switch (operand->size) {
                             case OperandSize::BYTE:
-                                fprintf(fd, "size = 1, immediate = %#4hhx\n", *static_cast<uint8_t*>(operand->data));
+                                fprintf(fd, "size = byte, immediate = %#04hhx\n", *static_cast<uint8_t*>(operand->data));
                                 break;
                             case OperandSize::WORD:
-                                fprintf(fd, "size = 2, immediate = %#6hx\n", *static_cast<uint16_t*>(operand->data));
+                                fprintf(fd, "size = word, immediate = %#06hx\n", *static_cast<uint16_t*>(operand->data));
                                 break;
                             case OperandSize::DWORD:
-                                fprintf(fd, "size = 4, immediate = %#10x\n", *static_cast<uint32_t*>(operand->data));
+                                fprintf(fd, "size = dword, immediate = %#010x\n", *static_cast<uint32_t*>(operand->data));
                                 break;
                             case OperandSize::QWORD:
-                                fprintf(fd, "size = 8, immediate = %#18lx\n", *static_cast<uint64_t*>(operand->data));
+                                fprintf(fd, "size = qword, immediate = %#018lx\n", *static_cast<uint64_t*>(operand->data));
                                 break;
                             }
                             break;
