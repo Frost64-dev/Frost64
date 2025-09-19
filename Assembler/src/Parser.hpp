@@ -33,7 +33,9 @@ public:
     Parser();
     ~Parser();
 
-    void parse(const LinkedList::RearInsertLinkedList<Token>& tokens);
+    // builds a new list of tokens that is stored internally
+    void SimplifyExpressions(const LinkedList::RearInsertLinkedList<Token>& tokens);
+    void parse();
 
     void PrintSections(FILE* fd) const;
 
@@ -46,13 +48,16 @@ private:
     InsEncoding::Opcode GetOpcode(const char* name, size_t nameSize);
     InsEncoding::Register GetRegister(const char* name, size_t nameSize);
 
+    Token* SimplifyExpression(const LinkedList::RearInsertLinkedList<Token>& tokens);
+
     // if the token is going to be printed, a colon followed by a space is insert after the message, then the token is printed inside double quotes
-    static void error(const char* message, Token* token, bool printToken = false);
+    [[noreturn]] static void error(const char* message, Token* token, bool printToken = false);
 
     static const char* GetInstructionName(InsEncoding::Opcode opcode);
     static const char* GetRegisterName(InsEncoding::Register reg);
 
 private:
+    LinkedList::RearInsertLinkedList<Token> m_tokens;
     LinkedList::RearInsertLinkedList<InsEncoding::Label> m_labels;
     uint64_t m_baseAddress;
     std::unordered_map<std::string_view, InsEncoding::Opcode> m_opcodes;

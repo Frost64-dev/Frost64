@@ -324,6 +324,8 @@ namespace InsEncoding {
             if (types[0] == ComplexItem::Type::IMMEDIATE) {
                 if (types[2] == ComplexItem::Type::REGISTER)
                     type = CompactOperandType::MEM_BASE_OFF_IMM_REG;
+                else if (types[2] == ComplexItem::Type::IMMEDIATE)
+                    type = CompactOperandType::MEM_BASE_OFF_IMM2;
                 else
                     EncodingError("Invalid complex operand type", instruction);
             }
@@ -610,12 +612,15 @@ namespace InsEncoding {
                 CompactOperandType type = GetCompactOperandTypeFromComplex(types, complex->base.present, complex->index.present, complex->offset.present, instruction);
                 if (type == CompactOperandType::RESERVED)
                     EncodingError("Invalid complex operand type", instruction);
-                if (type == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                if (type == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || type == CompactOperandType::MEM_BASE_OFF_IMM2) {
                     // Extended operand type, needs 2 bytes
                     ExtendedOperandInfo ext_info;
                     ext_info.type = type;
                     ext_info.size = operands[0]->size;
-                    ext_info.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                    if (type == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)
+                        ext_info.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                    else
+                        ext_info.imm0Size = complex->base.type == ComplexItem::Type::IMMEDIATE ? complex->base.data.imm.size : OperandSize::QWORD;
                     ext_info.imm1Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
                     ext_info.reserved = 0;
                     buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&ext_info), sizeof(ExtendedOperandInfo));
@@ -636,8 +641,14 @@ namespace InsEncoding {
                     buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(BasicOperandInfo));
                     current_offset += sizeof(BasicOperandInfo);
                 }
-            }
-            else {
+            } else if (operands[0]->type == OperandType::MEMORY) {
+                BasicOperandInfo info;
+                info.type = CompactOperandType::MEM_BASE_IMM;
+                info.size = operands[0]->size;
+                info.imm0Size = OperandSize::QWORD; // memory address is always 64 bits
+                buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&info), sizeof(BasicOperandInfo));
+                current_offset += sizeof(BasicOperandInfo);
+            } else {
                 BasicOperandInfo info;
 
                 if (operands[0]->type == OperandType::LABEL || operands[0]->type == OperandType::SUBLABEL)
@@ -669,11 +680,14 @@ namespace InsEncoding {
                     types[i] = GetCompactOperandTypeFromComplex(item_types, complex->base.present, complex->index.present, complex->offset.present, instruction);
                     if (types[i] == CompactOperandType::RESERVED)
                         EncodingError("Invalid complex operand type", instruction);
-                    if (types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                    if (types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[i] == CompactOperandType::MEM_BASE_OFF_IMM2) {
                         infos[i].extendedInfo = {};
                         infos[i].extendedInfo.type = types[i];
                         infos[i].extendedInfo.size = operands[i]->size;
-                        infos[i].extendedInfo.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                        if (types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)
+                            infos[i].extendedInfo.imm0Size = complex->index.type == ComplexItem::Type::IMMEDIATE ? complex->index.data.imm.size : OperandSize::QWORD;
+                        else
+                            infos[i].extendedInfo.imm0Size = complex->base.type == ComplexItem::Type::IMMEDIATE ? complex->base.data.imm.size : OperandSize::QWORD;
                         infos[i].extendedInfo.imm1Size = complex->offset.type == ComplexItem::Type::IMMEDIATE ? complex->offset.data.imm.size : OperandSize::QWORD;
                         infos[i].extendedInfo.reserved = 0;
                     } else {
@@ -689,6 +703,11 @@ namespace InsEncoding {
                         else if (!(types[i] == CompactOperandType::MEM_BASE_REG || types[i] == CompactOperandType::MEM_BASE_OFF_REG || types[i] == CompactOperandType::MEM_BASE_IDX_REG || types[i] == CompactOperandType::MEM_BASE_IDX_OFF_REG))
                             EncodingError("Invalid complex operand type", instruction);
                     }
+                } else if (operands[i]->type == OperandType::MEMORY) {
+                    infos[i].info = {};
+                    infos[i].info.type = CompactOperandType::MEM_BASE_IMM;
+                    infos[i].info.size = operands[i]->size;
+                    infos[i].info.imm0Size = OperandSize::QWORD; // memory address is always 64 bits
                 } else {
                     infos[i].info = {};
                     if (operands[i]->type == OperandType::LABEL || operands[i]->type == OperandType::SUBLABEL)
@@ -705,7 +724,7 @@ namespace InsEncoding {
             if (arg_count == 2) {
                 // 4 cases: both basic, first basic + second extended, first extended + second basic, both extended
                 // only extended if type is MEM_BASE_IDX_OFF_REG_IMM2. can write individually for all cases except both extended
-                if (!(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 && types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)) {
+                if (!(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 && types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) && !(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) && !(types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)) {
                     // not both extended, can write individually
                     size_t sizes[2] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
                                        types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
@@ -745,15 +764,18 @@ namespace InsEncoding {
                  */
 #define BASIC !=
 #define EXTENDED ==
-#define CHECK_TYPES(type1, type2, type3) (types[0] type1 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 \
+#define CHECK_TYPES(type1, type2, type3) ((types[0] type1 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 \
                                           && types[1] type2 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 \
-                                          && types[2] type3 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)
+                                          && types[2] type3 CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) \
+                                          || (types[0] type1 CompactOperandType::MEM_BASE_OFF_IMM2 \
+                                              && types[1] type2 CompactOperandType::MEM_BASE_OFF_IMM2 \
+                                              && types[2] type3 CompactOperandType::MEM_BASE_OFF_IMM2))
 
                 if (CHECK_TYPES(BASIC, BASIC, BASIC) || CHECK_TYPES(BASIC, BASIC, EXTENDED) || CHECK_TYPES(BASIC, EXTENDED, BASIC) || CHECK_TYPES(EXTENDED, BASIC, BASIC)) {
                     // case 1, write all 3 individually
-                    size_t sizes[3] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
-                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
-                                       types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
+                    size_t sizes[3] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[0] == CompactOperandType::MEM_BASE_OFF_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[1] == CompactOperandType::MEM_BASE_OFF_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[2] == CompactOperandType::MEM_BASE_OFF_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
                     for (uint8_t i = 0; i < 3; i++) {
                         buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[i]), sizes[i]);
                         current_offset += sizes[i];
@@ -811,7 +833,7 @@ namespace InsEncoding {
                     combined_info.second.reserved = 0;
                     buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(DoubleExtendedOperandInfo));
                     current_offset += sizeof(DoubleExtendedOperandInfo);
-                    if (types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                    if (types[2] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[2] == CompactOperandType::MEM_BASE_OFF_IMM2) {
                         buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[2].extendedInfo), sizeof(ExtendedOperandInfo));
                         current_offset += sizeof(ExtendedOperandInfo);
                     }

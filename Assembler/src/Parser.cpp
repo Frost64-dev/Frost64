@@ -33,7 +33,143 @@ Parser::~Parser() {
 
 #define EQUALS(str1, str2) (strlen(str2) == nameSize && strncmp(str1, str2, nameSize) == 0)
 
-void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
+void Parser::SimplifyExpressions(const LinkedList::RearInsertLinkedList<Token>& tokens) {
+    Token* previousToken = nullptr;
+    bool inExpression = false;
+    uint64_t parenDepth = 0;
+    LinkedList::RearInsertLinkedList<Token> expressionTokens;
+    tokens.Enumerate([&](Token* obj) -> void {
+        if (obj->type == TokenType::LPARAN) {
+            if (!inExpression) {
+                inExpression = true;
+                parenDepth = 1;
+                expressionTokens.clear();
+            }
+            else {
+                parenDepth++;
+                obj->refCount++;
+                expressionTokens.insert(obj);
+            }
+        }
+        else if (obj->type == TokenType::RPARAN && inExpression) {
+            parenDepth--;
+            if (parenDepth == 0) {
+                inExpression = false;
+                // now we need to evaluate the expression
+                // for now, we will just assume it is a number
+                if (expressionTokens.getCount() == 1 && expressionTokens.get(0)->type == TokenType::NUMBER) {
+                    // just a single number, so we can just add it to the list. Need to convert it from integer to string form. Unsigned base 10 is assumed
+                    Token* oldToken = expressionTokens.get(0);
+                    Token* newToken = new Token;
+                    newToken->type = TokenType::NUMBER;
+                    newToken->fileName = expressionTokens.get(0)->fileName;
+                    newToken->line = expressionTokens.get(0)->line;
+                    newToken->refCount = 1;
+                    // use snprintf to find the size required for the string
+                    size_t strSize = snprintf(nullptr, 0, "%llu", oldToken->dataSize == 1 ? static_cast<unsigned long long>(*static_cast<uint8_t*>(oldToken->data)) :
+                                                                                 oldToken->dataSize == 2 ? static_cast<unsigned long long>(*static_cast<uint16_t*>(oldToken->data)) :
+                                                                                 oldToken->dataSize == 4 ? static_cast<unsigned long long>(*static_cast<uint32_t*>(oldToken->data)) :
+                                                                                 static_cast<unsigned long long>(*static_cast<uint64_t*>(oldToken->data))) + 1; // +1 for null terminator
+                    char* strData = static_cast<char*>(malloc(strSize));
+                    if (strData == nullptr)
+                        error("Memory allocation failed", oldToken, false);
+                    snprintf(strData, strSize, "%llu", oldToken->dataSize == 1 ? static_cast<unsigned long long>(*static_cast<uint8_t*>(oldToken->data)) :
+                                                             oldToken->dataSize == 2 ? static_cast<unsigned long long>(*static_cast<uint16_t*>(oldToken->data)) :
+                                                             oldToken->dataSize == 4 ? static_cast<unsigned long long>(*static_cast<uint32_t*>(oldToken->data)) :
+                                                             static_cast<unsigned long long>(*static_cast<uint64_t*>(oldToken->data)));
+                    newToken->data = strData;
+                    newToken->dataSize = strSize - 1; // -1 to not include the null terminator
+                    m_tokens.insert(newToken);
+                }
+                else {
+                    if (Token* simplified = SimplifyExpression(expressionTokens); simplified != nullptr) {
+                        // need to convert the result from integer form back to string format. base 10 unsigned will be used for simplicity.
+                        // use snprintf to find the size required for the string
+                        size_t strSize = snprintf(nullptr, 0, "%llu", simplified->dataSize == 1 ? static_cast<unsigned long long>(*static_cast<uint8_t*>(simplified->data)) :
+                                                                                     simplified->dataSize == 2 ? static_cast<unsigned long long>(*static_cast<uint16_t*>(simplified->data)) :
+                                                                                     simplified->dataSize == 4 ? static_cast<unsigned long long>(*static_cast<uint32_t*>(simplified->data)) :
+                                                                                     static_cast<unsigned long long>(*static_cast<uint64_t*>(simplified->data))) + 1; // +1 for null terminator
+                        char* strData = static_cast<char*>(malloc(strSize));
+                        if (strData == nullptr)
+                            error("Memory allocation failed", simplified, false);
+                        snprintf(strData, strSize, "%llu", simplified->dataSize == 1 ? static_cast<unsigned long long>(*static_cast<uint8_t*>(simplified->data)) :
+                                                                 simplified->dataSize == 2 ? static_cast<unsigned long long>(*static_cast<uint16_t*>(simplified->data)) :
+                                                                 simplified->dataSize == 4 ? static_cast<unsigned long long>(*static_cast<uint32_t*>(simplified->data)) :
+                                                                 static_cast<unsigned long long>(*static_cast<uint64_t*>(simplified->data)));
+                        free(simplified->data);
+                        simplified->data = strData;
+                        simplified->dataSize = strSize - 1; // -1 to not include the null terminator
+                        m_tokens.insert(simplified);
+                    }
+                    else
+                        error("Failed to simplify expression", previousToken, true);
+                }
+                // clear expression tokens
+                expressionTokens.EnumerateReverse([&](Token* token) -> bool {
+                    token->refCount--;
+                    if (token->refCount == 0) {
+                        free(token->data);
+                        delete token;
+                    }
+                    return true;
+                });
+                expressionTokens.clear();
+            }
+            else {
+                Token* newToken = new Token;
+                newToken->type = obj->type;
+                newToken->dataSize = obj->dataSize;
+                newToken->data = malloc(obj->dataSize);
+                memcpy(newToken->data, obj->data, obj->dataSize);
+                newToken->fileName = obj->fileName;
+                newToken->line = obj->line;
+                expressionTokens.insert(newToken);
+            }
+        }
+        else if (inExpression) {
+            if (obj->type == TokenType::NUMBER) {
+                Token* newToken = new Token;
+                newToken->type = obj->type;
+                long num = strtoll(static_cast<const char*>(obj->data), nullptr, 0);
+                if (num == 0 && errno == ERANGE)
+                    error("Number out of range", obj);
+                if (num >= INT8_MIN && num <= INT8_MAX) {
+                    newToken->dataSize = 1;
+                    newToken->data = malloc(1);
+                    *static_cast<int8_t*>(newToken->data) = static_cast<int8_t>(num);
+                } else if (num >= INT16_MIN && num <= INT16_MAX) {
+                    newToken->dataSize = 2;
+                    newToken->data = malloc(2);
+                    *static_cast<int16_t*>(newToken->data) = static_cast<int16_t>(num);
+                } else if (num >= INT32_MIN && num <= INT32_MAX) {
+                    newToken->dataSize = 4;
+                    newToken->data = malloc(4);
+                    *static_cast<int32_t*>(newToken->data) = static_cast<int32_t>(num);
+                } else {
+                    newToken->dataSize = 8;
+                    newToken->data = malloc(8);
+                    *static_cast<int64_t*>(newToken->data) = num;
+                }
+                newToken->fileName = obj->fileName;
+                newToken->line = obj->line;
+                newToken->refCount = 1;
+                expressionTokens.insert(newToken);
+            } else {
+                obj->refCount++;
+                expressionTokens.insert(obj);
+            }
+        }
+        else {
+            obj->refCount++;
+            m_tokens.insert(obj);
+        }
+
+
+        previousToken = obj;
+    });
+}
+
+void Parser::parse() {
     using namespace InsEncoding;
     Label* currentLabel = nullptr;
     Block* currentBlock = nullptr;
@@ -57,7 +193,7 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
     label->blocks.insert(block);
 
     // First scan for labels
-    tokens.Enumerate([&](Token* token) -> void {
+    m_tokens.Enumerate([&](Token* token) -> void {
         if (token->type == TokenType::BLABEL) {
             Label* label = new Label;
             label->name = static_cast<char*>(token->data);
@@ -84,7 +220,7 @@ void Parser::parse(const LinkedList::RearInsertLinkedList<Token>& tokens) {
     currentLabel = label;
     currentBlock = block;
 
-    tokens.Enumerate([&](Token* token, uint64_t index) -> bool {
+    m_tokens.Enumerate([&](Token* token, uint64_t index) -> bool {
 #ifdef ASSEMBLER_DEBUG
         // printf("Token: \"%.*s\", index = %lu, type = %lu\n", static_cast<int>(token->dataSize), static_cast<char*>(token->data), index, static_cast<unsigned long int>(token->type));
 #else
@@ -1334,7 +1470,680 @@ InsEncoding::Register Parser::GetRegister(const char* name, size_t nameSize) {
 
 #undef EQUALS
 
-void Parser::error(const char* message, Token* token, bool printToken) {
+Token* Parser::SimplifyExpression(const LinkedList::RearInsertLinkedList<Token>& tokens) {
+    // need to break the big expression into smaller expressions, recursively calling the function until 1 token remains.
+    // 1. Handle parentheses first
+    bool skipNext = false;
+    size_t parenDepth = 0;
+    size_t startIndex = SIZE_MAX;
+    LinkedList::RearInsertLinkedList<Token> simplifiedTokens;
+    LinkedList::RearInsertLinkedList<Token> innerTokens;
+    tokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::LPARAN) {
+            parenDepth++;
+            if (parenDepth == 1) {
+                startIndex = index;
+                return true; // continue enumeration
+            }
+        } else if (token->type == TokenType::RPARAN) {
+            if (parenDepth == 0)
+                error("Mismatched parentheses", token, true);
+            parenDepth--;
+            if (parenDepth == 0) {
+                simplifiedTokens.insert(SimplifyExpression(innerTokens));
+                innerTokens.Enumerate([&](Token* innerToken) -> bool {
+                    innerToken->refCount--;
+                    return true; // continue enumeration
+                });
+                innerTokens.clear();
+                return true; // continue enumeration
+            }
+        }
+        token->refCount++;
+        if (parenDepth > 0)
+            innerTokens.insert(token);
+        else
+            simplifiedTokens.insert(token);
+        return true; // continue enumeration
+    });
+    if (parenDepth != 0)
+        error("Mismatched parentheses", startIndex == SIZE_MAX ? tokens.get(0) : tokens.get(startIndex), true);
+
+
+    // 2. Handle bitwise NOT (~)
+    LinkedList::RearInsertLinkedList<Token> bwNOTHandledTokens;
+    skipNext = false;
+    simplifiedTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && static_cast<const char*>(token->data)[0] == '~')) {
+            // unary operator
+            if (index + 1 >= simplifiedTokens.getCount())
+                error("Unary operator at end of expression", token, true);
+            Token* nextToken = simplifiedTokens.get(index + 1);
+            if (nextToken == nullptr)
+                error("Invalid token after unary operator", token, true);
+            if (nextToken->type != TokenType::NUMBER)
+                error("Invalid token after unary operator", nextToken, true);
+            // create a new token for the result of the unary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = nextToken->fileName;
+            resultToken->line = nextToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // perform the unary operation
+            if (static_cast<const char*>(token->data)[0] == '~') {
+                // bitwise NOT
+                if (nextToken->dataSize == 1) {
+                    resultToken->dataSize = 1;
+                    resultToken->data = malloc(1);
+                    *static_cast<uint8_t*>(resultToken->data) = ~(*static_cast<uint8_t*>(nextToken->data));
+                } else if (nextToken->dataSize == 2) {
+                    resultToken->dataSize = 2;
+                    resultToken->data = malloc(2);
+                    *static_cast<uint16_t*>(resultToken->data) = ~(*static_cast<uint16_t*>(nextToken->data));
+                } else if (nextToken->dataSize == 4) {
+                    resultToken->dataSize = 4;
+                    resultToken->data = malloc(4);
+                    *static_cast<uint32_t*>(resultToken->data) = ~(*static_cast<uint32_t*>(nextToken->data));
+                } else if (nextToken->dataSize == 8) {
+                    resultToken->dataSize = 8;
+                    resultToken->data = malloc(8);
+                    *static_cast<uint64_t*>(resultToken->data) = ~(*static_cast<uint64_t*>(nextToken->data));
+                } else {
+                    error("Unsupported number size for bitwise NOT", nextToken, true);
+                }
+            } else {
+                error("Unknown unary operator", token, true);
+            }
+            bwNOTHandledTokens.insert(resultToken);
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            token->refCount++;
+            bwNOTHandledTokens.insert(token);
+        }
+        return true; // continue enumeration
+    });
+
+    // need to empty and cleanup simplifiedTokens
+    simplifiedTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    simplifiedTokens.clear();
+
+
+    // 3. Handle multiplication, division and remainder
+    LinkedList::RearInsertLinkedList<Token> mulDivHandledTokens;
+    Token* previousToken = nullptr;
+    skipNext = false;
+    bwNOTHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && (static_cast<const char*>(token->data)[0] == '*' || static_cast<const char*>(token->data)[0] == '/' || static_cast<const char*>(token->data)[0] == '%'))) {
+            // binary operator
+            if (index == 0 || index + 1 >= bwNOTHandledTokens.getCount())
+                error("Binary operator at start or end of expression", token, true);
+            Token* leftToken = bwNOTHandledTokens.get(index - 1);
+            Token* rightToken = bwNOTHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around Multiplication/Division/Remainder operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of Multiplication/Division/Remainder operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of Multiplication/Division/Remainder operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for Multiplication/Division/Remainder operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (static_cast<const char*>(token->data)[0] == '*') {
+                // multiplication
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) * (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) * (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) * (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) * (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else if (static_cast<const char*>(token->data)[0] == '/') {
+                // division
+                if (resultSize == 1) {
+                    if (*static_cast<uint8_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) / (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    if (*static_cast<uint16_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) / (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    if (*static_cast<uint32_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) / (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    if (*static_cast<uint64_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) / (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else if (static_cast<const char*>(token->data)[0] == '%') {
+                // remainder
+                if (resultSize == 1) {
+                    if (*static_cast<uint8_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) % (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    if (*static_cast<uint16_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) % (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    if (*static_cast<uint32_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) % (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    if (*static_cast<uint64_t*>(rightToken->data) == 0)
+                        error("Division by zero", rightToken, true);
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) % (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            mulDivHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                mulDivHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        mulDivHandledTokens.insert(previousToken);
+    }
+
+    // need to empty and cleanup unaryHandledTokens
+    bwNOTHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    bwNOTHandledTokens.clear();
+
+    // 4. Handle addition and subtraction
+    LinkedList::RearInsertLinkedList<Token> addSubHandledTokens;
+    previousToken = nullptr;
+    skipNext = false;
+    mulDivHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && (static_cast<const char*>(token->data)[0] == '+' || static_cast<const char*>(token->data)[0] == '-'))) {
+            // binary operator
+            if (index == 0 || index + 1 >= mulDivHandledTokens.getCount())
+                error("Addition/subtraction operator at start or end of expression", token, true);
+            Token* leftToken = mulDivHandledTokens.get(index - 1);
+            Token* rightToken = mulDivHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around addition/subtraction operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of addition/subtraction operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of addition/subtraction operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = 0;
+            resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for addition/subtraction operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (static_cast<const char*>(token->data)[0] == '+') {
+                // addition
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) + (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) + (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) + (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) + (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else if (static_cast<const char*>(token->data)[0] == '-') {
+                // subtraction
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) - (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) - (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) - (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) - (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            addSubHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        }
+        else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                addSubHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        addSubHandledTokens.insert(previousToken);
+    }
+
+    // Need to empty and cleanup mulDivHandledTokens
+    mulDivHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    mulDivHandledTokens.clear();
+
+    // 5. Handle bitwise shifts
+    LinkedList::RearInsertLinkedList<Token> shiftHandledTokens;
+    previousToken = nullptr;
+    skipNext = false;
+    addSubHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 2 && (strncmp(static_cast<const char*>(token->data), "<<", 2) == 0 || strncmp(static_cast<const char*>(token->data), ">>", 2) == 0))) {
+            // binary operator
+            if (index == 0 || index + 1 >= addSubHandledTokens.getCount())
+                error("Binary operator at start or end of expression", token, true);
+            Token* leftToken = addSubHandledTokens.get(index - 1);
+            Token* rightToken = addSubHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around shift operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of shift operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of shift operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = 0;
+            resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for shift operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (strncmp(static_cast<const char*>(token->data), "<<", 2) == 0) {
+                // left shift
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) << (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) << (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) << (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) << (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else if (strncmp(static_cast<const char*>(token->data), ">>", 2) == 0) {
+                // right shift
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) >> (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) >> (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) >> (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) >> (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            shiftHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                shiftHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        shiftHandledTokens.insert(previousToken);
+    }
+
+    // need to cleanup addSubHandledTokens
+    addSubHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    addSubHandledTokens.clear();
+
+    // 6. Handle bitwise AND
+    LinkedList::RearInsertLinkedList<Token> andHandledTokens;
+    previousToken = nullptr;
+    skipNext = false;
+    shiftHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && (static_cast<const char*>(token->data)[0] == '&'))) {
+            // binary operator
+            if (index == 0 || index + 1 >= shiftHandledTokens.getCount())
+                error("Binary operator at start or end of expression", token, true);
+            Token* leftToken = shiftHandledTokens.get(index - 1);
+            Token* rightToken = shiftHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around bitwise AND operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of bitwise AND operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of bitwise AND operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = 0;
+            resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for bitwise AND operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (static_cast<const char*>(token->data)[0] == '&') {
+                // bitwise AND
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) & (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) & (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) & (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) & (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            andHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                andHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        andHandledTokens.insert(previousToken);
+    }
+
+    // need to cleanup shiftHandledTokens
+    shiftHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    shiftHandledTokens.clear();
+
+    // 7. Handle bitwise XOR
+    LinkedList::RearInsertLinkedList<Token> xorHandledTokens;
+    previousToken = nullptr;
+    skipNext = false;
+    andHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && (static_cast<const char*>(token->data)[0] == '^'))) {
+            // binary operator
+            if (index == 0 || index + 1 >= andHandledTokens.getCount())
+                error("Binary operator at start or end of expression", token, true);
+            Token* leftToken = andHandledTokens.get(index - 1);
+            Token* rightToken = andHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around bitwise XOR operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of bitwise XOR operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of bitwise XOR operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = 0;
+            resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for bitwise XOR operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (static_cast<const char*>(token->data)[0] == '^') {
+                // bitwise XOR
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) ^ (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) ^ (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) ^ (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) ^ (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            xorHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                xorHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        xorHandledTokens.insert(previousToken);
+    }
+
+    // need to cleanup andHandledTokens
+    andHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    andHandledTokens.clear();
+
+    // 8. Handle bitwise OR
+    LinkedList::RearInsertLinkedList<Token> orHandledTokens;
+    previousToken = nullptr;
+    skipNext = false;
+    xorHandledTokens.Enumerate([&](Token* token, size_t index) -> bool {
+        if (skipNext) {
+            skipNext = false;
+            return true; // continue enumeration
+        }
+        if (token == nullptr)
+            return false;
+        if (token->type == TokenType::OPERATOR && (token->dataSize == 1 && (static_cast<const char*>(token->data)[0] == '|'))) {
+            // binary operator
+            if (index == 0 || index + 1 >= xorHandledTokens.getCount())
+                error("Binary operator at start or end of expression", token, true);
+            Token* leftToken = xorHandledTokens.get(index - 1);
+            Token* rightToken = xorHandledTokens.get(index + 1);
+            if (leftToken == nullptr || rightToken == nullptr)
+                error("Invalid token around bitwise OR operator", token, true);
+            if (leftToken->type != TokenType::NUMBER)
+                error("Left operand of bitwise OR operator is not a number", leftToken, true);
+            if (rightToken->type != TokenType::NUMBER)
+                error("Right operand of bitwise OR operator is not a number", rightToken, true);
+            // create a new token for the result of the binary operation
+            Token* resultToken = new Token();
+            resultToken->fileName = leftToken->fileName;
+            resultToken->line = leftToken->line;
+            resultToken->type = TokenType::NUMBER; // result is always a number
+            resultToken->refCount = 1;
+            // determine the size of the result based on the sizes of the operands
+            size_t resultSize = 0;
+            resultSize = leftToken->dataSize > rightToken->dataSize ? leftToken->dataSize : rightToken->dataSize;
+            if (resultSize != 1 && resultSize != 2 && resultSize != 4 && resultSize != 8)
+                error("Unsupported number size for binary operator", token, true);
+            resultToken->dataSize = resultSize;
+            resultToken->data = malloc(resultSize);
+            // perform the binary operation
+            if (static_cast<const char*>(token->data)[0] == '|') {
+                // bitwise OR
+                if (resultSize == 1) {
+                    *static_cast<uint8_t*>(resultToken->data) = (*static_cast<uint8_t*>(leftToken->data)) | (*static_cast<uint8_t*>(rightToken->data));
+                } else if (resultSize == 2) {
+                    *static_cast<uint16_t*>(resultToken->data) = (*static_cast<uint16_t*>(leftToken->data)) | (*static_cast<uint16_t*>(rightToken->data));
+                } else if (resultSize == 4) {
+                    *static_cast<uint32_t*>(resultToken->data) = (*static_cast<uint32_t*>(leftToken->data)) | (*static_cast<uint32_t*>(rightToken->data));
+                } else if (resultSize == 8) {
+                    *static_cast<uint64_t*>(resultToken->data) = (*static_cast<uint64_t*>(leftToken->data)) | (*static_cast<uint64_t*>(rightToken->data));
+                }
+            } else {
+                error("Unknown binary operator", token, true);
+            }
+            orHandledTokens.insert(resultToken);
+            previousToken = nullptr; // skip the previous token as it has been handled
+            skipNext = true; // skip the next token as it has been handled
+            return true;
+        } else {
+            if (previousToken != nullptr) {
+                previousToken->refCount++;
+                orHandledTokens.insert(previousToken);
+            }
+        }
+        previousToken = token;
+        return true; // continue enumeration
+    });
+    if (previousToken != nullptr) {
+        previousToken->refCount++;
+        orHandledTokens.insert(previousToken);
+    }
+
+    // need to cleanup xorHandledTokens
+    xorHandledTokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
+        free(token->data);
+        delete token;
+        return true;
+    });
+    xorHandledTokens.clear();
+
+    // 9. Final check, ensure we just have one token left, and it is a NUMBER
+    if (orHandledTokens.getCount() != 1)
+        error("Failed to fully evaluate expression", orHandledTokens.get(0), false);
+
+    Token* result = orHandledTokens.get(0);
+    orHandledTokens.clear();
+
+    if (result->type != TokenType::NUMBER)
+        error("Final result of expression is not a number", result, true);
+
+    assert(result->refCount == 1);
+    return result;
+}
+
+
+[[noreturn]] void Parser::error(const char* message, Token* token, bool printToken) {
     printf("Parser error at %s:%zu: %s", token->fileName.c_str(), token->line, message);
     if (printToken)
         printf(": \"%.*s\"", static_cast<int>(token->dataSize), static_cast<const char*>(token->data));

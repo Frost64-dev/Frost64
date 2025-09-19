@@ -620,7 +620,29 @@ asciiz "Hello, world!"
 - 2 forms
 - form 1: `[literal]` where literal is a 64-bit integer (also known as `MEMORY`).
 - form 2: `[base*index+offset]`, where any of the 3 can be a register or an immediate of any size (also known as `COMPLEX`).
-- In form 2, index or offset can be excluded. If the offset is a register, it can be positive or negative.
+- In form 2, index or offset can be excluded. If the offset is a register, it can be positive or negative. Not all combinations are valid. These are all valid combinations:
+    - `[reg]`
+    - `[reg+reg]`
+    - `[reg+imm]`
+    - `[imm+reg]`
+    - `[imm-reg]`
+    - `[imm+imm]`
+    - `[reg*reg]`
+    - `[reg*imm]`
+    - `[reg*reg+reg]`
+    - `[reg*reg-reg]`
+    - `[reg*reg+imm]`
+    - `[reg*imm+reg]`
+    - `[reg*imm-reg]`
+    - `[reg*imm+imm]`
+
+### Constant folding
+
+- Constant folding is supported in the assembler to an extent.
+- Unary `+` and `-` operations are not supported. Otherwise, most other operators are supported.
+- Operations including labels or sub-labels are not supported, but operations including macros are supported.
+- Expressions are evaluated left to right, with standard operator precedence, similar to languages like C.
+- Expressions must be enclosed in parentheses.
 
 ## Devices
 

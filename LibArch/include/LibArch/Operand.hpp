@@ -39,6 +39,7 @@ namespace InsEncoding {
         MEM_BASE_OFF_REG,
         MEM_BASE_OFF_REG_IMM,
         MEM_BASE_OFF_IMM_REG,
+        MEM_BASE_OFF_IMM2,
         MEM_BASE_IDX_REG,
         MEM_BASE_IDX_REG_IMM,
         MEM_BASE_IDX_OFF_REG,
@@ -48,7 +49,7 @@ namespace InsEncoding {
         RESERVED
     };
 
-    enum class OperandSize {
+    enum class OperandSize : unsigned char {
         BYTE = 0,
         WORD = 1,
         DWORD = 2,

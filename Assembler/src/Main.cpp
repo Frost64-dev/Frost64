@@ -88,7 +88,8 @@ int main(int argc, char** argv) {
     lexer->tokenize(reinterpret_cast<const char*>(processedBufferData), processedBufferSize, preProcessor.GetReferencePoints());
 
     Parser parser;
-    parser.parse(lexer->GetTokens());
+    parser.SimplifyExpressions(lexer->GetTokens());
+    parser.parse();
 #ifdef ASSEMBLER_DEBUG
     parser.PrintSections(stdout);
     fflush(stdout);

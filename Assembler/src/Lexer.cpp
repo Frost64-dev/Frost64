@@ -61,11 +61,21 @@ void Lexer::tokenize(const char* source, size_t sourceSize, const LinkedList::Re
         if (startOfToken) {
             if (source[i] == ' ' || source[i] == '\n' || source[i] == '\t')
                 continue;
-            else if ((source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '+' || source[i] == '*') || (source[i] == '-' && ((i + 1) >= sourceSize || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
+            else if ((source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '+' || source[i] == '*' || source[i] == '(' || source[i] == ')' || source[i] == '|' || source[i] == '&' || source[i] == '^' || source[i] == '~' || source[i] == '/' || source[i] == '%')
+                     || (source[i] == '-' && ((i + 1) >= sourceSize || !(source[i + 1] >= '0' && source[i + 1] <= '9')))) {
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
                 currentOffsetInToken = 0;
+            } else if ((source[i] == '<' && (i + 1) < sourceSize && source[i + 1] == '<') || (source[i] == '>' && (i + 1) < sourceSize && source[i + 1] == '>')) {
+                if (source[i] == '>')
+                    token = ">>";
+                else
+                    token = "<<";
+                APPEND_TOKEN(token);
+                token = "";
+                currentOffsetInToken = 0;
+                i++; // skip the next character as we already processed it
             } else if (source[i] == '\"') {
                 char const* end;
                 uint64_t offset = i;
@@ -169,7 +179,7 @@ void Lexer::tokenize(const char* source, size_t sourceSize, const LinkedList::Re
                 APPEND_TOKEN(token);
                 token = "";
                 currentOffsetInToken = 0;
-            } else if (source[i] == '[' || source[i] == ']' || source[i] == ',') {
+            } else if (source[i] == '+' || source[i] == '*' || source[i] == '[' || source[i] == ']' || source[i] == ',' || source[i] == '(' || source[i] == ')' || source[i] == '|' || source[i] == '&' || source[i] == '^' || source[i] == '~' || source[i] == '/' || source[i] == '%') {
                 startOfToken = true;
                 APPEND_TOKEN(token);
                 token = "";
@@ -177,8 +187,8 @@ void Lexer::tokenize(const char* source, size_t sourceSize, const LinkedList::Re
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
-            } else if (source[i] == '+' || source[i] == '*' || source[i] == '-') {
-                if (source[i] == '-' && (i + 1) < sourceSize) {
+            } else if (source[i] == '-') {
+                if ((i + 1) < sourceSize) {
                     if (source[i + 1] >= '0' && source[i + 1] <= '9') { // do not read outside of bounds
                         startOfToken = true;
                         APPEND_TOKEN(token);
@@ -195,6 +205,17 @@ void Lexer::tokenize(const char* source, size_t sourceSize, const LinkedList::Re
                 token += source[i];
                 APPEND_TOKEN(token);
                 token = "";
+            } else if ((source[i] == '<' && (i + 1) < sourceSize && source[i + 1] == '<') || (source[i] == '>' && (i + 1) < sourceSize && source[i + 1] == '>')) {
+                startOfToken = true;
+                APPEND_TOKEN(token);
+                if (source[i] == '>')
+                    token = ">>";
+                else
+                    token = "<<";
+                APPEND_TOKEN(token);
+                currentOffsetInToken = 0;
+                token = "";
+                i++; // skip the next character as we already processed it
             } else {
                 token += source[i];
                 currentOffsetInToken++;
@@ -250,6 +271,10 @@ const char* Lexer::TokenTypeToString(TokenType type) {
         return "OPERATOR";
     case TokenType::STRING:
         return "STRING";
+    case TokenType::LPARAN:
+        return "LPARAN";
+    case TokenType::RPARAN:
+        return "RPARAN";
     case TokenType::UNKNOWN:
     default:
         return "UNKNOWN";
@@ -258,6 +283,9 @@ const char* Lexer::TokenTypeToString(TokenType type) {
 
 void Lexer::Clear() {
     m_tokens.EnumerateReverse([&](Token* token) -> bool {
+        token->refCount--;
+        if (token->refCount > 0)
+            return true;
         delete[] static_cast<char*>(token->data);
         delete token;
         return true;
@@ -279,6 +307,7 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
     memcpy(newToken->data, lowerToken.c_str(), lowerToken.size());
     static_cast<char*>(newToken->data)[lowerToken.size()] = 0;
     newToken->dataSize = lowerToken.size();
+    newToken->refCount = 1;
 
     /* now we identify the token type */
 #define IS_REGISTER(token) ((token) == "r0" || (token) == "r1" || (token) == "r2" || (token) == "r3" || (token) == "r4" || (token) == "r5" || (token) == "r6" || (token) == "r7" || (token) == "r8" || (token) == "r9" || (token) == "r10" || (token) == "r11" || (token) == "r12" || (token) == "r13" || (token) == "r14" || (token) == "r15" || (token) == "scp" || (token) == "sbp" || (token) == "stp" || (token) == "cr0" || (token) == "cr1" || (token) == "cr2" || (token) == "cr3" || (token) == "cr4" || (token) == "cr5" || (token) == "cr6" || (token) == "cr7" || (token) == "sts" || (token) == "ip")
@@ -290,13 +319,17 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
         newToken->type = TokenType::LBRACKET;
     else if (lowerToken == "]")
         newToken->type = TokenType::RBRACKET;
+    else if (lowerToken == "(")
+        newToken->type = TokenType::LPARAN;
+    else if (lowerToken == ")")
+        newToken->type = TokenType::RPARAN;
     else if (lowerToken == ",")
         newToken->type = TokenType::COMMA;
     else if (lowerToken == "db" || lowerToken == "dw" || lowerToken == "dd" || lowerToken == "dq" || lowerToken == "org" || lowerToken == "ascii" || lowerToken == "asciiz" || lowerToken == "align")
         newToken->type = TokenType::DIRECTIVE;
     else if (lowerToken == "byte" || lowerToken == "word" || lowerToken == "dword" || lowerToken == "qword")
         newToken->type = TokenType::SIZE;
-    else if (lowerToken == "+" || lowerToken == "-" || lowerToken == "*")
+    else if (lowerToken == "+" || lowerToken == "-" || lowerToken == "*" || lowerToken == "|" || lowerToken == "&" || lowerToken == "^" || lowerToken == "~" || lowerToken == "/" || lowerToken == "%" || lowerToken == "<<" || lowerToken == ">>")
         newToken->type = TokenType::OPERATOR;
     else if (lowerToken[0] == '\"' && lowerToken[lowerToken.size() - 1] == '\"')
         newToken->type = TokenType::STRING;

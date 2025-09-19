@@ -19,13 +19,14 @@ First 2 bytes are for the instruction stuff, and data follows it
     - 4: MEM (base + offset, reg, reg)
     - 5: MEM (base + offset, reg, imm)
     - 6: MEM (base + offset, imm, reg)
-    - 7: MEM (base * index, reg, reg)
-    - 8: MEM (base * index, reg, imm)
-    - 9: MEM (base * index + offset, reg, reg, reg)
-    - a: MEM (base * index + offset, reg, reg, imm)
-    - b: MEM (base * index + offset, reg, imm, reg)
-    - c: MEM (base * index + offset, reg, imm, imm)
-    - d-f: reserved
+    - 7: MEM (base + offset, imm, imm)
+    - 8: MEM (base * index, reg, reg)
+    - 9: MEM (base * index, reg, imm)
+    - a: MEM (base * index + offset, reg, reg, reg)
+    - b: MEM (base * index + offset, reg, reg, imm)
+    - c: MEM (base * index + offset, reg, imm, reg)
+    - d: MEM (base * index + offset, reg, imm, imm)
+    - e-f: reserved
 - bits 4-5 is for the size of the entire operation
     - 0: BYTE (8-bit)
     - 1: WORD (16-bit)
