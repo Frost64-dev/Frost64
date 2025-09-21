@@ -26,9 +26,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 namespace InsEncoding {
 
     SimpleInstruction g_currentInstruction;
-    ComplexData g_complexData[2];
-    Register g_currentRegisters[6]; // maximum of 6 registers in an instruction
-    uint64_t g_rawData[48]; // maximum of 6 in an operand, maximum of 8 bytes each, totalling 48 bytes
+    ComplexData g_complexData[3];
+    Register g_currentRegisters[9]; // maximum of 9 registers in an instruction
+    uint64_t g_rawData[9]; // maximum of 9 in an operand
 
     Instruction::Instruction()
         : m_opcode(Opcode::UNKNOWN), m_fileName(), m_line(0) {
@@ -348,187 +348,326 @@ namespace InsEncoding {
         return type;
     }
 
-    /*
+#define READ_4BIT_COT(value) (static_cast<CompactOperandType>(static_cast<uint8_t>(value) & 0x0F))
+
+
+    void ConvertCompactToComplex(ComplexData* out, BasicOperandInfo* basic, ExtendedOperandInfo* extended, bool isExtended) {
+        // fill in all the data for the complex data structure
+        CompactOperandType type = READ_4BIT_COT(isExtended ? extended->type : basic->type);
+        OperandSize imm0Size = isExtended ? extended->imm0Size : basic->imm0Size;
+        OperandSize imm1Size = isExtended ? extended->imm1Size : OperandSize::BYTE; // not used in basic
+        if (type > CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || type < CompactOperandType::MEM_BASE_REG || type == CompactOperandType::MEM_BASE_IMM) {
+            out->base.present = false;
+            out->index.present = false;
+            out->offset.present = false;
+            out->base.sign = false;
+            out->index.sign = false;
+            out->offset.sign = false;
+            out->base.type = ComplexItem::Type::UNKNOWN;
+            out->index.type = ComplexItem::Type::UNKNOWN;
+            out->offset.type = ComplexItem::Type::UNKNOWN;
+            out->stage = ComplexData::Stage::BASE;
+            return;
+        }
+        out->base.present = true;
+        switch (type) {
+        case CompactOperandType::MEM_BASE_REG:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = false;
+            out->offset.present = false;
+            break;
+        case CompactOperandType::MEM_BASE_OFF_REG:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = false;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::REGISTER;
+            break;
+        case CompactOperandType::MEM_BASE_OFF_REG_IMM:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = false;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::IMMEDIATE;
+            out->offset.data.imm.size = imm0Size;
+            break;
+        case CompactOperandType::MEM_BASE_OFF_IMM_REG:
+            out->base.type = ComplexItem::Type::IMMEDIATE;
+            out->base.data.imm.size = imm0Size;
+            out->index.present = false;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::REGISTER;
+            break;
+        case CompactOperandType::MEM_BASE_OFF_IMM2:
+            out->base.type = ComplexItem::Type::IMMEDIATE;
+            out->base.data.imm.size = imm0Size;
+            out->index.present = false;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::IMMEDIATE;
+            out->offset.data.imm.size = imm1Size;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_REG:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::REGISTER;
+            out->offset.present = false;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_REG_IMM:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::IMMEDIATE;
+            out->index.data.imm.size = imm0Size;
+            out->offset.present = false;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_OFF_REG:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::REGISTER;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::REGISTER;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_OFF_REG2_IMM:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::REGISTER;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::IMMEDIATE;
+            out->offset.data.imm.size = imm0Size;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM_REG:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::IMMEDIATE;
+            out->index.data.imm.size = imm0Size;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::REGISTER;
+            break;
+        case CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2:
+            out->base.type = ComplexItem::Type::REGISTER;
+            out->index.present = true;
+            out->index.type = ComplexItem::Type::IMMEDIATE;
+            out->index.data.imm.size = imm0Size;
+            out->offset.present = true;
+            out->offset.type = ComplexItem::Type::IMMEDIATE;
+            out->offset.data.imm.size = imm1Size;
+            break;
+        default:
+            break;
+        }
+
+    }
+
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
-    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& current_offset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
         if (out == nullptr)
             return false;
 
-        uint8_t raw_opcode;
-        buffer.ReadStream8(raw_opcode);
-        current_offset++;
+        uint8_t rawOpcode;
+        buffer.ReadStream8(rawOpcode);
+        currentOffset++;
 
-        g_currentInstruction.SetOpcode(static_cast<Opcode>(raw_opcode));
+        g_currentInstruction.SetOpcode(static_cast<Opcode>(rawOpcode));
         g_currentInstruction.operandCount = 0;
 
-        uint8_t arg_count = GetArgCountForOpcode(g_currentInstruction.GetOpcode());
-        if (arg_count == 0) {
+        uint8_t argCount = GetArgCountForOpcode(g_currentInstruction.GetOpcode());
+        if (argCount == 0) {
             *out = g_currentInstruction;
             return true;
         }
 
-        OperandType operand_types[2];
-        OperandSize operand_sizes[2];
+        CompactOperandType compactOperandTypes[3];
+        OperandType operandTypes[3];
+        OperandSize operandSizes[3];
 
-        ComplexOperandInfo complex_infos[2];
+        BasicOperandInfo basicInfos[3];
+        ExtendedOperandInfo extendedInfos[3];
 
-        if (arg_count == 1) {
-            // read 1 byte to get the operand type
-            uint8_t raw_operand_info;
-            buffer.ReadStream8(raw_operand_info);
-            current_offset++;
-            StandardOperandInfo* temp_operand_info = reinterpret_cast<StandardOperandInfo*>(&raw_operand_info);
+        bool isExtendedOperand[3] = {false, false, false};
 
-            operand_types[0] = static_cast<OperandType>(temp_operand_info->type);
-            operand_sizes[0] = static_cast<OperandSize>(temp_operand_info->size);
+        if (argCount == 1) {
+            buffer.ReadStream8(*reinterpret_cast<uint8_t*>(&basicInfos[0]));
+            currentOffset += sizeof(uint8_t);
 
-            if (operand_types[0] == OperandType::COMPLEX) {
-                ComplexOperandInfo complex_info{};
-                uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&complex_info);
-                raw_complex_info[0] = raw_operand_info;
-                buffer.ReadStream8(raw_complex_info[1]);
-                current_offset += sizeof(ComplexOperandInfo) - 1;
-                complex_infos[0] = complex_info;
+            if (READ_4BIT_COT(basicInfos[0].type) == CompactOperandType::MEM_BASE_OFF_IMM2 || READ_4BIT_COT(basicInfos[0].type) == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                memcpy(&extendedInfos[0], &basicInfos[0], sizeof(BasicOperandInfo));
+                buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&extendedInfos[0]) + sizeof(BasicOperandInfo)));
+                currentOffset += sizeof(uint8_t);
+                isExtendedOperand[0] = true;
             }
-        } else if (arg_count == 2) {
-            // read 1 byte to get the operand types
-            uint8_t raw_operand_info;
-            buffer.ReadStream8(raw_operand_info);
-            current_offset++;
+            compactOperandTypes[0] = READ_4BIT_COT(basicInfos[0].type);
+            operandTypes[0] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[0]);
+            operandSizes[0] = basicInfos[0].size;
+        } else if (argCount == 2 || argCount == 3) {
+            buffer.ReadStream8(*reinterpret_cast<uint8_t*>(&basicInfos[0]));
+            currentOffset += sizeof(uint8_t);
 
-            if (StandardOperandInfo* temp_operand_info = reinterpret_cast<StandardOperandInfo*>(&raw_operand_info); temp_operand_info->type == static_cast<uint8_t>(OperandType::COMPLEX)) {
-                ComplexStandardOperandInfo temp_complex_info{};
-                uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&temp_complex_info);
-                raw_complex_info[0] = raw_operand_info;
-                buffer.ReadStream16(reinterpret_cast<uint16_t&>(raw_complex_info[1]));
-                current_offset += sizeof(ComplexStandardOperandInfo) - 1;
-                operand_types[0] = static_cast<OperandType>(temp_complex_info.complex.type);
-                operand_sizes[0] = static_cast<OperandSize>(temp_complex_info.complex.size);
-                operand_types[1] = static_cast<OperandType>(temp_complex_info.standard.type);
-                operand_sizes[1] = static_cast<OperandSize>(temp_complex_info.standard.size);
+            bool triple = false;
 
-                complex_infos[0] = temp_complex_info.complex;
-
-                if (operand_types[1] == OperandType::COMPLEX) {
-                    ComplexComplexOperandInfo i_temp_complex_info{};
-                    uint8_t* i_raw_complex_info = reinterpret_cast<uint8_t*>(&i_temp_complex_info);
-                    i_raw_complex_info[0] = raw_complex_info[0];
-                    i_raw_complex_info[1] = raw_complex_info[1];
-                    i_raw_complex_info[2] = raw_complex_info[2];
-                    buffer.ReadStream8(i_raw_complex_info[3]);
-                    current_offset += sizeof(ComplexComplexOperandInfo) - sizeof(ComplexStandardOperandInfo);
-                    complex_infos[1] = i_temp_complex_info.second;
+            if (READ_4BIT_COT(basicInfos[0].type) == CompactOperandType::MEM_BASE_OFF_IMM2 || READ_4BIT_COT(basicInfos[0].type) == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                memcpy(&extendedInfos[0], &basicInfos[0], sizeof(BasicOperandInfo));
+                buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&extendedInfos[0]) + sizeof(BasicOperandInfo)));
+                currentOffset += sizeof(uint8_t);
+                isExtendedOperand[0] = true;
+                // need to check highest 4 bits of the ExtendedOperandInfo to see if the next operand is extended
+                if (CompactOperandType nextType = static_cast<CompactOperandType>(*(reinterpret_cast<uint8_t*>(&extendedInfos[0]) + sizeof(BasicOperandInfo)) >> 4); nextType == CompactOperandType::MEM_BASE_OFF_IMM2 || nextType == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                    DoubleExtendedOperandInfo doubleExtendedInfo;
+                    memcpy(&doubleExtendedInfo, &extendedInfos[0], sizeof(ExtendedOperandInfo));
+                    buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&doubleExtendedInfo) + sizeof(ExtendedOperandInfo)));
+                    currentOffset += sizeof(uint8_t);
+                    extendedInfos[1].type = doubleExtendedInfo.second.type;
+                    extendedInfos[1].size = doubleExtendedInfo.second.size;
+                    extendedInfos[1].imm0Size = doubleExtendedInfo.second.imm0Size;
+                    extendedInfos[1].imm1Size = doubleExtendedInfo.second.imm1Size;
+                    isExtendedOperand[1] = true;
                 }
-            } else {
-                StandardStandardOperandInfo* temp_standard_info = reinterpret_cast<StandardStandardOperandInfo*>(&raw_operand_info);
-                operand_types[0] = static_cast<OperandType>(temp_standard_info->firstType);
-                operand_sizes[0] = static_cast<OperandSize>(temp_standard_info->firstSize);
-                operand_types[1] = static_cast<OperandType>(temp_standard_info->secondType);
-                operand_sizes[1] = static_cast<OperandSize>(temp_standard_info->secondSize);
-
-                if (operand_types[1] == OperandType::COMPLEX) {
-                    StandardComplexOperandInfo temp_complex_info{};
-                    uint8_t* raw_complex_info = reinterpret_cast<uint8_t*>(&temp_complex_info);
-                    raw_complex_info[0] = raw_operand_info;
-                    buffer.ReadStream16(reinterpret_cast<uint16_t&>(raw_complex_info[1]));
-                    current_offset += sizeof(StandardComplexOperandInfo) - 1;
-                    complex_infos[1] = temp_complex_info.complex;
-                    operand_sizes[1] = static_cast<OperandSize>(temp_complex_info.complex.size);
+                else if (argCount == 3 && (extendedInfos[0].reserved & 1 << 1) > 0) { // need to check the highest reserved bit of the ExtendedOperandInfo to see if the next operand is triple extended
+                    TripleExtendedOperandInfo tripleExtendedInfo;
+                    memcpy(&tripleExtendedInfo, &extendedInfos[0], sizeof(ExtendedOperandInfo));
+                    buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&tripleExtendedInfo) + sizeof(ExtendedOperandInfo)));
+                    currentOffset += sizeof(uint8_t);
+                    basicInfos[1].type = tripleExtendedInfo.second.type;
+                    basicInfos[1].size = tripleExtendedInfo.second.size;
+                    basicInfos[1].imm0Size = tripleExtendedInfo.second.imm0Size;
+                    isExtendedOperand[1] = false;
+                    extendedInfos[2].type = tripleExtendedInfo.third.type;
+                    extendedInfos[2].size = tripleExtendedInfo.third.size;
+                    extendedInfos[2].imm0Size = tripleExtendedInfo.third.imm0Size;
+                    extendedInfos[2].imm1Size = tripleExtendedInfo.third.imm1Size; // not used in triple extended
+                    isExtendedOperand[2] = true;
+                    compactOperandTypes[2] = basicInfos[2].type;
+                    operandSizes[2] = basicInfos[2].size;
+                    operandTypes[2] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[2]);
+                    triple = true;
                 }
             }
+
+            buffer.ReadStream8(*reinterpret_cast<uint8_t*>(&basicInfos[1]));
+            currentOffset += sizeof(uint8_t);
+            if (READ_4BIT_COT(basicInfos[1].type) == CompactOperandType::MEM_BASE_OFF_IMM2 || READ_4BIT_COT(basicInfos[1].type) == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                memcpy(&extendedInfos[1], &basicInfos[1], sizeof(BasicOperandInfo));
+                buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&extendedInfos[1]) + sizeof(BasicOperandInfo)));
+                currentOffset += sizeof(uint8_t);
+                isExtendedOperand[1] = true;
+            }
+
+            compactOperandTypes[0] = static_cast<CompactOperandType>(static_cast<uint8_t>(isExtendedOperand[0] ? extendedInfos[0].type : basicInfos[0].type) & 0x0F);
+            operandSizes[0] = isExtendedOperand[0] ? extendedInfos[0].size : basicInfos[0].size;
+            compactOperandTypes[1] = static_cast<CompactOperandType>(static_cast<uint8_t>(isExtendedOperand[1] ? extendedInfos[1].type : basicInfos[1].type) & 0x0F);
+            operandSizes[1] = isExtendedOperand[1] ? extendedInfos[1].size : basicInfos[1].size;
+
+            if (argCount == 3 && !triple) {
+                if (!isExtendedOperand[0] && isExtendedOperand[1]) {
+                    // need to check highest 4 bits of the ExtendedOperandInfo to see if the next operand is extended
+                    if (CompactOperandType nextType = static_cast<CompactOperandType>(*(reinterpret_cast<uint8_t*>(&extendedInfos[1]) + sizeof(BasicOperandInfo)) >> 4); nextType == CompactOperandType::MEM_BASE_OFF_IMM2 || nextType == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                        DoubleExtendedOperandInfo doubleExtendedInfo;
+                        memcpy(&doubleExtendedInfo, &extendedInfos[1], sizeof(ExtendedOperandInfo));
+                        buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&doubleExtendedInfo) + sizeof(ExtendedOperandInfo)));
+                        currentOffset += sizeof(uint8_t);
+                        extendedInfos[2].type = doubleExtendedInfo.second.type;
+                        extendedInfos[2].size = doubleExtendedInfo.second.size;
+                        extendedInfos[2].imm0Size = doubleExtendedInfo.second.imm0Size;
+                        extendedInfos[2].imm1Size = doubleExtendedInfo.second.imm1Size;
+                        isExtendedOperand[2] = true;
+                    }
+                }
+
+                buffer.ReadStream8(*reinterpret_cast<uint8_t*>(&basicInfos[2]));
+                currentOffset += sizeof(uint8_t);
+                if (READ_4BIT_COT(basicInfos[2].type) == CompactOperandType::MEM_BASE_OFF_IMM2 || READ_4BIT_COT(basicInfos[2].type) == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) {
+                    memcpy(&extendedInfos[2], &basicInfos[2], sizeof(BasicOperandInfo));
+                    buffer.ReadStream8(*(reinterpret_cast<uint8_t*>(&extendedInfos[2]) + sizeof(BasicOperandInfo)));
+                    currentOffset += sizeof(uint8_t);
+                    isExtendedOperand[2] = true;
+                }
+                compactOperandTypes[2] = READ_4BIT_COT(isExtendedOperand[2] ? extendedInfos[2].type : basicInfos[2].type);
+                operandSizes[2] = isExtendedOperand[2] ? extendedInfos[2].size : basicInfos[2].size;
+                operandTypes[2] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[2]);
+            }
+            operandTypes[0] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[0]);
+            operandTypes[1] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[1]);
         } else
             error_handler("Invalid argument count", error_data);
 
-        for (uint8_t i = 0; i < arg_count; i++) {
-            OperandType operand_type = operand_types[i];
-            OperandSize operand_size = operand_sizes[i];
+        for (uint8_t i = 0; i < argCount; i++) {
+            OperandType operandType = operandTypes[i];
+            OperandSize operandSize = operandSizes[i];
 
-            Operand operand(operand_type, operand_size, nullptr);
+            Operand operand(operandType, operandSize, nullptr);
 
-            switch (operand_type) {
+            switch (operandType) {
             case OperandType::COMPLEX: {
-                ComplexOperandInfo complex_info = complex_infos[i];
                 ComplexData* complex = &g_complexData[i];
-                complex->base.present = complex_info.basePresent;
+                ConvertCompactToComplex(complex, &basicInfos[i], &extendedInfos[i], isExtendedOperand[i]);
                 if (complex->base.present) {
-                    complex->base.type = complex_info.baseType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->base.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->base.data.imm.size = static_cast<OperandSize>(complex_info.baseSize);
                         complex->base.data.imm.data = &g_rawData[i * 3];
-                        switch (complex_info.baseSize) {
-#define SIZE_CASE(bytes, bits) \
-        case bytes: \
+                        switch (complex->base.data.imm.size) {
+#define SIZE_CASE(size, bits) \
+        case OperandSize::size: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->base.data.imm.data)); \
             break
-                        SIZE_CASE(0, 8);
-                        SIZE_CASE(1, 16);
-                        SIZE_CASE(2, 32);
-                        SIZE_CASE(3, 64);
+                        SIZE_CASE(BYTE, 8);
+                        SIZE_CASE(WORD, 16);
+                        SIZE_CASE(DWORD, 32);
+                        SIZE_CASE(QWORD, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.baseSize;
+                        currentOffset += 1 << static_cast<uint8_t>(complex->base.data.imm.size);
                     } else if (complex->base.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
-                        current_offset += sizeof(RegisterID);
+                        currentOffset += sizeof(RegisterID);
                         complex->base.data.reg = &g_currentRegisters[i * 3];
                         *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
-                complex->index.present = complex_info.indexPresent;
                 if (complex->index.present) {
-                    complex->index.type = complex_info.indexType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->index.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->index.data.imm.size = static_cast<OperandSize>(complex_info.indexSize);
                         complex->index.data.imm.data = &g_rawData[i * 3 + 1];
-                        switch (complex_info.indexSize) {
-#define SIZE_CASE(bytes, bits) \
-        case bytes: \
+                        switch (complex->index.data.imm.size) {
+#define SIZE_CASE(size, bits) \
+        case OperandSize::size: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->index.data.imm.data)); \
             break
-                        SIZE_CASE(0, 8);
-                        SIZE_CASE(1, 16);
-                        SIZE_CASE(2, 32);
-                        SIZE_CASE(3, 64);
+                        SIZE_CASE(BYTE, 8);
+                        SIZE_CASE(WORD, 16);
+                        SIZE_CASE(DWORD, 32);
+                        SIZE_CASE(QWORD, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.indexSize;
+                        currentOffset += 1 << static_cast<uint8_t>(complex->index.data.imm.size);
                     } else if (complex->index.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
-                        current_offset += sizeof(RegisterID);
+                        currentOffset += sizeof(RegisterID);
                         complex->index.data.reg = &g_currentRegisters[i * 3 + 1];
                         *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
-                complex->offset.present = complex_info.offsetPresent;
                 if (complex->offset.present) {
-                    complex->offset.type = complex_info.offsetType == 0 ? ComplexItem::Type::REGISTER : ComplexItem::Type::IMMEDIATE;
                     if (complex->offset.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->offset.data.imm.size = static_cast<OperandSize>(complex_info.offsetSize);
                         complex->offset.data.imm.data = &g_rawData[i * 3 + 2];
-                        switch (complex_info.offsetSize) {
-#define SIZE_CASE(bytes, bits) \
-        case bytes: \
+                        switch (complex->offset.data.imm.size) {
+#define SIZE_CASE(size, bits) \
+        case OperandSize::size: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(complex->offset.data.imm.data)); \
             break
-                        SIZE_CASE(0, 8);
-                        SIZE_CASE(1, 16);
-                        SIZE_CASE(2, 32);
-                        SIZE_CASE(3, 64);
+                        SIZE_CASE(BYTE, 8);
+                        SIZE_CASE(WORD, 16);
+                        SIZE_CASE(DWORD, 32);
+                        SIZE_CASE(QWORD, 64);
 #undef SIZE_CASE
                         }
-                        current_offset += 1 << complex_info.offsetSize;
+                        currentOffset += 1 << static_cast<uint8_t>(complex->offset.data.imm.size);
                     } else if (complex->offset.type == ComplexItem::Type::REGISTER) {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
-                        current_offset += sizeof(RegisterID);
+                        currentOffset += sizeof(RegisterID);
                         complex->offset.data.reg = &g_currentRegisters[i * 3 + 2];
+                        complex->offset.sign = reg_id.type & 1 << 3; // sign is stored in the highest bit of the type
+                        reg_id.type &= ~(1 << 3); // clear the sign bit
                         *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
-                        complex->offset.sign = complex_info.offsetSize;
                     }
                 }
                 operand.data = complex;
@@ -537,7 +676,7 @@ namespace InsEncoding {
             case OperandType::REGISTER: {
                 RegisterID reg_id{};
                 buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
-                current_offset += sizeof(RegisterID);
+                currentOffset += sizeof(RegisterID);
                 Register* reg = &g_currentRegisters[i * 3];
                 *reg = GetRegisterFromID(reg_id, error_handler, error_data);
                 operand.data = reg;
@@ -546,13 +685,13 @@ namespace InsEncoding {
             case OperandType::MEMORY: {
                 uint8_t* mem_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
                 buffer.ReadStream64(*reinterpret_cast<uint64_t*>(mem_data));
-                current_offset += 8;
+                currentOffset += 8;
                 operand.data = mem_data;
                 break;
             }
             case OperandType::IMMEDIATE: {
                 uint8_t* imm_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
-                switch (static_cast<uint8_t>(operand_size)) {
+                switch (static_cast<uint8_t>(operandSize)) {
 #define SIZE_CASE(bytes, bits) \
         case bytes: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(imm_data)); \
@@ -563,7 +702,7 @@ namespace InsEncoding {
                 SIZE_CASE(3, 64);
 #undef SIZE_CASE
                 }
-                current_offset += 1 << static_cast<uint8_t>(operand_size);
+                currentOffset += 1 << static_cast<uint8_t>(operandSize);
                 operand.data = imm_data;
                 break;
             }
@@ -580,7 +719,7 @@ namespace InsEncoding {
     }
 
 #pragma GCC diagnostic pop
-*/
+
     size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset) {
         Buffer buffer;
         uint64_t current_offset = 0;
@@ -724,10 +863,10 @@ namespace InsEncoding {
             if (arg_count == 2) {
                 // 4 cases: both basic, first basic + second extended, first extended + second basic, both extended
                 // only extended if type is MEM_BASE_IDX_OFF_REG_IMM2. can write individually for all cases except both extended
-                if (!(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 && types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) && !(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) && !(types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2)) {
+                if (!(types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 && types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) && !(types[0] == CompactOperandType::MEM_BASE_OFF_IMM2 && types[1] == CompactOperandType::MEM_BASE_OFF_IMM2)) {
                     // not both extended, can write individually
-                    size_t sizes[2] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
-                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
+                    size_t sizes[2] = {types[0] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[0] == CompactOperandType::MEM_BASE_OFF_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo),
+                                       types[1] == CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2 || types[1] == CompactOperandType::MEM_BASE_OFF_IMM2 ? sizeof(ExtendedOperandInfo) : sizeof(BasicOperandInfo)};
                     for (uint8_t i = 0; i < 2; i++) {
                         buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&infos[i]), sizes[i]);
                         current_offset += sizes[i];
@@ -807,6 +946,7 @@ namespace InsEncoding {
                     combined_info.first.imm0Size = infos[0].extendedInfo.imm0Size;
                     combined_info.first.imm1Size = infos[0].extendedInfo.imm1Size;
                     combined_info.first.reserved = 0;
+                    combined_info.first.isTripleExtended = 1;
                     combined_info.second.type = infos[1].info.type;
                     combined_info.second.size = infos[1].info.size;
                     combined_info.second.imm0Size = infos[1].info.imm0Size;

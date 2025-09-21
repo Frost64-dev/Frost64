@@ -201,7 +201,8 @@ namespace InsEncoding {
             OperandSize size : 2;
             OperandSize imm0Size : 2; // size of immediate 0 if present
             OperandSize imm1Size : 2; // size of immediate 1 if present
-            uint8_t reserved : 2;
+            uint8_t reserved : 1;
+            uint8_t isTripleExtended : 1; // set to 1 to indicate this is a triple extended struct
         } __attribute__((packed)) first;
         struct {
             CompactOperandType type : 4;
@@ -215,6 +216,20 @@ namespace InsEncoding {
             OperandSize imm1Size : 2; // size of immediate 1 if present
             uint8_t reserved : 2;
         } __attribute__((packed)) third;
+    } __attribute__((packed));
+
+    struct ComplexOperandInfo {
+        uint8_t type           : 2;
+        uint8_t size           : 2;
+        uint8_t baseType      : 1;
+        uint8_t baseSize      : 2;
+        uint8_t basePresent   : 1;
+        uint8_t indexType     : 1;
+        uint8_t indexSize     : 2;
+        uint8_t indexPresent  : 1;
+        uint8_t offsetType    : 1;
+        uint8_t offsetSize    : 2;
+        uint8_t offsetPresent : 1;
     } __attribute__((packed));
 
 
@@ -266,7 +281,7 @@ namespace InsEncoding {
 
         Opcode GetOpcode() const;
 
-        Operand operands[2];
+        Operand operands[3];
         size_t operandCount;
 
        private:

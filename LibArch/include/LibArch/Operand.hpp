@@ -20,6 +20,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace InsEncoding {
 
+#define CONVERT_COMPACT_TO_OPERAND(type) \
+    ((type) == CompactOperandType::REG ? OperandType::REGISTER : \
+     (type) == CompactOperandType::IMM ? OperandType::IMMEDIATE : \
+     (type) == CompactOperandType::MEM_BASE_IMM ? OperandType::MEMORY : \
+     (type) == CompactOperandType::MEM_BASE_REG || ((type) >= CompactOperandType::MEM_BASE_OFF_REG && (type) <= CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) ? OperandType::COMPLEX : \
+     OperandType::UNKNOWN)
+
     enum class OperandType {
         REGISTER = 0,
         IMMEDIATE,
@@ -46,8 +53,11 @@ namespace InsEncoding {
         MEM_BASE_IDX_OFF_REG2_IMM,
         MEM_BASE_IDX_OFF_REG_IMM_REG,
         MEM_BASE_IDX_OFF_REG_IMM2,
-        RESERVED
+        RESERVED,
+        MASK
     };
+
+
 
     enum class OperandSize : unsigned char {
         BYTE = 0,
