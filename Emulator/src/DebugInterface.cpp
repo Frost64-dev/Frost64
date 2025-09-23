@@ -155,7 +155,7 @@ void DebugInterface::MainLoop() {
             if (debugInterface->m_handlingEvents.load() == 1)
                 debugInterface->RaiseEvent(EventType::Signal, reinterpret_cast<void*>(static_cast<uint64_t>(signal)));
             else
-                Emulator::Crash("SIGINT received");
+                GlobalSignalHandler(signal);
         }
     });
 

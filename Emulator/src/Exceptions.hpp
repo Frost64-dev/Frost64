@@ -31,6 +31,7 @@ enum class Exception {
     USER_MODE_VIOLATION = 5,
     SUPERVISOR_MODE_VIOLATION = 6,
     PAGING_VIOLATION = 7,
+    INTEGER_OVERFLOW = 8,
     TWICE_UNHANDLED_INTERRUPT = -1 // not valid number
 };
 

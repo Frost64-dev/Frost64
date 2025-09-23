@@ -106,29 +106,31 @@ The highest bit of the Register ID is used to encode the sign of the offset regi
 #### Numbering
 
 - Bits 0-3 are the offset
-- Bits 4-6 are the group (0 for ALU, 1 for control flow, 2 for other, 3-7 are reserved)
+- Bits 4-6 are the group (0-1 for ALU, 2 for control flow, 3 for other, 4-7 are reserved)
 - Bit 7 is reserved and should always be 0
 
 #### ALU
 
-| Name      | offset |
-|-----------|--------|
-| add       | 0      |
-| mul       | 1      |
-| sub       | 2      |
-| div       | 3      |
-| or        | 4      |
-| xor       | 5      |
-| nor       | 6      |
-| and       | 7      |
-| nand      | 8      |
-| not       | 9      |
-| cmp       | a      |
-| inc       | b      |
-| dec       | c      |
-| shl       | d      |
-| shr       | e      |
-| (invalid) | f      |
+| Offset | Group 0  | Group 1   |
+|--------|----------|-----------|
+| 0      | add      | inc       |
+| 1      | sub      | dec       |
+| 2      | mul      | (invalid) |
+| 3      | div      | (invalid) |
+| 4      | smul     | (invalid) |
+| 5      | sdiv     | (invalid) |
+| 6      | or       | (invalid) |
+| 7      | nor      | (invalid) |
+| 8      | xor      | (invalid) |
+| 9      | xnor     | (invalid) |
+| a      | and      | (invalid) |
+| b      | nand     | (invalid) |
+| c      | not      | (invalid) |
+| d      | shl      | (invalid) |
+| e      | shr      | (invalid) |
+| f      | cmp      | (invalid) |
+
+
 
 #### Control flow
 

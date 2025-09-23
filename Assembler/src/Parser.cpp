@@ -1381,12 +1381,15 @@ InsEncoding::Opcode Parser::GetOpcode(const char* name, size_t nameSize) {
     if (!m_opcodeTableInitialised) {
 #define INSERT_OPCODE(str, opcode, length) m_opcodes.insert({std::string_view(#str, length), Opcode::opcode})
         INSERT_OPCODE(add, ADD, 3);
-        INSERT_OPCODE(mul, MUL, 3);
         INSERT_OPCODE(sub, SUB, 3);
+        INSERT_OPCODE(mul, MUL, 3);
         INSERT_OPCODE(div, DIV, 3);
+        INSERT_OPCODE(smul, SMUL, 4);
+        INSERT_OPCODE(sdiv, SDIV, 4);
         INSERT_OPCODE(or, OR, 2);
-        INSERT_OPCODE(xor, XOR, 3);
         INSERT_OPCODE(nor, NOR, 3);
+        INSERT_OPCODE(xor, XOR, 3);
+        INSERT_OPCODE(xnor, XNOR, 4);
         INSERT_OPCODE(and, AND, 3);
         INSERT_OPCODE(nand, NAND, 4);
         INSERT_OPCODE(not, NOT, 3);
@@ -2162,12 +2165,15 @@ const char* Parser::GetInstructionName(InsEncoding::Opcode opcode) {
         NAME_CASE(PUSHA)
         NAME_CASE(POPA)
         NAME_CASE(ADD)
-        NAME_CASE(MUL)
         NAME_CASE(SUB)
+        NAME_CASE(MUL)
         NAME_CASE(DIV)
+        NAME_CASE(SMUL)
+        NAME_CASE(SDIV)
         NAME_CASE(OR)
-        NAME_CASE(XOR)
         NAME_CASE(NOR)
+        NAME_CASE(XOR)
+        NAME_CASE(XNOR)
         NAME_CASE(AND)
         NAME_CASE(NAND)
         NAME_CASE(NOT)

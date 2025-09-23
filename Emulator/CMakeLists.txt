@@ -24,7 +24,7 @@ endif ()
 
 if (BUILD_ARCHITECTURE STREQUAL "x86_64")
     set(emulator_sources
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/ALUInstruction.asm
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/ALUInstruction.asm
     )
 endif ()
 
@@ -36,6 +36,12 @@ if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Network.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Signal.cpp
     )
+    if (BUILD_ARCHITECTURE STREQUAL "x86_64")
+        set(emulator_sources
+            ${emulator_sources}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Platform/x86_64/Signal.cpp
+        )
+    endif ()
 else (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     set(emulator_sources
         ${emulator_sources}

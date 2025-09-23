@@ -38,6 +38,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Stack.hpp>
 #include <thread>
 
+#include "OSSpecific/Signal.hpp"
+
 namespace Emulator {
 
     void EmulatorMain();
@@ -87,7 +89,7 @@ namespace Emulator {
     IOMemoryRegion* g_IOMemoryRegion;
     BIOSMemoryRegion* g_BIOSMemoryRegion;
 
-    DebugInterface* g_DebugInterface;
+    DebugInterface* g_DebugInterface = nullptr;
 
     void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write) {
         if (write) {
@@ -256,6 +258,8 @@ namespace Emulator {
 
         g_registers.IP = new SafeRegister(RegisterType::Instruction, 0, false, 0xF000'0000); // explicitly initialise instruction pointer to start of BIOS region
         g_NextIP = 0;
+
+        ConfigureEmulatorSignalHandlers(nullptr, nullptr);
 
         g_emulatorRunning = true;
 

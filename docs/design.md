@@ -270,8 +270,9 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 
 #### mul
 
-- `mul SIZE dst, src` multiplies the value of `src` by the value of `dst` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
+- `mul SIZE dst2, dst1, src` multiplies the value of `src` by the value of `dst1` and stores the result in `dst2:dst1`.
+- In other words, `dst2:dst1 = dst1 * src`.
+- `dst2` and `dst1` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
 #### sub
@@ -282,10 +283,11 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 
 #### div
 
-- `div SIZE src1, src2` divides the value of `src1` by the value of `src2`.
+- `div SIZE dst2, dst1, src` divides the value of `dst2:dst1` by the value of `src`.
 - `src1` and `src2` can be a register or memory address (simple or complex), or an immediate.
-- The quotient is stored in `r0`, and the remainder is stored in `r1`.
-- If the value of `src2` is 0, a divide by zero exception is thrown.
+- The quotient is stored in `dst1`, and the remainder is stored in `dst2`.
+- In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
+- If the value of `src` is 0, a divide by zero exception is thrown.
 
 #### or
 

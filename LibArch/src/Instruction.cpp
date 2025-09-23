@@ -194,12 +194,15 @@ namespace InsEncoding {
         switch (opcode) {
         case Opcode::MUL:
         case Opcode::DIV:
+        case Opcode::SMUL:
+        case Opcode::SDIV:
             return 3;
         case Opcode::ADD:
         case Opcode::SUB:
         case Opcode::OR:
-        case Opcode::XOR:
         case Opcode::NOR:
+        case Opcode::XOR:
+        case Opcode::XNOR:
         case Opcode::AND:
         case Opcode::NAND:
         case Opcode::CMP:
@@ -249,11 +252,14 @@ namespace InsEncoding {
             NAME_CASE(PUSHA)
             NAME_CASE(POPA)
             NAME_CASE(ADD)
-            NAME_CASE(MUL)
             NAME_CASE(SUB)
+            NAME_CASE(MUL)
             NAME_CASE(DIV)
+            NAME_CASE(SMUL)
+            NAME_CASE(SDIV)
             NAME_CASE(OR)
             NAME_CASE(XOR)
+            NAME_CASE(XNOR)
             NAME_CASE(NOR)
             NAME_CASE(AND)
             NAME_CASE(NAND)

@@ -24,8 +24,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Common/Util.hpp>
 
-constexpr const char* INSTRUCTIONS_STR = "add mul sub div or xor nor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
-constexpr size_t INSTRUCTIONS_STR_LEN = 190 - 1;
+constexpr const char* INSTRUCTIONS_STR = "add mul sub div smul sdiv or xor nor xnor and nand not cmp inc dec shl shr ret call jmp jc jnc jz jnz jl jle jnl jnle jg jge jng jnge mov nop hlt push pop pusha popa int lidt iret syscall sysret enteruser";
+constexpr size_t INSTRUCTIONS_STR_LEN = 205 - 1;
 
 bool IsInstruction(const std::string& str) {
     const char* rawToken = str.c_str();

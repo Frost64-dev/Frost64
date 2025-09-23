@@ -25,6 +25,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdio>
 #endif
 
+#include <csignal>
+
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
 #include <Interrupts.hpp>
@@ -46,8 +48,8 @@ std::atomic_uchar g_AllowOneInstruction = 0;
 
 InsEncoding::SimpleInstruction g_currentInstruction;
 
-Operand g_currentOperands[2];
-ComplexData g_complex[2];
+Operand g_currentOperands[3];
+ComplexData g_complex[3];
 
 std::unordered_map<uint64_t, std::function<void(uint64_t)>> g_breakpoints;
 spinlock_new(g_breakpointsLock);
@@ -309,6 +311,10 @@ bool ExecuteInstruction(uint64_t IP) {
         reinterpret_cast<void (*)(Operand*)>(ins)(&g_currentOperands[0]);
     else if (argumentCount == 2)
         reinterpret_cast<void (*)(Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1]);
+    else if (argumentCount == 3)
+        reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1], &g_currentOperands[2]);
+    else
+        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 
     Emulator::SyncRegisters();
 
@@ -331,54 +337,54 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_add);
-        case 1: // mul
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_mul);
-        case 2: // sub
+        case 1: // sub
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_sub);
+        case 2: // mul
+            if (argumentCount != nullptr)
+                *argumentCount = 3;
+            return reinterpret_cast<void*>(ins_mul);
         case 3: // div
             if (argumentCount != nullptr)
-                *argumentCount = 2;
+                *argumentCount = 3;
             return reinterpret_cast<void*>(ins_div);
-        case 4: // or
+        case 4: // mul
+            if (argumentCount != nullptr)
+                *argumentCount = 3;
+            return reinterpret_cast<void*>(ins_smul);
+        case 5: // div
+            if (argumentCount != nullptr)
+                *argumentCount = 3;
+            return reinterpret_cast<void*>(ins_sdiv);
+        case 6: // or
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_or);
-        case 5: // xor
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_xor);
-        case 6: // nor
+        case 7: // nor
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_nor);
-        case 7: // and
+        case 8: // xor
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
+            return reinterpret_cast<void*>(ins_xor);
+        case 9: // xnor
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
+            return reinterpret_cast<void*>(ins_xnor);
+        case 0xa: // and
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_and);
-        case 8: // nand
+        case 0xb: // nand
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_nand);
-        case 9: // not
+        case 0xc: // not
             if (argumentCount != nullptr)
                 *argumentCount = 1;
             return reinterpret_cast<void*>(ins_not);
-        case 0xa: // cmp
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_cmp);
-        case 0xb: // inc
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_inc);
-        case 0xc: // dec
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_dec);
         case 0xd: // shl
             if (argumentCount != nullptr)
                 *argumentCount = 2;
@@ -387,10 +393,27 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
             if (argumentCount != nullptr)
                 *argumentCount = 2;
             return reinterpret_cast<void*>(ins_shr);
+        case 0xf: // cmp
+            if (argumentCount != nullptr)
+                *argumentCount = 2;
+            return reinterpret_cast<void*>(ins_cmp);
         default:
             return nullptr;
         }
-    case 1: // control flow
+    case 1: // ALU part 2
+        switch (offset) {
+        case 0: // inc
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
+            return reinterpret_cast<void*>(ins_inc);
+        case 1: // dec
+            if (argumentCount != nullptr)
+                *argumentCount = 1;
+            return reinterpret_cast<void*>(ins_dec);
+        default:
+            return nullptr;
+        }
+    case 2: // control flow
         switch (offset) {
         case 0: // ret
             if (argumentCount != nullptr)
@@ -439,7 +462,7 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
         default:
             return nullptr;
         }
-    case 2: // other
+    case 3: // other
         switch (offset) {
         case 0: // mov
             if (argumentCount != nullptr)
@@ -503,6 +526,14 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
 }
 
 #ifdef EMULATOR_DEBUG
+#define PRINT_INS_INFO3(dst2, dst1, src)                         \
+    printf("%s: dst2 = \"", __extension__ __PRETTY_FUNCTION__);  \
+    dst2->PrintInfo();                                           \
+    printf("\", dst1 = \"");                                     \
+    dst1->PrintInfo();                                           \
+    printf("\", src = \"");                                      \
+    src->PrintInfo();                                            \
+    printf("\"\n")
 #define PRINT_INS_INFO2(dst, src)                              \
     printf("%s: dst = \"", __extension__ __PRETTY_FUNCTION__); \
     dst->PrintInfo();                                          \
@@ -523,6 +554,35 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
 #ifdef __x86_64__
 
 #include <Platform/x86_64/ALUInstruction.h>
+
+
+
+
+#define ALU_INSTRUCTION3(name)                                                            \
+    void ins_##name(Operand* dst2, Operand* dst1, Operand* src) {                         \
+        PRINT_INS_INFO3(dst2, dst1, src);                                                 \
+        uint64_t flags = 0;                                                               \
+        x86_64_128Data result = x86_64_##name(dst1->GetValue(), src->GetValue(), &flags); \
+        dst1->SetValue(result.low);                                                       \
+        dst2->SetValue(result.high);                                                      \
+        Emulator::ClearCPUStatus(0xF);                                                    \
+        Emulator::SetCPUStatus(flags & 0xF);                                              \
+    }
+
+#define DIV_INSTRUCTION3(name)                                           \
+    void ins_##name(Operand* dst2, Operand* dst1, Operand* src) {       \
+        PRINT_INS_INFO3(dst2, dst1, src);                               \
+        uint64_t srcVal = src->GetValue();                              \
+        if (srcVal == 0)                                                 \
+            g_ExceptionHandler->RaiseException(Exception::DIV_BY_ZERO);  \
+        uint64_t flags = 0;                                              \
+        x86_64_128Data dividend = {dst1->GetValue(), dst2->GetValue()};  \
+        x86_64_128Data result = x86_64_##name(dividend, srcVal, &flags); \
+        dst1->SetValue(result.low);                                      \
+        dst2->SetValue(result.high);                                     \
+        Emulator::ClearCPUStatus(0xF);                                   \
+        Emulator::SetCPUStatus(flags & 0xF);                             \
+    }
 
 #define ALU_INSTRUCTION2(name)                                                  \
     void ins_##name(Operand* dst, Operand* src) {                               \
@@ -552,25 +612,15 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
     }
 
 ALU_INSTRUCTION2(add)
-ALU_INSTRUCTION2(mul)
 ALU_INSTRUCTION2(sub)
-
-void ins_div(Operand* src1, Operand* src2) {
-    PRINT_INS_INFO2(src1, src2);
-    uint64_t srcVal = src2->GetValue();
-    if (srcVal == 0)
-        g_ExceptionHandler->RaiseException(Exception::DIV_BY_ZERO);
-    uint64_t flags = 0;
-    x86_64_DivResult result = x86_64_div(src1->GetValue(), srcVal, &flags);
-    Emulator::GetRegisterPointer(RegisterID_R0)->SetValue(result.quotient);
-    Emulator::GetRegisterPointer(RegisterID_R1)->SetValue(result.remainder);
-    Emulator::ClearCPUStatus(0xF);
-    Emulator::SetCPUStatus(flags & 0xF);
-}
-
+ALU_INSTRUCTION3(mul)
+DIV_INSTRUCTION3(div)
+ALU_INSTRUCTION3(smul)
+DIV_INSTRUCTION3(sdiv)
 ALU_INSTRUCTION2(or)
-ALU_INSTRUCTION2(xor)
 ALU_INSTRUCTION2(nor)
+ALU_INSTRUCTION2(xor)
+ALU_INSTRUCTION2(xnor)
 ALU_INSTRUCTION2(and)
 ALU_INSTRUCTION2(nand)
 ALU_INSTRUCTION1(not)
@@ -581,81 +631,7 @@ ALU_INSTRUCTION1(inc)
 ALU_INSTRUCTION1(dec)
 
 #else /* __x86_64__ */
-
-void ins_add(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() + src->GetValue());
-}
-
-void ins_mul(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() * src->GetValue());
-}
-
-void ins_sub(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() - src->GetValue());
-}
-
-void ins_div(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() / src->GetValue());
-}
-
-void ins_or(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() | src->GetValue());
-}
-
-void ins_xor(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() ^ src->GetValue());
-}
-
-void ins_nor(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(~(dst->GetValue() | src->GetValue()));
-}
-
-void ins_and(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() & src->GetValue());
-}
-
-void ins_nand(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(~(dst->GetValue() & src->GetValue()));
-}
-
-void ins_not(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(~dst->GetValue());
-}
-
-void ins_cmp(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-}
-
-void ins_inc(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(dst->GetValue() + 1);
-}
-
-void ins_dec(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(dst->GetValue() - 1);
-}
-
-void ins_shl(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() << src->GetValue());
-}
-
-void ins_shr(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() >> src->GetValue());
-}
-
+#error "ALU Instructions: Unsupported architecture"
 #endif /* __x86_64__ */
 
 void ins_ret() {
