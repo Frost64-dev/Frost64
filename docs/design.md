@@ -71,7 +71,7 @@
 ## Exceptions
 
 - The first 32 interrupts are reserved for exceptions.
-- Currently, there are 8 exceptions defined as follows:
+- Currently, there are 9 exceptions defined as follows:
 
 | Number | Name                      | Error Code Size in QWORDs | Description                                                        |
 |--------|---------------------------|---------------------------|--------------------------------------------------------------------|
@@ -83,6 +83,7 @@
 | 5      | User Mode Violation       | 0                         | Thrown when a supervisor mode instruction is executed in user mode |
 | 6      | Supervisor Mode Violation | 0                         | Thrown when a user mode instruction is executed in supervisor mode |
 | 7      | Paging Violation          | 2                         | Thrown when a paging violation occurs                              |
+| 8      | Integer Overflow          | 0                         | Thrown when an integer overflow occurs                             |
 
 ### Error Info
 
@@ -268,18 +269,19 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
+#### sub
+
+- `sub SIZE dst, src` subtracts the value of `src` from the value of `dst` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
 #### mul
 
 - `mul SIZE dst2, dst1, src` multiplies the value of `src` by the value of `dst1` and stores the result in `dst2:dst1`.
 - In other words, `dst2:dst1 = dst1 * src`.
 - `dst2` and `dst1` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
-
-#### sub
-
-- `sub SIZE dst, src` subtracts the value of `src` from the value of `dst` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
+- This is an unsigned operation.
 
 #### div
 
@@ -287,11 +289,35 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `src1` and `src2` can be a register or memory address (simple or complex), or an immediate.
 - The quotient is stored in `dst1`, and the remainder is stored in `dst2`.
 - In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
-- If the value of `src` is 0, a divide by zero exception is thrown.
+- If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
+- This is an unsigned operation.
+
+#### smul
+
+- `smul SIZE dst2, dst1, src` multiplies the value of `src` by the value of `dst1` and stores the result in `dst2:dst1`.
+- In other words, `dst2:dst1 = dst1 * src`.
+- `dst2` and `dst1` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This is a signed operation.
+
+#### sdiv
+
+- `sdiv SIZE dst2, dst1, src` divides the value of `dst2:dst1` by the value of `src`.
+- `src1` and `src2` can be a register or memory address (simple or complex), or an immediate.
+- The quotient is stored in `dst1`, and the remainder is stored in `dst2`.
+- In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
+- If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
+- This is a signed operation.
 
 #### or
 
 - `or SIZE dst, src` performs a bitwise OR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### nor
+
+- `nor SIZE dst, src` performs a bitwise NOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
@@ -301,9 +327,9 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
-#### nor
+#### xnor
 
-- `nor SIZE dst, src` performs a bitwise NOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
+- `xnor SIZE dst, src` performs a bitwise XNOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
@@ -324,6 +350,18 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `not SIZE dst` performs a bitwise NOT operation on the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 
+#### shl
+
+- `shl SIZE dst, src` shifts the value of `dst` to the left by the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### shr
+
+- `shr SIZE dst, src` shifts the value of `dst` to the right by the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
 #### cmp
 
 - `cmp SIZE src1, src2` compares the value of `src2` with the value of `src1`.
@@ -342,18 +380,6 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dec SIZE dst` decrements the value of `dst` by 1 and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - Equivalent to `sub SIZE dst, 1`.
-
-#### shl
-
-- `shl SIZE dst, src` shifts the value of `dst` to the left by the value of `src` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
-
-#### shr
-
-- `shr SIZE dst, src` shifts the value of `dst` to the right by the value of `src` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
 
 ### Program flow
 
