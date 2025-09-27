@@ -1,4 +1,4 @@
-# Custom Architecture
+# The Frost64 Architecture
 
 ## Registers
 

@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Emulator.hpp"
 
+#include <cmath>
 #include <Common/Util.hpp>
 #include <cstdint>
 #include <cstdio>
@@ -38,6 +39,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Stack.hpp>
 #include <thread>
 
+#include "IO/Devices/Video/backends/XCB/XCBVideoBackend.hpp"
 #include "OSSpecific/Signal.hpp"
 
 namespace Emulator {
@@ -188,6 +190,33 @@ namespace Emulator {
             }
             g_events.unlock();
         }
+    }
+
+    void rotate3D(float x, float y, float z, float *xr, float *yr, float *zr) {
+        // Rotation angles (radians)
+        float ax = M_PI / 6;   // 30° around X
+        float ay = M_PI / 6;   // 30° around Y
+        float az = M_PI / 6;   // 30° around Z
+
+        // Rotate around X
+        float cy = cos(ax), sy = sin(ax);
+        float y1 = cy * y - sy * z;
+        float z1 = sy * y + cy * z;
+        y = y1; z = z1;
+
+        // Rotate around Y
+        float cx = cos(ay), sx = sin(ay);
+        float x1 = cx * x + sx * z;
+        float z2 = -sx * x + cx * z;
+        x = x1; z = z2;
+
+        // Rotate around Z
+        float cz = cos(az), sz = sin(az);
+        float x2 = cz * x - sz * y;
+        float y2 = sz * x + cz * y;
+        x = x2; y = y2;
+
+        *xr = x; *yr = y; *zr = z;
     }
 
     int Start(uint8_t* program, size_t size, const size_t ramSize, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display, VideoBackendType displayType, bool has_drive, const char* drivePath) {

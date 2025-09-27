@@ -546,6 +546,7 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
     printf("\"\n")
 #define PRINT_INS_INFO0() printf("%s\n", __extension__ __PRETTY_FUNCTION__)
 #else
+#define PRINT_INS_INFO3(dst2, dst1, src)
 #define PRINT_INS_INFO2(dst, src)
 #define PRINT_INS_INFO1(dst)
 #define PRINT_INS_INFO0()

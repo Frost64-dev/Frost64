@@ -30,17 +30,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #define DEFAULT_RAM MiB(1)
 
+#if defined(ENABLE_SDL) && defined(ENABLE_XCB)
+    #define DISPLAY_HELP_TEXT R"(Display mode. Valid values are "sdl", "xcb", or "none" (case insensitive).)"
+#define DISPLAY_TYPE_CHECKS if (display == "sdl") displayType = VideoBackendType::SDL; else if (display == "xcb") displayType = VideoBackendType::XCB;
+#elif defined(ENABLE_SDL)
+    #define DISPLAY_HELP_TEXT R"(Display mode. Valid values are "sdl" or "none" (case insensitive).)"
+#define DISPLAY_TYPE_CHECKS if (display == "sdl") displayType = VideoBackendType::SDL;
+#elif defined(ENABLE_XCB)
+    #define DISPLAY_HELP_TEXT R"(Display mode. Valid values are "xcb" or "none" (case insensitive).)"
+#define DISPLAY_TYPE_CHECKS if (display == "xcb") displayType = VideoBackendType::XCB;
+#else
+    #define DISPLAY_HELP_TEXT R"(Display mode. Valid value is "none" (case insensitive).)"
+#define DISPLAY_TYPE_CHECKS if constexpr (false) ;
+#endif
+
 ArgsParser* g_args = nullptr;
 int main(int argc, char** argv) {
     // Setup program arguments
     g_args = new ArgsParser();
     g_args->AddOption('p', "program", "Program file to run", true);
     g_args->AddOption('m', "ram", "RAM size in bytes", false);
-#ifdef ENABLE_SDL
-    g_args->AddOption('d', "display", "Display mode. Valid values are \"sdl\" or \"none\" (case insensitive).", false);
-#else
-    g_args->AddOption('d', "display", "Display mode. Valid value is \"none\" (case insensitive).", false);
-#endif
+    g_args->AddOption('d', "display", DISPLAY_HELP_TEXT, false);
     g_args->AddOption('D', "drive", "File to use as a storage drive.", false);
     g_args->AddOption('c', "console", R"(Console device location. Valid values are "stdio", "file:<path>", or "port:<port>" (case insensitive).)", false);
     g_args->AddOption(0, "debug", R"(Debug console location. Valid values are "disabled", "stdio", "file:<path>", or "port:<port>" (case insensitive). Default is "disabled".)", false);
@@ -120,13 +130,7 @@ int main(int argc, char** argv) {
             display += std::tolower(static_cast<unsigned char>(c));
         }
 
-#ifdef ENABLE_SDL
-        if (display == "sdl")
-            displayType = VideoBackendType::SDL;
-#else
-        if constexpr (false)
-            ;
-#endif
+        DISPLAY_TYPE_CHECKS
         else if (display == "none")
             displayType = VideoBackendType::NONE;
         else {
