@@ -16,10 +16,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include "Instruction.hpp"
-#include "InstructionCache.hpp"
 
 #include <atomic>
+#include <cstring>
 #include <utility>
+
+#include "InstructionCache.hpp"
 
 #ifdef EMULATOR_DEBUG
 #include <cstdio>
@@ -65,6 +67,63 @@ struct InstructionExecutionRunState {
     bool Terminate;
     bool AllowOne;
 };
+
+struct InsOpcodeArgCountPair {
+    void* function;
+    uint8_t argCount;
+};
+InsOpcodeArgCountPair g_InstructionFunctions[256];
+
+void InitInstructionSubsystem(uint64_t startingIP, MMU* mmu) {
+    memset(g_InstructionFunctions, 0, sizeof(g_InstructionFunctions));
+#define SETINSFUNC(op, Func, args) g_InstructionFunctions[static_cast<int>(InsEncoding::Opcode::op)] = {reinterpret_cast<void*>(Func), args}
+    SETINSFUNC(ADD, ins_add, 2);
+    SETINSFUNC(SUB, ins_sub, 2);
+    SETINSFUNC(MUL, ins_mul, 3);
+    SETINSFUNC(DIV, ins_div, 3);
+    SETINSFUNC(SMUL, ins_smul, 3);
+    SETINSFUNC(SDIV, ins_sdiv, 3);
+    SETINSFUNC(OR, ins_or, 2);
+    SETINSFUNC(NOR, ins_nor, 2);
+    SETINSFUNC(XOR, ins_xor, 2);
+    SETINSFUNC(XNOR, ins_xnor, 2);
+    SETINSFUNC(AND, ins_and, 2);
+    SETINSFUNC(NAND, ins_nand, 2);
+    SETINSFUNC(NOT, ins_not, 1);
+    SETINSFUNC(SHL, ins_shl, 2);
+    SETINSFUNC(SHR, ins_shr, 2);
+    SETINSFUNC(CMP, ins_cmp, 2);
+    SETINSFUNC(INC, ins_inc, 1);
+    SETINSFUNC(DEC, ins_dec, 1);
+    SETINSFUNC(RET, ins_ret, 0);
+    SETINSFUNC(CALL, ins_call, 1);
+    SETINSFUNC(JMP, ins_jmp, 1);
+    SETINSFUNC(JC, ins_jc, 1);
+    SETINSFUNC(JNC, ins_jnc, 1);
+    SETINSFUNC(JZ, ins_jz, 1);
+    SETINSFUNC(JNZ, ins_jnz, 1);
+    SETINSFUNC(JL, ins_jl, 1);
+    SETINSFUNC(JLE, ins_jle, 1);
+    SETINSFUNC(JNL, ins_jnl, 1);
+    SETINSFUNC(JNLE, ins_jnle, 1);
+    SETINSFUNC(MOV, ins_mov, 2);
+    SETINSFUNC(NOP, ins_nop, 0);
+    SETINSFUNC(HLT, ins_hlt, 0);
+    SETINSFUNC(PUSH, ins_push, 1);
+    SETINSFUNC(POP, ins_pop, 1);
+    SETINSFUNC(PUSHA, ins_pusha, 0);
+    SETINSFUNC(POPA, ins_popa, 0);
+    SETINSFUNC(INT, ins_int, 1);
+    SETINSFUNC(LIDT, ins_lidt, 1);
+    SETINSFUNC(IRET, ins_iret, 0);
+    SETINSFUNC(SYSCALL, ins_syscall, 0);
+    SETINSFUNC(SYSRET, ins_sysret, 0);
+    SETINSFUNC(ENTERUSER, ins_enteruser, 1);
+#undef SETINSFUNC
+
+    InitInsCache(startingIP, mmu);
+
+}
 
 void InitInsCache(uint64_t startingIP, MMU *mmu) {
     g_insCache.Init(mmu, startingIP);
@@ -211,7 +270,7 @@ bool ExecuteInstruction(uint64_t IP) {
         case InsEncoding::OperandType::REGISTER: {
             InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
             Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Register, reg);
+            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), reg);
             break;
         }
         case InsEncoding::OperandType::IMMEDIATE: {
@@ -233,12 +292,12 @@ bool ExecuteInstruction(uint64_t IP) {
                 g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 break;
             }
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Immediate, data);
+            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), data);
             break;
         }
         case InsEncoding::OperandType::MEMORY: {
             uint64_t* temp = static_cast<uint64_t*>(op->data);
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Memory, *temp, Emulator::HandleMemoryOperation);
+            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), *temp, Emulator::HandleMemoryOperation);
             break;
         }
         case InsEncoding::OperandType::COMPLEX: {
@@ -286,7 +345,7 @@ bool ExecuteInstruction(uint64_t IP) {
                 }
             } else
                 g_complex[i].offset.present = false;
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Complex, &g_complex[i], Emulator::HandleMemoryOperation);
+            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), &g_complex[i], Emulator::HandleMemoryOperation);
             break;
         }
         default:
@@ -296,23 +355,22 @@ bool ExecuteInstruction(uint64_t IP) {
     }
 
     // Get the instruction
-    uint8_t argumentCount = 0;
-    void* ins = DecodeOpcode(Opcode, &argumentCount);
-    if (ins == nullptr)
+    InsOpcodeArgCountPair pair = g_InstructionFunctions[Opcode];
+    if (pair.function == nullptr)
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 
     // Increment instruction pointer
     Emulator::SetNextIP(IP + currentOffset);
 
     // Execute the instruction
-    if (argumentCount == 0)
-        reinterpret_cast<void (*)()>(ins)();
-    else if (argumentCount == 1)
-        reinterpret_cast<void (*)(Operand*)>(ins)(&g_currentOperands[0]);
-    else if (argumentCount == 2)
-        reinterpret_cast<void (*)(Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1]);
-    else if (argumentCount == 3)
-        reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1], &g_currentOperands[2]);
+    if (pair.argCount == 0)
+        reinterpret_cast<void (*)()>(pair.function)();
+    else if (pair.argCount == 1)
+        reinterpret_cast<void (*)(Operand*)>(pair.function)(&g_currentOperands[0]);
+    else if (pair.argCount == 2)
+        reinterpret_cast<void (*)(Operand*, Operand*)>(pair.function)(&g_currentOperands[0], &g_currentOperands[1]);
+    else if (pair.argCount == 3)
+        reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(pair.function)(&g_currentOperands[0], &g_currentOperands[1], &g_currentOperands[2]);
     else
         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 

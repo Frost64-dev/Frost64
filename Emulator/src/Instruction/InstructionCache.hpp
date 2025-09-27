@@ -43,10 +43,10 @@ public:
     void ReadStream(uint8_t* data, size_t size) const override;
 
     void WriteStream8(uint8_t data) override;
-    [[gnu::always_inline]] inline void ReadStream8(uint8_t& data) override  {
-        if (m_cacheOffset >= INSTRUCTION_CACHE_SIZE)
+    [[gnu::always_inline]] inline void ReadStream8(uint8_t& data) override __attribute__((always_inline)) {
+        if (__builtin_expect(m_cacheOffset >= INSTRUCTION_CACHE_SIZE, 0))
             CacheMiss();
-    
+
         data = m_cache[m_cacheOffset++];
     }
     void WriteStream16(uint16_t data) override;
@@ -69,7 +69,7 @@ public:
     [[nodiscard]] uint64_t GetOffset() const override;
 
 private:
-    void CacheMiss(uint64_t offset = INSTRUCTION_CACHE_SIZE);
+    [[gnu::cold]] void CacheMiss(uint64_t offset = INSTRUCTION_CACHE_SIZE);
 
 private:
     uint8_t m_cache[INSTRUCTION_CACHE_SIZE]; // Instruction cache

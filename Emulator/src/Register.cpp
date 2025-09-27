@@ -395,6 +395,11 @@ bool SafeRegister::SetValue(uint64_t value, OperandSize size) {
     return true;
 }
 
+void SafeRegister::SetValueNoCheck(uint64_t value) {
+    m_value = value;
+}
+
+
 uint64_t SafeRegister::GetValue() const {
     if (m_type == RegisterType::Control) {
         if (Emulator::isInProtectedMode() && Emulator::isInUserMode())

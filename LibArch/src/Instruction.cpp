@@ -125,70 +125,8 @@ namespace InsEncoding {
         return reg_id;
     }
 
-    Register GetRegisterFromID(RegisterID reg_id, void (*errorHandler)(const char* message, void* data), void* data) {
-        Register reg;
-        switch (reg_id.type) {
-#define REG_CASE(name, num)   \
-    case num:                 \
-        reg = Register::name; \
-        break;
-        case 0:
-            switch (reg_id.number) {
-                REG_CASE(r0, 0)
-                REG_CASE(r1, 1)
-                REG_CASE(r2, 2)
-                REG_CASE(r3, 3)
-                REG_CASE(r4, 4)
-                REG_CASE(r5, 5)
-                REG_CASE(r6, 6)
-                REG_CASE(r7, 7)
-                REG_CASE(r8, 8)
-                REG_CASE(r9, 9)
-                REG_CASE(r10, 10)
-                REG_CASE(r11, 11)
-                REG_CASE(r12, 12)
-                REG_CASE(r13, 13)
-                REG_CASE(r14, 14)
-                REG_CASE(r15, 15)
-            default:
-                errorHandler("Invalid register number", data);
-                __builtin_unreachable();
-            }
-            break;
-        case 1:
-            switch (reg_id.number) {
-                REG_CASE(scp, 0)
-                REG_CASE(sbp, 1)
-                REG_CASE(stp, 2)
-            default:
-                errorHandler("Invalid register number", data);
-                __builtin_unreachable();
-            }
-            break;
-        case 2:
-            switch (reg_id.number) {
-                REG_CASE(cr0, 0)
-                REG_CASE(cr1, 1)
-                REG_CASE(cr2, 2)
-                REG_CASE(cr3, 3)
-                REG_CASE(cr4, 4)
-                REG_CASE(cr5, 5)
-                REG_CASE(cr6, 6)
-                REG_CASE(cr7, 7)
-                REG_CASE(sts, 8)
-                REG_CASE(ip, 9)
-            default:
-                errorHandler("Invalid register number", data);
-                __builtin_unreachable();
-            }
-            break;
-        default:
-            errorHandler("Invalid register type", data);
-            __builtin_unreachable();
-        }
-#undef REG_CASE
-        return reg;
-    }
+    // implemented in assembly for maximum speed
+    extern "C" Register GetRegisterFromID(RegisterID reg_id, void (*errorHandler)(const char* message, void* data), void* data);
 
     uint8_t GetArgCountForOpcode(Opcode opcode) {
         switch (opcode) {

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,7 +64,10 @@ typedef void (*MemoryOperation_t)(uint64_t address, void* data, uint64_t size, u
 class Operand {
 public:
     Operand();
-    Operand(OperandSize size, OperandType type, ...);
+    Operand(OperandSize size, Register* reg);
+    Operand(OperandSize size, uint64_t immediate);
+    Operand(OperandSize size, uint64_t address, MemoryOperation_t operation);
+    Operand(OperandSize size, ComplexData* complexData, MemoryOperation_t operation);
     ~Operand();
 
     Register* GetRegister();

@@ -408,7 +408,7 @@ namespace Emulator {
 
         SyncRegisters();
 
-        InitInsCache(g_registers.IP->GetValue(), &g_physicalMMU);
+        InitInstructionSubsystem(g_registers.IP->GetValue(), &g_physicalMMU);
 
         // setup instruction switch handling
         EmulatorThread = new std::thread(WaitForOperation);
@@ -424,15 +424,15 @@ namespace Emulator {
     }
 
     void SetCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValue(g_registers.STS->GetValue() | mask, true);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValue() | mask);
     }
 
     void ClearCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValue(g_registers.STS->GetValue() & ~mask, true);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValue() & ~mask);
     }
 
     uint64_t GetCPUStatus() {
-        return g_registers.STS->GetValue();
+        return g_registers.STS->GetValueNoCheck();
     }
 
     void SetNextIP(uint64_t value) {
@@ -444,11 +444,11 @@ namespace Emulator {
     }
 
     void SetCPU_IP(uint64_t value) {
-        g_registers.IP->SetValue(value, true);
+        g_registers.IP->SetValueNoCheck(value);
     }
 
     uint64_t GetCPU_IP() {
-        return g_registers.IP->GetValue();
+        return g_registers.IP->GetValueNoCheck();
     }
 
     [[noreturn]] void JumpToIP(uint64_t value) {
