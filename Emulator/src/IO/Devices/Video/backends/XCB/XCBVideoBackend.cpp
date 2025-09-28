@@ -210,8 +210,6 @@ void XCBVideoBackend::SetMode(VideoMode mode) {
 
     shm_xcb_image_destroy(m_shm_xcb_image);
 
-    fprintf(stderr, "resizing\n");
-
     uint32_t values[2] = {static_cast<uint32_t>(mode.width), static_cast<uint32_t>(mode.height)};
     xcb_configure_window(m_connection, m_window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 
