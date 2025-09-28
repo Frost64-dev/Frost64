@@ -5,6 +5,7 @@ build/
 .vscode/
 cmake-build*/
 .idea/
+tests/
 
 compile_commands.json
 .DS_Store
