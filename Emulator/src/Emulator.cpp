@@ -424,11 +424,11 @@ namespace Emulator {
     }
 
     void SetCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValue() | mask);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() | mask);
     }
 
     void ClearCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValue() & ~mask);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() & ~mask);
     }
 
     uint64_t GetCPUStatus() {
