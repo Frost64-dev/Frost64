@@ -13,13 +13,16 @@
 ; You should have received a copy of the GNU General Public License
 ; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+; Maximum valid register ID (IP = 41)
+MAX_REGISTER_ID equ 41
+
 [bits 64]
 
 global GetRegisterFromID
 
 GetRegisterFromID: ; rdi=reg, rsi=error, rdx=data
-    ; Check if reg is greater than IP, which is 41
-    cmp dil, 41
+    ; Check if reg is greater than IP, which is MAX_REGISTER_ID
+    cmp dil, MAX_REGISTER_ID
     jg .error
     movzx eax, dil
     ret
