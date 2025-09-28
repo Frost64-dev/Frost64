@@ -680,7 +680,7 @@ namespace InsEncoding {
         buffer.Write(current_offset, &opcode, 1);
         current_offset++;
 
-        Operand* operands[3] = {nullptr, nullptr};
+        Operand* operands[3] = {nullptr, nullptr, nullptr};
         for (uint64_t l = 0; l < instruction->operands.getCount(); l++)
             operands[l] = instruction->operands.get(l);
 
