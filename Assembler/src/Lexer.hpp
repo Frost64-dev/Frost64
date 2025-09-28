@@ -29,8 +29,8 @@ enum class TokenType {
     REGISTER,
     NUMBER,
     SIZE,
-    LBRACKET,
-    RBRACKET,
+    LBRACKET, // [
+    RBRACKET, // ]
     DIRECTIVE,
     BLABEL,
     BSUBLABEL,
@@ -39,6 +39,8 @@ enum class TokenType {
     COMMA,
     OPERATOR,
     STRING,
+    LPARAN, // (
+    RPARAN, // )
     UNKNOWN
 };
 
@@ -48,6 +50,7 @@ struct Token {
     size_t dataSize;
     std::string fileName;
     size_t line;
+    size_t refCount;
 };
 
 class Lexer {

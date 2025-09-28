@@ -13,6 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+if (BUILD_ARCHITECTURE STREQUAL "x86_64")
+    set(arch_sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/InstructionFastPaths.asm
+    )
+endif ()
+
 set(arch_sources
     ${arch_sources}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Instruction.cpp

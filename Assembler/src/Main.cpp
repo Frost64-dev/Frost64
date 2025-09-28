@@ -79,8 +79,8 @@ int main(int argc, char** argv) {
     uint8_t* processedBufferData = new uint8_t[processedBufferSize];
     preProcessor.ExportProcessedBuffer(processedBufferData);
 #ifdef ASSEMBLER_DEBUG
-    pre_processor.GetReferencePoints().Enumerate([](PreProcessor::ReferencePoint* ref) {
-        printf("Reference point: %s:%zu @ %zu\n", ref->file_name.c_str(), ref->line, ref->offset);
+    preProcessor.GetReferencePoints().Enumerate([](PreProcessor::ReferencePoint* ref) {
+        printf("Reference point: %s:%zu @ %zu\n", ref->fileName.c_str(), ref->line, ref->offset);
     });
 #endif
 
@@ -88,7 +88,8 @@ int main(int argc, char** argv) {
     lexer->tokenize(reinterpret_cast<const char*>(processedBufferData), processedBufferSize, preProcessor.GetReferencePoints());
 
     Parser parser;
-    parser.parse(lexer->GetTokens());
+    parser.SimplifyExpressions(lexer->GetTokens());
+    parser.parse();
 #ifdef ASSEMBLER_DEBUG
     parser.PrintSections(stdout);
     fflush(stdout);

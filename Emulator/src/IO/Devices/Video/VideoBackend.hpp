@@ -24,7 +24,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 enum class VideoBackendType {
     NONE,
-    SDL
+    SDL,
+    XCB
 };
 
 class VideoBackend {

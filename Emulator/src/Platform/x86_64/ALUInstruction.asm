@@ -1,4 +1,4 @@
-; Copyright (©) 2023-2024  Frosty515
+; Copyright (©) 2023-2025  Frosty515
 ; 
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -16,20 +16,23 @@
 [bits 64]
 
 global _x86_64_add
-global _x86_64_mul
 global _x86_64_sub
+global _x86_64_mul
 global _x86_64_div
+global _x86_64_smul
+global _x86_64_sdiv
 global _x86_64_or
-global _x86_64_xor
 global _x86_64_nor
+global _x86_64_xor
+global _x86_64_xnor
 global _x86_64_and
 global _x86_64_nand
 global _x86_64_not
+global _x86_64_shl
+global _x86_64_shr
 global _x86_64_cmp
 global _x86_64_inc
 global _x86_64_dec
-global _x86_64_shl
-global _x86_64_shr
 
 x86_64_convert_flags: ; di = CPU flags --> rax = flags
     xor rax, rax
@@ -64,16 +67,15 @@ _x86_64_add:
     pop rbp
     ret
 
-_x86_64_mul:
+_x86_64_sub:
     push rbp
     mov rbp, rsp
 
-    imul rdi, rsi
+    sub rdi, rsi
 
     push rdi
     pushf
     pop rdi
-    and rdi, ~1
     call x86_64_convert_flags
     mov QWORD [rdx], rax
 
@@ -83,17 +85,21 @@ _x86_64_mul:
     pop rbp
     ret
 
-_x86_64_sub:
+_x86_64_mul:
     push rbp
     mov rbp, rsp
 
-    sub rdi, rsi
-    
-    push rdi
+    mov rcx, rdx ; move pointer to flags to rcx
+
+    mov rax, rdi
+    mul rsi ; rdx:rax = rax * rsi
+
+    push rax
     pushf
     pop rdi
+    and rdi, ~(1 << 6 | 1 << 7) ; clear zero and sign flags
     call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    mov QWORD [rcx], rax
 
     pop rax
 
@@ -105,11 +111,53 @@ _x86_64_div:
     push rbp
     mov rbp, rsp
 
-    mov QWORD [rdx], 0
+    mov QWORD [rcx], 0 ; rcx is the pointer to flags, normally rdx
 
-    xor rdx, rdx
+    mov rcx, rdx ; move divisor to rcx
+    mov rdx, rsi ; move dividend to rdx:rax
     mov rax, rdi
-    idiv rsi
+.beforediv:
+    div rcx
+.afterdiv:
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_x86_64_smul:
+    push rbp
+    mov rbp, rsp
+
+    mov rcx, rdx ; move pointer to flags to rcx
+
+    mov rax, rdi
+    imul rsi ; rdx:rax = rax * rsi
+
+    push rax
+    pushf
+    pop rdi
+    and rdi, ~(1 << 6 | 1 << 7) ; clear zero and sign flags
+    call x86_64_convert_flags
+    mov QWORD [rcx], rax
+
+    pop rax
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_x86_64_sdiv:
+    push rbp
+    mov rbp, rsp
+
+    mov QWORD [rcx], 0 ; rcx is the pointer to flags, normally rdx
+
+    mov rcx, rdx ; move divisor to rcx
+    mov rdx, rsi ; move dividend to rdx:rax
+    mov rax, rdi
+.beforediv:
+    idiv rcx
+.afterdiv:
 
     mov rsp, rbp
     pop rbp
@@ -133,6 +181,20 @@ _x86_64_or:
     pop rbp
     ret
 
+_x86_64_nor:
+    push rbp
+    mov rbp, rsp
+
+    push rdx
+    call _x86_64_or
+    mov rdi, rax
+    pop rsi
+    call _x86_64_not
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
 _x86_64_xor:
     push rbp
     mov rbp, rsp
@@ -151,12 +213,12 @@ _x86_64_xor:
     pop rbp
     ret
 
-_x86_64_nor:
+_x86_64_xnor:
     push rbp
     mov rbp, rsp
 
     push rdx
-    call _x86_64_or
+    call _x86_64_xor
     mov rdi, rax
     pop rsi
     call _x86_64_not
@@ -209,12 +271,52 @@ _x86_64_not:
     pop rbp
     ret
 
+_x86_64_shl:
+    push rbp
+    mov rbp, rsp
+
+    mov cl, sil
+
+    shl rdi, cl
+    push rdi
+
+    pushf
+    pop rdi
+    call x86_64_convert_flags
+    mov QWORD [rdx], rax
+
+    pop rax
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
+_x86_64_shr:
+    push rbp
+    mov rbp, rsp
+
+    mov cl, sil
+
+    shr rdi, cl
+    push rdi
+
+    pushf
+    pop rdi
+    call x86_64_convert_flags
+    mov QWORD [rdx], rax
+
+    pop rax
+
+    mov rsp, rbp
+    pop rbp
+    ret
+
 _x86_64_cmp:
     push rbp
     mov rbp, rsp
 
     cmp rdi, rsi
-    
+
     pushf
     pop rdi
     call x86_64_convert_flags
@@ -260,42 +362,13 @@ _x86_64_dec:
     pop rbp
     ret
 
-_x86_64_shl:
-    push rbp
-    mov rbp, rsp
+section .data
 
-    mov cl, sil
-
-    shl rdi, cl
-    push rdi
-
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
-
-    pop rax
-
-    mov rsp, rbp
-    pop rbp
-    ret
-
-_x86_64_shr:
-    push rbp
-    mov rbp, rsp
-
-    mov cl, sil
-
-    shr rdi, cl
-    push rdi
-
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
-
-    pop rax
-
-    mov rsp, rbp
-    pop rbp
-    ret
+global _x86_64_div_beforediv
+global _x86_64_div_afterdiv
+_x86_64_div_beforediv: dq _x86_64_div.beforediv
+_x86_64_div_afterdiv: dq _x86_64_div.afterdiv
+global _x86_64_sdiv_beforediv
+global _x86_64_sdiv_afterdiv
+_x86_64_sdiv_beforediv: dq _x86_64_sdiv.beforediv
+_x86_64_sdiv_afterdiv: dq _x86_64_sdiv.afterdiv

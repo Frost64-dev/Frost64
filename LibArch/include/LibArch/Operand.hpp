@@ -20,18 +20,46 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace InsEncoding {
 
+#define CONVERT_COMPACT_TO_OPERAND(type) \
+    ((type) == CompactOperandType::REG ? OperandType::REGISTER : \
+     (type) == CompactOperandType::IMM ? OperandType::IMMEDIATE : \
+     (type) == CompactOperandType::MEM_BASE_IMM ? OperandType::MEMORY : \
+     (type) == CompactOperandType::MEM_BASE_REG || ((type) >= CompactOperandType::MEM_BASE_OFF_REG && (type) <= CompactOperandType::MEM_BASE_IDX_OFF_REG_IMM2) ? OperandType::COMPLEX : \
+     OperandType::UNKNOWN)
+
     enum class OperandType {
         REGISTER = 0,
-        IMMEDIATE = 1,
-        MEMORY = 2,
-        COMPLEX = 3,
+        IMMEDIATE,
+        MEMORY,
+        COMPLEX,
         POTENTIAL_MEMORY, // not sure if it is memory or complex
         LABEL,
         SUBLABEL,
         UNKNOWN
     };
 
-    enum class OperandSize {
+    enum class CompactOperandType {
+        REG = 0,
+        IMM,
+        MEM_BASE_REG,
+        MEM_BASE_IMM,
+        MEM_BASE_OFF_REG,
+        MEM_BASE_OFF_REG_IMM,
+        MEM_BASE_OFF_IMM_REG,
+        MEM_BASE_OFF_IMM2,
+        MEM_BASE_IDX_REG,
+        MEM_BASE_IDX_REG_IMM,
+        MEM_BASE_IDX_OFF_REG,
+        MEM_BASE_IDX_OFF_REG2_IMM,
+        MEM_BASE_IDX_OFF_REG_IMM_REG,
+        MEM_BASE_IDX_OFF_REG_IMM2,
+        RESERVED,
+        MASK
+    };
+
+
+
+    enum class OperandSize : unsigned char {
         BYTE = 0,
         WORD = 1,
         DWORD = 2,
@@ -45,6 +73,7 @@ namespace InsEncoding {
         ~Operand();
 
         OperandType type;
+        CompactOperandType fullType;
         OperandSize size;
         void* data;
         bool complete;

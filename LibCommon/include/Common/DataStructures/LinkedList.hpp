@@ -358,6 +358,21 @@ namespace LinkedList {
             m_count++;
         }
 
+        void insertAfter(const T* obj, const T* newObj) {
+            Node* temp = findNode(m_start, reinterpret_cast<const uint64_t>(obj));
+            if (temp == nullptr)
+                return;
+            Node* node = newNode(reinterpret_cast<uint64_t>(newObj));
+            if (temp->next != nullptr) {
+                temp->next->previous = node;
+                node->next = temp->next;
+            } else
+                m_end = node;
+            temp->next = node;
+            node->previous = temp;
+            m_count++;
+        }
+
         T* get(uint64_t index) const {
             if (index >= m_count)
                 return nullptr;

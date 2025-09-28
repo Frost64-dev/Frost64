@@ -17,6 +17,35 @@
 #   - Frosty515 <frosty515yt@gmail.com>
 #   - fwpirate <alavik@disroot.org>
 
+if (DEFINED ENABLE_SDL OR DEFINED ENABLE_XCB)
+    message(FATAL_ERROR "ENABLE_SDL and ENABLE_XCB are not supported. Please use VIDEO_BACKENDS instead.")
+endif ()
+
+if (DEFINED VIDEO_BACKENDS)
+    message("Video backends enabled: ${VIDEO_BACKENDS}")
+    # need to break up the comma separated list into a CMake list
+    string(REPLACE "," ";" VIDEO_BACKENDS_LIST "${VIDEO_BACKENDS}")
+    list(FIND VIDEO_BACKENDS_LIST "SDL" SDL_INDEX)
+    if (SDL_INDEX GREATER -1)
+        set(ENABLE_SDL "ON")
+    endif ()
+    list(FIND VIDEO_BACKENDS_LIST "XCB" XCB_INDEX)
+    if (XCB_INDEX GREATER -1)
+        set(ENABLE_XCB "ON")
+    endif ()
+    list(FIND VIDEO_BACKENDS_LIST "NONE" NONE_INDEX)
+    if (NONE_INDEX GREATER -1)
+        set(ENABLE_SDL "OFF")
+        set(ENABLE_XCB "OFF")
+    endif ()
+    if (SDL_INDEX EQUAL -1 AND XCB_INDEX EQUAL -1 AND NONE_INDEX EQUAL -1)
+        message(FATAL_ERROR "No valid video backends specified in VIDEO_BACKENDS. Valid options are a combination of SDL and/or XCB, or None.")
+    endif ()
+else ()
+    set(ENABLE_SDL "OFF")
+    set(ENABLE_XCB "OFF")
+endif ()
+
 if (ENABLE_SDL STREQUAL "ON")
     message(WARNING "SDL3 is enabled, this is very experimental and may not work as expected.")
     find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
@@ -24,7 +53,7 @@ endif ()
 
 if (BUILD_ARCHITECTURE STREQUAL "x86_64")
     set(emulator_sources
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/ALUInstruction.asm
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/x86_64/ALUInstruction.asm
     )
 endif ()
 
@@ -36,6 +65,12 @@ if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Network.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Signal.cpp
     )
+    if (BUILD_ARCHITECTURE STREQUAL "x86_64")
+        set(emulator_sources
+            ${emulator_sources}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/OSSpecific/Linux/Platform/x86_64/Signal.cpp
+        )
+    endif ()
 else (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     set(emulator_sources
         ${emulator_sources}
@@ -51,13 +86,13 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOBus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOMemoryRegion.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/ConsoleDevice.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/PhysicalRegionListBuffer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageDevice.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageFile.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoBackend.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoDevice.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoMemoryRegion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/ConsoleDevice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/PhysicalRegionListBuffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageDevice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageFile.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoBackend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoDevice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/BIOSMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MMU.cpp
@@ -68,19 +103,22 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Exceptions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Interrupts.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/Math.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Math.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Register.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Stack.cpp
 )
-
-if (NOT DEFINED ENABLE_SDL)
-    set(ENABLE_SDL "OFF")
-endif ()
 
 if (ENABLE_SDL STREQUAL "ON")
     set(emulator_sources
         ${emulator_sources}
             ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/backends/SDL/SDLVideoBackend.cpp
+    )
+endif ()
+
+if (ENABLE_XCB STREQUAL "ON")
+    set(emulator_sources
+        ${emulator_sources}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/backends/XCB/XCBVideoBackend.cpp
     )
 endif ()
 
@@ -105,7 +143,12 @@ if (ENABLE_SDL STREQUAL "ON")
     target_link_libraries(Emulator PRIVATE arch common SDL3::SDL3-shared)
     target_compile_definitions(Emulator PRIVATE ENABLE_SDL=1)
 else ()
-    target_link_libraries(Emulator PRIVATE arch common)
+    if (ENABLE_XCB STREQUAL "ON")
+        target_link_libraries(Emulator PRIVATE arch common xcb xcb-shm xcb-image)
+        target_compile_definitions(Emulator PRIVATE ENABLE_XCB=1)
+    else ()
+        target_link_libraries(Emulator PRIVATE arch common)
+    endif ()
 endif ()
 
 target_compile_options(Emulator

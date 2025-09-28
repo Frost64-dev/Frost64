@@ -138,9 +138,11 @@ public:
 
     bool SetValue(uint64_t value, bool force = false) override;
     bool SetValue(uint64_t value, OperandSize size) override;
+    void SetValueNoCheck(uint64_t value);
 
     uint64_t GetValue() const override;
     uint64_t GetValue(OperandSize size) const override;
+    uint64_t GetValueNoCheck() const { return m_value; }
 };
 
 #endif /* _REGISTER_HPP */

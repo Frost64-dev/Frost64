@@ -1,4 +1,4 @@
-# Custom Architecture
+# The Frost64 Architecture
 
 ## Registers
 
@@ -71,7 +71,7 @@
 ## Exceptions
 
 - The first 32 interrupts are reserved for exceptions.
-- Currently, there are 8 exceptions defined as follows:
+- Currently, there are 9 exceptions defined as follows:
 
 | Number | Name                      | Error Code Size in QWORDs | Description                                                        |
 |--------|---------------------------|---------------------------|--------------------------------------------------------------------|
@@ -83,6 +83,7 @@
 | 5      | User Mode Violation       | 0                         | Thrown when a supervisor mode instruction is executed in user mode |
 | 6      | Supervisor Mode Violation | 0                         | Thrown when a user mode instruction is executed in supervisor mode |
 | 7      | Paging Violation          | 2                         | Thrown when a paging violation occurs                              |
+| 8      | Integer Overflow          | 0                         | Thrown when an integer overflow occurs                             |
 
 ### Error Info
 
@@ -268,28 +269,55 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
-#### mul
-
-- `mul SIZE dst, src` multiplies the value of `src` by the value of `dst` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
-
 #### sub
 
 - `sub SIZE dst, src` subtracts the value of `src` from the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
+#### mul
+
+- `mul SIZE dst2, dst1, src` multiplies the value of `src` by the value of `dst1` and stores the result in `dst2:dst1`.
+- In other words, `dst2:dst1 = dst1 * src`.
+- `dst2` and `dst1` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This is an unsigned operation.
+
 #### div
 
-- `div SIZE src1, src2` divides the value of `src1` by the value of `src2`.
+- `div SIZE dst2, dst1, src` divides the value of `dst2:dst1` by the value of `src`.
 - `src1` and `src2` can be a register or memory address (simple or complex), or an immediate.
-- The quotient is stored in `r0`, and the remainder is stored in `r1`.
-- If the value of `src2` is 0, a divide by zero exception is thrown.
+- The quotient is stored in `dst1`, and the remainder is stored in `dst2`.
+- In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
+- If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
+- This is an unsigned operation.
+
+#### smul
+
+- `smul SIZE dst2, dst1, src` multiplies the value of `src` by the value of `dst1` and stores the result in `dst2:dst1`.
+- In other words, `dst2:dst1 = dst1 * src`.
+- `dst2` and `dst1` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This is a signed operation.
+
+#### sdiv
+
+- `sdiv SIZE dst2, dst1, src` divides the value of `dst2:dst1` by the value of `src`.
+- `src1` and `src2` can be a register or memory address (simple or complex), or an immediate.
+- The quotient is stored in `dst1`, and the remainder is stored in `dst2`.
+- In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
+- If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
+- This is a signed operation.
 
 #### or
 
 - `or SIZE dst, src` performs a bitwise OR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### nor
+
+- `nor SIZE dst, src` performs a bitwise NOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
@@ -299,9 +327,9 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
-#### nor
+#### xnor
 
-- `nor SIZE dst, src` performs a bitwise NOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
+- `xnor SIZE dst, src` performs a bitwise XNOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 
@@ -322,6 +350,18 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `not SIZE dst` performs a bitwise NOT operation on the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 
+#### shl
+
+- `shl SIZE dst, src` shifts the value of `dst` to the left by the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### shr
+
+- `shr SIZE dst, src` shifts the value of `dst` to the right by the value of `src` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
 #### cmp
 
 - `cmp SIZE src1, src2` compares the value of `src2` with the value of `src1`.
@@ -340,18 +380,6 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dec SIZE dst` decrements the value of `dst` by 1 and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - Equivalent to `sub SIZE dst, 1`.
-
-#### shl
-
-- `shl SIZE dst, src` shifts the value of `dst` to the left by the value of `src` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
-
-#### shr
-
-- `shr SIZE dst, src` shifts the value of `dst` to the right by the value of `src` and stores the result in `dst`.
-- `dst` can be a register or memory address (simple or complex).
-- `src` can be a register, memory address (simple or complex), or an immediate.
 
 ### Program flow
 
@@ -620,7 +648,29 @@ asciiz "Hello, world!"
 - 2 forms
 - form 1: `[literal]` where literal is a 64-bit integer (also known as `MEMORY`).
 - form 2: `[base*index+offset]`, where any of the 3 can be a register or an immediate of any size (also known as `COMPLEX`).
-- In form 2, index or offset can be excluded. If the offset is a register, it can be positive or negative.
+- In form 2, index or offset can be excluded. If the offset is a register, it can be positive or negative. Not all combinations are valid. These are all valid combinations:
+    - `[reg]`
+    - `[reg+reg]`
+    - `[reg+imm]`
+    - `[imm+reg]`
+    - `[imm-reg]`
+    - `[imm+imm]`
+    - `[reg*reg]`
+    - `[reg*imm]`
+    - `[reg*reg+reg]`
+    - `[reg*reg-reg]`
+    - `[reg*reg+imm]`
+    - `[reg*imm+reg]`
+    - `[reg*imm-reg]`
+    - `[reg*imm+imm]`
+
+### Constant folding
+
+- Constant folding is supported in the assembler to an extent.
+- Unary `+` and `-` operations are not supported. Otherwise, most other operators are supported.
+- Operations including labels or sub-labels are not supported, but operations including macros are supported.
+- Expressions are evaluated left to right, with standard operator precedence, similar to languages like C.
+- Expressions must be enclosed in parentheses.
 
 ## Devices
 

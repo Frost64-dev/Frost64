@@ -24,7 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "IO/devices/Video/VideoBackend.hpp"
 
-void EventHandler(void* data) {
+void SDLBackend_EventHandler(void* data) {
     SDLVideoBackend* backend = static_cast<SDLVideoBackend*>(data);
     backend->EnterEventLoop();
 }
@@ -54,7 +54,7 @@ void SDLVideoBackend::Init() {
     m_renderAllowed.store(true);
 
     m_renderThread = new std::thread(&SDLVideoBackend::RenderLoop, this);
-    m_eventThread = new std::thread(EventHandler, this);
+    m_eventThread = new std::thread(SDLBackend_EventHandler, this);
 
     while (!m_renderRunning.load())
         ;

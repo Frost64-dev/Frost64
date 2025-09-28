@@ -16,14 +16,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #include "Instruction.hpp"
-#include "InstructionCache.hpp"
 
 #include <atomic>
+#include <cstring>
 #include <utility>
+
+#include "InstructionCache.hpp"
 
 #ifdef EMULATOR_DEBUG
 #include <cstdio>
 #endif
+
+#include <csignal>
 
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
@@ -44,10 +48,26 @@ std::atomic_uchar g_ExecutionRunning = 0;
 std::atomic_uchar g_TerminateExecution = 0;
 std::atomic_uchar g_AllowOneInstruction = 0;
 
-InsEncoding::SimpleInstruction g_currentInstruction;
+struct InsOpcodeArgCountPair {
+    void* function;
+    uint8_t argCount;
+};
 
-Operand g_currentOperands[2];
-ComplexData g_complex[2];
+struct InstructionData {
+    InsEncoding::SimpleInstruction instruction;
+    Operand operands[3];
+    ComplexData complex[3];
+    uint64_t IP;
+    bool used;
+    InsOpcodeArgCountPair pair;
+    uint64_t size;
+};
+
+InstructionData g_InstructionDataCache[128]; // 128 instructions is quite big, should hopefully be enough
+
+InstructionData* g_currentInstruction;
+int g_currentCacheOffset;
+bool g_cacheJustMissed = true;
 
 std::unordered_map<uint64_t, std::function<void(uint64_t)>> g_breakpoints;
 spinlock_new(g_breakpointsLock);
@@ -64,8 +84,70 @@ struct InstructionExecutionRunState {
     bool AllowOne;
 };
 
+InsOpcodeArgCountPair g_InstructionFunctions[256];
+
+void InitInstructionSubsystem(uint64_t startingIP, MMU* mmu) {
+    memset(g_InstructionFunctions, 0, sizeof(g_InstructionFunctions));
+#define SETINSFUNC(op, Func, args) g_InstructionFunctions[static_cast<int>(InsEncoding::Opcode::op)] = {reinterpret_cast<void*>(Func), args}
+    SETINSFUNC(ADD, ins_add, 2);
+    SETINSFUNC(SUB, ins_sub, 2);
+    SETINSFUNC(MUL, ins_mul, 3);
+    SETINSFUNC(DIV, ins_div, 3);
+    SETINSFUNC(SMUL, ins_smul, 3);
+    SETINSFUNC(SDIV, ins_sdiv, 3);
+    SETINSFUNC(OR, ins_or, 2);
+    SETINSFUNC(NOR, ins_nor, 2);
+    SETINSFUNC(XOR, ins_xor, 2);
+    SETINSFUNC(XNOR, ins_xnor, 2);
+    SETINSFUNC(AND, ins_and, 2);
+    SETINSFUNC(NAND, ins_nand, 2);
+    SETINSFUNC(NOT, ins_not, 1);
+    SETINSFUNC(SHL, ins_shl, 2);
+    SETINSFUNC(SHR, ins_shr, 2);
+    SETINSFUNC(CMP, ins_cmp, 2);
+    SETINSFUNC(INC, ins_inc, 1);
+    SETINSFUNC(DEC, ins_dec, 1);
+    SETINSFUNC(RET, ins_ret, 0);
+    SETINSFUNC(CALL, ins_call, 1);
+    SETINSFUNC(JMP, ins_jmp, 1);
+    SETINSFUNC(JC, ins_jc, 1);
+    SETINSFUNC(JNC, ins_jnc, 1);
+    SETINSFUNC(JZ, ins_jz, 1);
+    SETINSFUNC(JNZ, ins_jnz, 1);
+    SETINSFUNC(JL, ins_jl, 1);
+    SETINSFUNC(JLE, ins_jle, 1);
+    SETINSFUNC(JNL, ins_jnl, 1);
+    SETINSFUNC(JNLE, ins_jnle, 1);
+    SETINSFUNC(MOV, ins_mov, 2);
+    SETINSFUNC(NOP, ins_nop, 0);
+    SETINSFUNC(HLT, ins_hlt, 0);
+    SETINSFUNC(PUSH, ins_push, 1);
+    SETINSFUNC(POP, ins_pop, 1);
+    SETINSFUNC(PUSHA, ins_pusha, 0);
+    SETINSFUNC(POPA, ins_popa, 0);
+    SETINSFUNC(INT, ins_int, 1);
+    SETINSFUNC(LIDT, ins_lidt, 1);
+    SETINSFUNC(IRET, ins_iret, 0);
+    SETINSFUNC(SYSCALL, ins_syscall, 0);
+    SETINSFUNC(SYSRET, ins_sysret, 0);
+    SETINSFUNC(ENTERUSER, ins_enteruser, 1);
+#undef SETINSFUNC
+
+    InitInsCache(startingIP, mmu);
+
+}
+
 void InitInsCache(uint64_t startingIP, MMU *mmu) {
     g_insCache.Init(mmu, startingIP);
+    g_currentCacheOffset = 0;
+    g_currentInstruction = &g_InstructionDataCache[0];
+    g_cacheJustMissed = true;
+    for (int i = 0; i < 128; i++) {
+        g_InstructionDataCache[i].used = false;
+        g_InstructionDataCache[i].IP = 0;
+        g_InstructionDataCache[i].pair.function = nullptr;
+        g_InstructionDataCache[i].pair.argCount = 0;
+    }
 }
 
 void UpdateInsCacheMMU(MMU *mmu) {
@@ -74,6 +156,16 @@ void UpdateInsCacheMMU(MMU *mmu) {
 
 void InsCache_MaybeSetBaseAddress(uint64_t IP) {
     g_insCache.MaybeSetBaseAddress(IP);
+}
+
+int FindIPInInsCache(uint64_t IP) {
+    if (g_currentInstruction->used && g_currentInstruction->IP == IP)
+        return g_currentCacheOffset;
+    for (int i = 0; i < 128; i++) {
+        if (g_InstructionDataCache[i].used && g_InstructionDataCache[i].IP == IP)
+            return i;
+    }
+    return -1;
 }
 
 void StopExecution(void** state) {
@@ -193,122 +285,180 @@ bool ExecuteInstruction(uint64_t IP) {
         spinlock_release(&g_breakpointsLock);
     }
 
-    uint64_t currentOffset = 0;
-    if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction, [](const char* message, void*) {
-#ifdef EMULATOR_DEBUG
-        printf("Decoding error: %s\n", message);
-#else
-        (void)message;
-#endif
-        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-    }))
-        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-    uint8_t Opcode = static_cast<uint8_t>(g_currentInstruction.GetOpcode());
-    for (uint64_t i = 0; i < g_currentInstruction.operandCount; i++) {
-        switch (InsEncoding::Operand* op = &g_currentInstruction.operands[i]; op->type) {
-        case InsEncoding::OperandType::REGISTER: {
-            InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
-            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Register, reg);
-            break;
+
+    if (int offset = FindIPInInsCache(IP); offset != -1) {
+        g_currentInstruction = &g_InstructionDataCache[offset];
+        g_currentCacheOffset = offset;
+        g_cacheJustMissed = false;
+    }
+    else {
+        if (g_currentInstruction->used) {
+            // need to find a different slot
+            int i_offset = -1;
+            for (int i = g_currentCacheOffset + 1; i < 128; i++) { // start with going from the current offset to the end
+                if (!g_InstructionDataCache[i].used) {
+                    i_offset = i;
+                    break;
+                }
+            }
+            if (i_offset == -1) {
+                // start from 0, until current offset
+                for (int i = 0; i < g_currentCacheOffset; i++) {
+                    if (!g_InstructionDataCache[i].used) {
+                        i_offset = i;
+                        break;
+                    }
+                }
+                if (i_offset == -1) {
+                    // all used, start from current + 1
+                    i_offset = g_currentCacheOffset + 1;
+                }
+            }
+            g_currentCacheOffset = i_offset;
+            g_currentInstruction = &g_InstructionDataCache[i_offset];
         }
-        case InsEncoding::OperandType::IMMEDIATE: {
-            uint64_t data;
-            switch (op->size) {
-            case InsEncoding::OperandSize::BYTE:
-                data = *static_cast<uint8_t*>(op->data);
+        g_currentInstruction->used = false;
+        g_currentInstruction->IP = 0;
+        g_currentInstruction->pair.function = nullptr;
+        g_currentInstruction->pair.argCount = 0;
+        uint64_t currentOffset = 0;
+        if (!g_cacheJustMissed) {
+            g_insCache.MaybeSetBaseAddress(IP);
+            g_cacheJustMissed = true;
+        }
+        if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction->instruction, [](const char* message, void*) {
+    #ifdef EMULATOR_DEBUG
+            printf("Decoding error: %s\n", message);
+    #else
+            (void)message;
+    #endif
+            g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        }))
+            g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        InsEncoding::SimpleInstruction& currentIns = g_currentInstruction->instruction;
+        ComplexData* complex = g_currentInstruction->complex;
+        uint8_t Opcode = static_cast<uint8_t>(currentIns.GetOpcode());
+        for (uint64_t i = 0; i < currentIns.operandCount; i++) {
+            switch (InsEncoding::Operand* op = &currentIns.operands[i]; op->type) {
+            case InsEncoding::OperandType::REGISTER: {
+                InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
+                Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), reg);
                 break;
-            case InsEncoding::OperandSize::WORD:
-                data = *static_cast<uint16_t*>(op->data);
+            }
+            case InsEncoding::OperandType::IMMEDIATE: {
+                uint64_t data;
+                switch (op->size) {
+                case InsEncoding::OperandSize::BYTE:
+                    data = *static_cast<uint8_t*>(op->data);
+                    break;
+                case InsEncoding::OperandSize::WORD:
+                    data = *static_cast<uint16_t*>(op->data);
+                    break;
+                case InsEncoding::OperandSize::DWORD:
+                    data = *static_cast<uint32_t*>(op->data);
+                    break;
+                case InsEncoding::OperandSize::QWORD:
+                    data = *static_cast<uint64_t*>(op->data);
+                    break;
+                default:
+                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    break;
+                }
+                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), data);
                 break;
-            case InsEncoding::OperandSize::DWORD:
-                data = *static_cast<uint32_t*>(op->data);
+            }
+            case InsEncoding::OperandType::MEMORY: {
+                uint64_t* temp = static_cast<uint64_t*>(op->data);
+                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), *temp, Emulator::HandleMemoryOperation);
                 break;
-            case InsEncoding::OperandSize::QWORD:
-                data = *static_cast<uint64_t*>(op->data);
+            }
+            case InsEncoding::OperandType::COMPLEX: {
+                InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
+                complex[i].base.present = temp->base.present;
+                complex[i].index.present = temp->index.present;
+                complex[i].offset.present = temp->offset.present;
+                if (complex[i].base.present) {
+                    if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                        InsEncoding::Register* tempReg = temp->base.data.reg;
+                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                        complex[i].base.data.reg = reg;
+                        complex[i].base.type = ComplexItem::Type::REGISTER;
+                    } else {
+                        complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
+                        complex[i].base.data.imm.data = temp->base.data.imm.data;
+                        complex[i].base.type = ComplexItem::Type::IMMEDIATE;
+                    }
+                } else
+                    complex[i].base.present = false;
+                if (complex[i].index.present) {
+                    if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                        InsEncoding::Register* tempReg = temp->index.data.reg;
+                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                        complex[i].index.data.reg = reg;
+                        complex[i].index.type = ComplexItem::Type::REGISTER;
+                    } else {
+                        complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
+                        complex[i].index.data.imm.data = temp->index.data.imm.data;
+                        complex[i].index.type = ComplexItem::Type::IMMEDIATE;
+                    }
+                } else
+                    complex[i].index.present = false;
+                if (complex[i].offset.present) {
+                    if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                        InsEncoding::Register* tempReg = temp->offset.data.reg;
+                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                        complex[i].offset.data.reg = reg;
+                        complex[i].offset.type = ComplexItem::Type::REGISTER;
+                        complex[i].offset.sign = temp->offset.sign;
+                    } else {
+                        complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
+                        complex[i].offset.data.imm.data = temp->offset.data.imm.data;
+                        complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
+                    }
+                } else
+                    complex[i].offset.present = false;
+                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), &complex[i], Emulator::HandleMemoryOperation);
                 break;
+            }
             default:
                 g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 break;
             }
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Immediate, data);
-            break;
         }
-        case InsEncoding::OperandType::MEMORY: {
-            uint64_t* temp = static_cast<uint64_t*>(op->data);
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Memory, *temp, Emulator::HandleMemoryOperation);
-            break;
-        }
-        case InsEncoding::OperandType::COMPLEX: {
-            InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
-            g_complex[i].base.present = temp->base.present;
-            g_complex[i].index.present = temp->index.present;
-            g_complex[i].offset.present = temp->offset.present;
-            if (g_complex[i].base.present) {
-                if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* tempReg = temp->base.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                    g_complex[i].base.data.reg = reg;
-                    g_complex[i].base.type = ComplexItem::Type::REGISTER;
-                } else {
-                    g_complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
-                    g_complex[i].base.data.imm.data = temp->base.data.imm.data;
-                    g_complex[i].base.type = ComplexItem::Type::IMMEDIATE;
-                }
-            } else
-                g_complex[i].base.present = false;
-            if (g_complex[i].index.present) {
-                if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* tempReg = temp->index.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                    g_complex[i].index.data.reg = reg;
-                    g_complex[i].index.type = ComplexItem::Type::REGISTER;
-                } else {
-                    g_complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
-                    g_complex[i].index.data.imm.data = temp->index.data.imm.data;
-                    g_complex[i].index.type = ComplexItem::Type::IMMEDIATE;
-                }
-            } else
-                g_complex[i].index.present = false;
-            if (g_complex[i].offset.present) {
-                if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                    InsEncoding::Register* tempReg = temp->offset.data.reg;
-                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                    g_complex[i].offset.data.reg = reg;
-                    g_complex[i].offset.type = ComplexItem::Type::REGISTER;
-                    g_complex[i].offset.sign = temp->offset.sign;
-                } else {
-                    g_complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
-                    g_complex[i].offset.data.imm.data = temp->offset.data.imm.data;
-                    g_complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
-                }
-            } else
-                g_complex[i].offset.present = false;
-            g_currentOperands[i] = Operand(static_cast<OperandSize>(op->size), OperandType::Complex, &g_complex[i], Emulator::HandleMemoryOperation);
-            break;
-        }
-        default:
+        g_currentInstruction->IP = IP;
+
+        // Get the instruction
+        g_currentInstruction->pair = g_InstructionFunctions[Opcode];
+        if (g_currentInstruction->pair.function == nullptr)
             g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-            break;
-        }
+        g_currentInstruction->size = currentOffset;
+        g_currentInstruction->used = true;
     }
 
-    // Get the instruction
-    uint8_t argumentCount = 0;
-    void* ins = DecodeOpcode(Opcode, &argumentCount);
-    if (ins == nullptr)
-        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-
     // Increment instruction pointer
-    Emulator::SetNextIP(IP + currentOffset);
+    Emulator::SetNextIP(IP + g_currentInstruction->size);
+
+    InsOpcodeArgCountPair pair = g_currentInstruction->pair;
+    Operand* operands = g_currentInstruction->operands;
+
+    // Update the cache
+    g_currentCacheOffset++;
+    if (g_currentCacheOffset >= 128) // wrap around
+        g_currentCacheOffset = 0;
+    g_currentInstruction = &g_InstructionDataCache[g_currentCacheOffset];
 
     // Execute the instruction
-    if (argumentCount == 0)
-        reinterpret_cast<void (*)()>(ins)();
-    else if (argumentCount == 1)
-        reinterpret_cast<void (*)(Operand*)>(ins)(&g_currentOperands[0]);
-    else if (argumentCount == 2)
-        reinterpret_cast<void (*)(Operand*, Operand*)>(ins)(&g_currentOperands[0], &g_currentOperands[1]);
+    if (pair.argCount == 0)
+        reinterpret_cast<void (*)()>(pair.function)();
+    else if (pair.argCount == 1)
+        reinterpret_cast<void (*)(Operand*)>(pair.function)(&operands[0]);
+    else if (pair.argCount == 2)
+        reinterpret_cast<void (*)(Operand*, Operand*)>(pair.function)(&operands[0], &operands[1]);
+    else if (pair.argCount == 3)
+        reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(pair.function)(&operands[0], &operands[1], &operands[2]);
+    else
+        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 
     Emulator::SyncRegisters();
 
@@ -322,187 +472,15 @@ void ExecutionLoop() {
         status = ExecuteInstruction(Emulator::GetCPU_IP());
 }
 
-void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
-    uint8_t offset = opcode & 0x0f;
-    switch ((opcode >> 4) & 0x07) {
-    case 0: // ALU
-        switch (offset) {
-        case 0: // add
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_add);
-        case 1: // mul
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_mul);
-        case 2: // sub
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_sub);
-        case 3: // div
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_div);
-        case 4: // or
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_or);
-        case 5: // xor
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_xor);
-        case 6: // nor
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_nor);
-        case 7: // and
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_and);
-        case 8: // nand
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_nand);
-        case 9: // not
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_not);
-        case 0xa: // cmp
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_cmp);
-        case 0xb: // inc
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_inc);
-        case 0xc: // dec
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_dec);
-        case 0xd: // shl
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_shl);
-        case 0xe: // shr
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_shr);
-        default:
-            return nullptr;
-        }
-    case 1: // control flow
-        switch (offset) {
-        case 0: // ret
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_ret);
-        case 1: // call
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_call);
-        case 2: // jmp
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jmp);
-        case 3: // jc
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jc);
-        case 4: // jnc
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jnc);
-        case 5: // jz
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jz);
-        case 6: // jnz
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jnz);
-        case 7: // jl
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jl);
-        case 8: // jle
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jle);
-        case 9: // jnl
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jnl);
-        case 0xa: // jnle
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_jnle);
-        default:
-            return nullptr;
-        }
-    case 2: // other
-        switch (offset) {
-        case 0: // mov
-            if (argumentCount != nullptr)
-                *argumentCount = 2;
-            return reinterpret_cast<void*>(ins_mov);
-        case 1: // nop
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_nop);
-        case 2: // hlt
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_hlt);
-        case 3: // push
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_push);
-        case 4: // pop
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_pop);
-        case 5: // pusha
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_pusha);
-        case 6: // popa
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_popa);
-        case 7: // int
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_int);
-        case 8: // lidt
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_lidt);
-        case 9: // iret
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_iret);
-        case 0xa: // syscall
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_syscall);
-        case 0xb: // sysret
-            if (argumentCount != nullptr)
-                *argumentCount = 0;
-            return reinterpret_cast<void*>(ins_sysret);
-        case 0xc: // enteruser
-            if (argumentCount != nullptr)
-                *argumentCount = 1;
-            return reinterpret_cast<void*>(ins_enteruser);
-        default:
-            return nullptr;
-        }
-    default: // reserved
-        return nullptr;
-    }
-    return nullptr;
-}
-
 #ifdef EMULATOR_DEBUG
+#define PRINT_INS_INFO3(dst2, dst1, src)                         \
+    printf("%s: dst2 = \"", __extension__ __PRETTY_FUNCTION__);  \
+    dst2->PrintInfo();                                           \
+    printf("\", dst1 = \"");                                     \
+    dst1->PrintInfo();                                           \
+    printf("\", src = \"");                                      \
+    src->PrintInfo();                                            \
+    printf("\"\n")
 #define PRINT_INS_INFO2(dst, src)                              \
     printf("%s: dst = \"", __extension__ __PRETTY_FUNCTION__); \
     dst->PrintInfo();                                          \
@@ -515,6 +493,7 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
     printf("\"\n")
 #define PRINT_INS_INFO0() printf("%s\n", __extension__ __PRETTY_FUNCTION__)
 #else
+#define PRINT_INS_INFO3(dst2, dst1, src)
 #define PRINT_INS_INFO2(dst, src)
 #define PRINT_INS_INFO1(dst)
 #define PRINT_INS_INFO0()
@@ -523,6 +502,35 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
 #ifdef __x86_64__
 
 #include <Platform/x86_64/ALUInstruction.h>
+
+
+
+
+#define ALU_INSTRUCTION3(name)                                                            \
+    void ins_##name(Operand* dst2, Operand* dst1, Operand* src) {                         \
+        PRINT_INS_INFO3(dst2, dst1, src);                                                 \
+        uint64_t flags = 0;                                                               \
+        x86_64_128Data result = x86_64_##name(dst1->GetValue(), src->GetValue(), &flags); \
+        dst1->SetValue(result.low);                                                       \
+        dst2->SetValue(result.high);                                                      \
+        Emulator::ClearCPUStatus(0xF);                                                    \
+        Emulator::SetCPUStatus(flags & 0xF);                                              \
+    }
+
+#define DIV_INSTRUCTION3(name)                                           \
+    void ins_##name(Operand* dst2, Operand* dst1, Operand* src) {       \
+        PRINT_INS_INFO3(dst2, dst1, src);                               \
+        uint64_t srcVal = src->GetValue();                              \
+        if (srcVal == 0)                                                 \
+            g_ExceptionHandler->RaiseException(Exception::DIV_BY_ZERO);  \
+        uint64_t flags = 0;                                              \
+        x86_64_128Data dividend = {dst1->GetValue(), dst2->GetValue()};  \
+        x86_64_128Data result = x86_64_##name(dividend, srcVal, &flags); \
+        dst1->SetValue(result.low);                                      \
+        dst2->SetValue(result.high);                                     \
+        Emulator::ClearCPUStatus(0xF);                                   \
+        Emulator::SetCPUStatus(flags & 0xF);                             \
+    }
 
 #define ALU_INSTRUCTION2(name)                                                  \
     void ins_##name(Operand* dst, Operand* src) {                               \
@@ -552,25 +560,15 @@ void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount) {
     }
 
 ALU_INSTRUCTION2(add)
-ALU_INSTRUCTION2(mul)
 ALU_INSTRUCTION2(sub)
-
-void ins_div(Operand* src1, Operand* src2) {
-    PRINT_INS_INFO2(src1, src2);
-    uint64_t srcVal = src2->GetValue();
-    if (srcVal == 0)
-        g_ExceptionHandler->RaiseException(Exception::DIV_BY_ZERO);
-    uint64_t flags = 0;
-    x86_64_DivResult result = x86_64_div(src1->GetValue(), srcVal, &flags);
-    Emulator::GetRegisterPointer(RegisterID_R0)->SetValue(result.quotient);
-    Emulator::GetRegisterPointer(RegisterID_R1)->SetValue(result.remainder);
-    Emulator::ClearCPUStatus(0xF);
-    Emulator::SetCPUStatus(flags & 0xF);
-}
-
+ALU_INSTRUCTION3(mul)
+DIV_INSTRUCTION3(div)
+ALU_INSTRUCTION3(smul)
+DIV_INSTRUCTION3(sdiv)
 ALU_INSTRUCTION2(or)
-ALU_INSTRUCTION2(xor)
 ALU_INSTRUCTION2(nor)
+ALU_INSTRUCTION2(xor)
+ALU_INSTRUCTION2(xnor)
 ALU_INSTRUCTION2(and)
 ALU_INSTRUCTION2(nand)
 ALU_INSTRUCTION1(not)
@@ -581,81 +579,7 @@ ALU_INSTRUCTION1(inc)
 ALU_INSTRUCTION1(dec)
 
 #else /* __x86_64__ */
-
-void ins_add(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() + src->GetValue());
-}
-
-void ins_mul(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() * src->GetValue());
-}
-
-void ins_sub(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() - src->GetValue());
-}
-
-void ins_div(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() / src->GetValue());
-}
-
-void ins_or(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() | src->GetValue());
-}
-
-void ins_xor(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() ^ src->GetValue());
-}
-
-void ins_nor(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(~(dst->GetValue() | src->GetValue()));
-}
-
-void ins_and(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() & src->GetValue());
-}
-
-void ins_nand(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(~(dst->GetValue() & src->GetValue()));
-}
-
-void ins_not(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(~dst->GetValue());
-}
-
-void ins_cmp(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-}
-
-void ins_inc(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(dst->GetValue() + 1);
-}
-
-void ins_dec(Operand* dst) {
-    PRINT_INS_INFO1(dst);
-    dst->SetValue(dst->GetValue() - 1);
-}
-
-void ins_shl(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() << src->GetValue());
-}
-
-void ins_shr(Operand* dst, Operand* src) {
-    PRINT_INS_INFO2(dst, src);
-    dst->SetValue(dst->GetValue() >> src->GetValue());
-}
-
+#error "ALU Instructions: Unsupported architecture"
 #endif /* __x86_64__ */
 
 void ins_ret() {

@@ -37,4 +37,9 @@ typedef pthread_t ThreadID_t;
 void SetSignalHandler(int signal, SignalHandler_t handler);
 void SendSignal(int signal, ThreadID_t thread_id);
 
+// Callback will be called when a signal is received, with ctx as its argument, after internal handling has been attempted
+void ConfigureEmulatorSignalHandlers(void (*callback)(void* ctx), void* ctx);
+
+void GlobalSignalHandler(int signal);
+
 #endif /* _OSSPECIFIC_SIGNAL_HPP */

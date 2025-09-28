@@ -30,6 +30,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 - CMake
 - Ninja
 - A C/C++ compiler that supports C23 and C++23
+- SDL3 if the SDL video backend is to be used
+- xcb, xcb-image, and xcb-shm if the XCB video backend is to be used
 
 ### Linux (GNU C/C++)
 
@@ -54,7 +56,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ## Building
 
 1. run `mkdir build && cd build` to create a build directory and enter it
-2. run `cmake -GNinja ..` to generate the build files. `-DBUILD_CONFIG=<config>` can be added to the cmake command to specify the build type. `<config>` can be `Debug` or `Release`. It defaults to `Release`. `-DBUILD_ARCHITECTURE=<arch>` can be added to the cmake command to specify the architecture. Currently, the only supported architecture is `x86_64`. It defaults to `x86_64`. `-DENABLE_SDL=ON` can be added to the cmake command to enable the SDL backend for the video device. It defaults to `OFF`. Note that the SDL backend is very experimental.
+2. run `cmake -GNinja ..` to generate the build files. The following options can be added:
+   - `-DBUILD_CONFIG=<config>`, where `<config>` can be `Debug` or `Release`. It defaults to `Release`.
+   - `-DBUILD_ARCHITECTURE=<arch>`, where `<arch>` is the architecture that it is being built for.  Currently, the only supported architecture is `x86_64`, which is the default.
+   - `-DVIDEO_BACKENDS=<backends>`, where `<backends>` is a comma-separated list of video backends to build. Both `XCB` and `SDL` backends are supported. It defaults to `None`. Note that the SDL backend is very experimental and that if the XCB backend is used, the XCB dependencies must be installed, cmake will not detect there existence, and compiling will fail.
 3. run `ninja install` to build and install to the src directory. The binaries will be in the `bin` directory in the src directory.
 
 ## Running the Assembler
@@ -77,9 +82,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 - make fancy docs
 - add better macros
 - firmware spec
-- maybe make a gtk backend for the video device or make it less buggy
 - start writing firmware
 - llvm backend
 - make examples
 - custom fs
 - custom executable format
+- more devices
+- proper instruction cache post-decoding

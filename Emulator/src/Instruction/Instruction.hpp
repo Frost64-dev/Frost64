@@ -24,6 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Operand.hpp"
 
+void InitInstructionSubsystem(uint64_t startingIP, MMU* mmu);
 
 void InitInsCache(uint64_t startingIP, MMU* mmu);
 void UpdateInsCacheMMU(MMU* mmu);
@@ -42,20 +43,23 @@ void RemoveBreakpoint(uint64_t address);
 void* DecodeOpcode(uint8_t opcode, uint8_t* argumentCount);
 
 void ins_add(Operand* dst, Operand* src);
-void ins_mul(Operand* dst, Operand* src);
 void ins_sub(Operand* dst, Operand* src);
-void ins_div(Operand* src1, Operand* src2);
+void ins_mul(Operand* dst2, Operand* dst1, Operand* src);
+void ins_div(Operand* dst2, Operand* dst1, Operand* src);
+void ins_smul(Operand* dst2, Operand* dst1, Operand* src);
+void ins_sdiv(Operand* dst2, Operand* dst1, Operand* src);
 void ins_or(Operand* dst, Operand* src);
-void ins_xor(Operand* dst, Operand* src);
 void ins_nor(Operand* dst, Operand* src);
+void ins_xor(Operand* dst, Operand* src);
+void ins_xnor(Operand* dst, Operand* src);
 void ins_and(Operand* dst, Operand* src);
 void ins_nand(Operand* dst, Operand* src);
 void ins_not(Operand* dst);
+void ins_shl(Operand* dst, Operand* src);
+void ins_shr(Operand* dst, Operand* src);
 void ins_cmp(Operand* a, Operand* b);
 void ins_inc(Operand* dst);
 void ins_dec(Operand* dst);
-void ins_shl(Operand* dst, Operand* src);
-void ins_shr(Operand* dst, Operand* src);
 
 void ins_ret();
 void ins_call(Operand* dst);

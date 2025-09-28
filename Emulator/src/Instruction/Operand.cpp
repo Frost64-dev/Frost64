@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2024  Frosty515
+Copyright (©) 2023-2025  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -26,27 +26,20 @@ Operand::Operand()
     : m_register(nullptr), m_type(OperandType::Register), m_size(OperandSize::Unknown), m_offset(0), m_address(0), m_complexData(nullptr), m_memoryOperation(nullptr) {
 }
 
-Operand::Operand(OperandSize size, OperandType type, ...)
-    : m_register(nullptr), m_type(type), m_size(size), m_offset(0), m_address(0), m_memoryOperation(nullptr) {
-    va_list args;
-    va_start(args, type);
-    switch (type) {
-    case OperandType::Register:
-        m_register = va_arg(args, Register*);
-        break;
-    case OperandType::Immediate:
-        m_offset = va_arg(args, uint64_t);
-        break;
-    case OperandType::Memory:
-        m_address = va_arg(args, uint64_t);
-        m_memoryOperation = va_arg(args, MemoryOperation_t);
-        break;
-    case OperandType::Complex:
-        m_complexData = va_arg(args, ComplexData*);
-        m_memoryOperation = va_arg(args, MemoryOperation_t);
-        break;
-    }
-    va_end(args);
+Operand::Operand(OperandSize size, Register* reg)
+    : m_register(reg), m_type(OperandType::Register), m_size(size) {
+}
+
+Operand::Operand(OperandSize size, uint64_t immediate)
+    :  m_type(OperandType::Immediate), m_size(size), m_offset(immediate) {
+}
+
+Operand::Operand(OperandSize size, uint64_t address, MemoryOperation_t operation)
+    : m_type(OperandType::Memory), m_size(size), m_address(address), m_memoryOperation(operation) {
+}
+
+Operand::Operand(OperandSize size, ComplexData* complexData, MemoryOperation_t operation)
+    : m_type(OperandType::Complex), m_size(size), m_complexData(complexData), m_memoryOperation(operation) {
 }
 
 Operand::~Operand() {

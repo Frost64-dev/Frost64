@@ -19,8 +19,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 
+#include "VideoBackend.hpp"
+
 #ifdef ENABLE_SDL
 #include "backends/SDL/SDLVideoBackend.hpp"
+#endif
+
+#ifdef ENABLE_XCB
+#include "backends/XCB/XCBVideoBackend.hpp"
 #endif
 
 void HandleVideoMemoryOperation(bool write, uint64_t address, uint8_t* buffer, size_t size, void* data) {
@@ -107,7 +113,7 @@ void VideoDevice::WriteQWord(uint64_t address, uint64_t data) {
 void VideoDevice::HandleMemoryOperation(bool write, uint64_t address, uint8_t* buffer, uint64_t size) {
     if (!m_initialised)
         return;
-#ifdef ENABLE_SDL
+#if defined(ENABLE_SDL) || defined(ENABLE_XCB)
     if (write)
         m_backend->Write(address, buffer, size);
     else
@@ -121,38 +127,53 @@ void VideoDevice::HandleMemoryOperation(bool write, uint64_t address, uint8_t* b
 }
 
 void VideoDevice::HandleCommand() {
-#ifdef ENABLE_SDL
+#if defined(ENABLE_SDL) || defined(ENABLE_XCB)
     switch (static_cast<VideoDeviceCommands>(m_command)) {
     case VideoDeviceCommands::INITIALISE: {
         if (m_initialised)
             return;
         switch (m_backendType) {
         case VideoBackendType::SDL: {
+#ifdef ENABLE_SDL
             // bring the backend online
             SDLVideoBackend* backend = new SDLVideoBackend(NATIVE_VIDEO_MODE);
             backend->Init();
             m_backend = backend;
-
-            // fill the modes list
-            m_modes.push_back(NATIVE_VIDEO_MODE);
-            m_modes.push_back({640, 480, 60, 32, 640 * 4});
-            m_modes.push_back({800, 600, 60, 32, 800 * 4});
-            m_modes.push_back({1'280, 720, 60, 32, 1'280 * 4});
-            m_modes.push_back({1'920, 1'080, 60, 32, 1'920 * 4});
-
-            // set the current mode. no need to set the backend mode as it's already set
-            m_currentMode = NATIVE_VIDEO_MODE;
-            m_currentModeIndex = 0;
-
-            m_initialised = true;
-
             m_status = 0;
+#endif
+            break;
+        }
+        case VideoBackendType::XCB: {
+#ifdef ENABLE_XCB
+            // bring the backend online
+            XCBVideoBackend* backend = new XCBVideoBackend(NATIVE_VIDEO_MODE);
+            backend->Init();
+            m_backend = backend;
+            m_status = 0;
+#endif
             break;
         }
         default:
             m_status = 1;
             break;
         }
+        if (m_status == 1)
+            break;
+
+        // fill the modes list
+        m_modes.push_back(NATIVE_VIDEO_MODE);
+        m_modes.push_back({640, 480, 60, 32, 640 * 4});
+        m_modes.push_back({800, 600, 60, 32, 800 * 4});
+        m_modes.push_back({1'280, 720, 60, 32, 1'280 * 4});
+        m_modes.push_back({1'920, 1'080, 60, 32, 1'920 * 4});
+
+        // set the current mode. no need to set the backend mode as it's already set
+        m_currentMode = NATIVE_VIDEO_MODE;
+        m_currentModeIndex = 0;
+
+        m_initialised = true;
+
+        m_status = 0;
         break;
     }
     case VideoDeviceCommands::GET_SCREEN_INFO: {

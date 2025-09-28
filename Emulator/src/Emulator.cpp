@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Emulator.hpp"
 
+#include <cmath>
 #include <Common/Util.hpp>
 #include <cstdint>
 #include <cstdio>
@@ -37,6 +38,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Register.hpp>
 #include <Stack.hpp>
 #include <thread>
+
+#include "IO/Devices/Video/backends/XCB/XCBVideoBackend.hpp"
+#include "OSSpecific/Signal.hpp"
 
 namespace Emulator {
 
@@ -87,7 +91,7 @@ namespace Emulator {
     IOMemoryRegion* g_IOMemoryRegion;
     BIOSMemoryRegion* g_BIOSMemoryRegion;
 
-    DebugInterface* g_DebugInterface;
+    DebugInterface* g_DebugInterface = nullptr;
 
     void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write) {
         if (write) {
@@ -257,6 +261,8 @@ namespace Emulator {
         g_registers.IP = new SafeRegister(RegisterType::Instruction, 0, false, 0xF000'0000); // explicitly initialise instruction pointer to start of BIOS region
         g_NextIP = 0;
 
+        ConfigureEmulatorSignalHandlers(nullptr, nullptr);
+
         g_emulatorRunning = true;
 
         EmulatorMain();
@@ -375,7 +381,7 @@ namespace Emulator {
 
         SyncRegisters();
 
-        InitInsCache(g_registers.IP->GetValue(), &g_physicalMMU);
+        InitInstructionSubsystem(g_registers.IP->GetValue(), &g_physicalMMU);
 
         // setup instruction switch handling
         EmulatorThread = new std::thread(WaitForOperation);
@@ -391,15 +397,15 @@ namespace Emulator {
     }
 
     void SetCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValue(g_registers.STS->GetValue() | mask, true);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() | mask);
     }
 
     void ClearCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValue(g_registers.STS->GetValue() & ~mask, true);
+        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() & ~mask);
     }
 
     uint64_t GetCPUStatus() {
-        return g_registers.STS->GetValue();
+        return g_registers.STS->GetValueNoCheck();
     }
 
     void SetNextIP(uint64_t value) {
@@ -411,11 +417,11 @@ namespace Emulator {
     }
 
     void SetCPU_IP(uint64_t value) {
-        g_registers.IP->SetValue(value, true);
+        g_registers.IP->SetValueNoCheck(value);
     }
 
     uint64_t GetCPU_IP() {
-        return g_registers.IP->GetValue();
+        return g_registers.IP->GetValueNoCheck();
     }
 
     [[noreturn]] void JumpToIP(uint64_t value) {
