@@ -596,6 +596,10 @@ void Parser::parse() {
                         }
                         ComplexData* data = static_cast<ComplexData*>(currentOperand->data);
                         long imm = strtoll(static_cast<const char*>(token->data), nullptr, 0);
+                        // The sign convention for data->offset.sign:
+                        //   true  = positive offset
+                        //   false = negative offset
+                        // If the offset sign is negative, negate the immediate value.
                         if (data->stage == ComplexData::Stage::OFFSET && !data->offset.sign)
                             imm *= -1;
                         void* i_data;
