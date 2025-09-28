@@ -390,7 +390,7 @@ bool ExecuteInstruction(uint64_t IP) {
                         complex[i].base.type = ComplexItem::Type::IMMEDIATE;
                     }
                 } else
-                    g_currentInstruction->complex[i].base.present = false;
+                    complex[i].base.present = false;
                 if (complex[i].index.present) {
                     if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
                         InsEncoding::Register* tempReg = temp->index.data.reg;
