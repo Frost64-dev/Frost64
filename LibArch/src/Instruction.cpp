@@ -902,7 +902,7 @@ namespace InsEncoding {
                     buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&combined_info), sizeof(TripleExtendedOperandInfo));
                     current_offset += sizeof(TripleExtendedOperandInfo);
                 }
-                else if (CHECK_TYPES(EXTENDED, EXTENDED, BASIC) | CHECK_TYPES(EXTENDED, EXTENDED, EXTENDED)) {
+                else if (CHECK_TYPES(EXTENDED, EXTENDED, BASIC) || CHECK_TYPES(EXTENDED, EXTENDED, EXTENDED)) {
                     // case 4, need to combine first and second into a double extended struct
                     DoubleExtendedOperandInfo combined_info{};
                     combined_info.first.type = infos[0].extendedInfo.type;
