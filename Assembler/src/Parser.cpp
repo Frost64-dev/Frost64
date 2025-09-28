@@ -2248,6 +2248,8 @@ const char* Parser::GetRegisterName(InsEncoding::Register reg) {
         NAME_CASE(sts)
         NAME_CASE(ip)
         NAME_CASE(unknown)
+    default:
+        return "unknown";
     }
 #undef NAME_CASE
     return "unknown";
