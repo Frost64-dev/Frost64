@@ -115,7 +115,7 @@ void Operand::PrintInfo() const {
             size = "Unknown";
             break;
         }
-        printf("Memory: %#16lx, size = %s", m_address, size);
+        printf("Memory: %#016lx, size = %s", m_address, size);
         break;
     }
     case OperandType::Complex: {
@@ -225,19 +225,19 @@ void Operand::PrintInfo() const {
         printf("Complex: size = %s", size);
         if (base_present) {
             if (base_type)
-                printf(" Base=%#16lx", base);
+                printf(" Base=%#016lx", base);
             else
                 printf(" Base=%s", base_reg->GetName());
         }
         if (index_present) {
             if (index_type)
-                printf(" Index=%#16lx", index);
+                printf(" Index=%#016lx", index);
             else
                 printf(" Index=%s", index_reg->GetName());
         }
         if (offset_present) {
             if (offset_type)
-                printf(" Offset=%#16lx", offset);
+                printf(" Offset=%#016lx", offset);
             else
                 printf(" Offset=%c%s", offset_sign ? '+' : '-', offset_reg->GetName());
         }

@@ -307,7 +307,7 @@ namespace InsEncoding {
 
     const char* GetInstructionName(Opcode opcode);
 
-    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, void (*errorHandler)(const char* message, void* data), void* errorData = nullptr);
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, int operandDataBuffersOffset, void (*errorHandler)(const char* message, void* data), void* errorData = nullptr);
     size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t dataSize, uint64_t globalOffset);
 } // namespace InsEncoding
 

@@ -25,10 +25,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace InsEncoding {
 
-    SimpleInstruction g_currentInstruction;
-    ComplexData g_complexData[3];
-    Register g_currentRegisters[9]; // maximum of 9 registers in an instruction
-    uint64_t g_rawData[9]; // maximum of 9 in an operand
+    struct DecodeData {
+        SimpleInstruction instruction;
+        ComplexData complexData[3];
+        Register currentRegisters[9]; // maximum of 9 registers in an instruction
+        uint64_t rawData[9]; // maximum of 9 in an operand
+    };
+
+    DecodeData g_decodeDataPool[128]; // NOTE: same size as emulator instruction cache
+    DecodeData* g_currentDecodeData;
 
     Instruction::Instruction()
         : m_opcode(Opcode::UNKNOWN), m_fileName(), m_line(0) {
@@ -403,20 +408,22 @@ namespace InsEncoding {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
-    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, void (*error_handler)(const char* message, void* data), void* error_data) {
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, int operandDataBuffersOffset, void (*error_handler)(const char* message, void* data), void* error_data) {
         if (out == nullptr)
             return false;
+
+        g_currentDecodeData = &g_decodeDataPool[operandDataBuffersOffset];
 
         uint8_t rawOpcode;
         buffer.ReadStream8(rawOpcode);
         currentOffset++;
 
-        g_currentInstruction.SetOpcode(static_cast<Opcode>(rawOpcode));
-        g_currentInstruction.operandCount = 0;
+        g_currentDecodeData->instruction.SetOpcode(static_cast<Opcode>(rawOpcode));
+        g_currentDecodeData->instruction.operandCount = 0;
 
-        uint8_t argCount = GetArgCountForOpcode(g_currentInstruction.GetOpcode());
+        uint8_t argCount = GetArgCountForOpcode(g_currentDecodeData->instruction.GetOpcode());
         if (argCount == 0) {
-            *out = g_currentInstruction;
+            *out = g_currentDecodeData->instruction;
             return true;
         }
 
@@ -541,11 +548,11 @@ namespace InsEncoding {
 
             switch (operandType) {
             case OperandType::COMPLEX: {
-                ComplexData* complex = &g_complexData[i];
+                ComplexData* complex = &g_currentDecodeData->complexData[i];
                 ConvertCompactToComplex(complex, &basicInfos[i], &extendedInfos[i], isExtendedOperand[i]);
                 if (complex->base.present) {
                     if (complex->base.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->base.data.imm.data = &g_rawData[i * 3];
+                        complex->base.data.imm.data = &g_currentDecodeData->rawData[i * 3];
                         switch (complex->base.data.imm.size) {
 #define SIZE_CASE(size, bits) \
         case OperandSize::size: \
@@ -562,13 +569,13 @@ namespace InsEncoding {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         currentOffset += sizeof(RegisterID);
-                        complex->base.data.reg = &g_currentRegisters[i * 3];
+                        complex->base.data.reg = &g_currentDecodeData->currentRegisters[i * 3];
                         *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
                 if (complex->index.present) {
                     if (complex->index.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->index.data.imm.data = &g_rawData[i * 3 + 1];
+                        complex->index.data.imm.data = &g_currentDecodeData->rawData[i * 3 + 1];
                         switch (complex->index.data.imm.size) {
 #define SIZE_CASE(size, bits) \
         case OperandSize::size: \
@@ -585,13 +592,13 @@ namespace InsEncoding {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         currentOffset += sizeof(RegisterID);
-                        complex->index.data.reg = &g_currentRegisters[i * 3 + 1];
+                        complex->index.data.reg = &g_currentDecodeData->currentRegisters[i * 3 + 1];
                         *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
                     }
                 }
                 if (complex->offset.present) {
                     if (complex->offset.type == ComplexItem::Type::IMMEDIATE) {
-                        complex->offset.data.imm.data = &g_rawData[i * 3 + 2];
+                        complex->offset.data.imm.data = &g_currentDecodeData->rawData[i * 3 + 2];
                         switch (complex->offset.data.imm.size) {
 #define SIZE_CASE(size, bits) \
         case OperandSize::size: \
@@ -608,7 +615,7 @@ namespace InsEncoding {
                         RegisterID reg_id{};
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         currentOffset += sizeof(RegisterID);
-                        complex->offset.data.reg = &g_currentRegisters[i * 3 + 2];
+                        complex->offset.data.reg = &g_currentDecodeData->currentRegisters[i * 3 + 2];
                         complex->offset.sign = reg_id.type & 1 << 3; // sign is stored in the highest bit of the type
                         reg_id.type &= ~(1 << 3); // clear the sign bit
                         *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
@@ -621,29 +628,29 @@ namespace InsEncoding {
                 RegisterID reg_id{};
                 buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                 currentOffset += sizeof(RegisterID);
-                Register* reg = &g_currentRegisters[i * 3];
+                Register* reg = &g_currentDecodeData->currentRegisters[i * 3];
                 *reg = GetRegisterFromID(reg_id, error_handler, error_data);
                 operand.data = reg;
                 break;
             }
             case OperandType::MEMORY: {
-                uint8_t* mem_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
+                uint8_t* mem_data = reinterpret_cast<uint8_t*>(&g_currentDecodeData->rawData[i * 3]);
                 buffer.ReadStream64(*reinterpret_cast<uint64_t*>(mem_data));
                 currentOffset += 8;
                 operand.data = mem_data;
                 break;
             }
             case OperandType::IMMEDIATE: {
-                uint8_t* imm_data = reinterpret_cast<uint8_t*>(&g_rawData[i * 3]);
-                switch (static_cast<uint8_t>(operandSize)) {
-#define SIZE_CASE(bytes, bits) \
-        case bytes: \
+                uint8_t* imm_data = reinterpret_cast<uint8_t*>(&g_currentDecodeData->rawData[i * 3]);
+                switch (operandSize) {
+#define SIZE_CASE(size, bits) \
+        case OperandSize::size: \
             buffer.ReadStream##bits(*reinterpret_cast<uint##bits##_t*>(imm_data)); \
             break
-                SIZE_CASE(0, 8);
-                SIZE_CASE(1, 16);
-                SIZE_CASE(2, 32);
-                SIZE_CASE(3, 64);
+                SIZE_CASE(BYTE, 8);
+                SIZE_CASE(WORD, 16);
+                SIZE_CASE(DWORD, 32);
+                SIZE_CASE(QWORD, 64);
 #undef SIZE_CASE
                 }
                 currentOffset += 1 << static_cast<uint8_t>(operandSize);
@@ -654,11 +661,11 @@ namespace InsEncoding {
                 error_handler("Invalid operand type", error_data);
             }
 
-            g_currentInstruction.operands[g_currentInstruction.operandCount] = operand;
-            g_currentInstruction.operandCount++;
+            g_currentDecodeData->instruction.operands[g_currentDecodeData->instruction.operandCount] = operand;
+            g_currentDecodeData->instruction.operandCount++;
         }
 
-        *out = g_currentInstruction;
+        *out = g_currentDecodeData->instruction;
         return true;
     }
 

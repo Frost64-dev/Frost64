@@ -160,12 +160,6 @@ target_compile_options(Emulator
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fstack-protector>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-O1>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fno-omit-frame-pointer>
-    # PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
-    # PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fsanitize=undefined,address>
 )
-
-# target_link_options(Emulator
-#     PRIVATE $<$<LINK_LANGUAGE:CXX,C>:-fsanitize=undefined,address>
-# )
 
 install(TARGETS Emulator DESTINATION ${CMAKE_SOURCE_DIR}/bin)

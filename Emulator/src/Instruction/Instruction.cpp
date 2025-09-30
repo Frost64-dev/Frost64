@@ -311,7 +311,10 @@ bool ExecuteInstruction(uint64_t IP) {
                 }
                 if (i_offset == -1) {
                     // all used, start from current + 1
-                    i_offset = g_currentCacheOffset + 1;
+                    if (g_currentCacheOffset == 127)
+                        i_offset = 0;
+                    else
+                        i_offset = g_currentCacheOffset + 1;
                 }
             }
             g_currentCacheOffset = i_offset;
@@ -326,7 +329,7 @@ bool ExecuteInstruction(uint64_t IP) {
             g_insCache.MaybeSetBaseAddress(IP);
             g_cacheJustMissed = true;
         }
-        if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction->instruction, [](const char* message, void*) {
+        if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction->instruction, g_currentCacheOffset, [](const char* message, void*) {
     #ifdef EMULATOR_DEBUG
             printf("Decoding error: %s\n", message);
     #else

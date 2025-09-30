@@ -35,7 +35,7 @@ void Disassembler::Disassemble(std::function<void()> errorCallback) {
     m_errorCallback = std::move(errorCallback);
 
     while (m_current_offset < m_buffer.GetSize()) {
-        if (!InsEncoding::DecodeInstruction(m_buffer, m_current_offset, &m_current_instruction, [](const char* message, void* data){
+        if (!InsEncoding::DecodeInstruction(m_buffer, m_current_offset, &m_current_instruction, 0, [](const char* message, void* data){
             Disassembler* dis = static_cast<Disassembler*>(data);
             if (dis != nullptr)
                 dis->error(message);
