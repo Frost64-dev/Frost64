@@ -90,6 +90,8 @@ public:
     [[gnu::always_inline]] inline uint64_t operator+=(uint64_t value) { SetValue(GetValue() + value); return GetValue(); }
     [[gnu::always_inline]] inline uint64_t operator-=(uint64_t value) { SetValue(GetValue() - value); return GetValue(); }
 
+    uint64_t* GetRawValuePointer() { return &m_value; }
+
 protected:
     bool m_dirty;
     bool m_writable;

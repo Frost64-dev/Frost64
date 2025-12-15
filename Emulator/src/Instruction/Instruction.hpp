@@ -30,7 +30,6 @@ void InitInsCache(uint64_t startingIP, MMU* mmu);
 void UpdateInsCacheMMU(MMU* mmu);
 void InsCache_MaybeSetBaseAddress(uint64_t IP);
 
-bool ExecuteInstruction(uint64_t IP);
 void ExecutionLoop();
 void StopExecution(void** state = nullptr); // If state is non-NULL, a new object of will be allocated with new, and deleted when parsed to the next AllowExecution call.
 void AllowExecution(void** oldState = nullptr); // If oldState is non-NULL, it will be deleted after restoring the state.

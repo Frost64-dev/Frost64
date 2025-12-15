@@ -423,6 +423,18 @@ namespace Emulator {
         return g_registers.IP->GetValueNoCheck();
     }
 
+    void SetCPUIPFromNext() {
+        g_registers.IP->SetValueNoCheck(g_NextIP);
+    }
+
+    uint64_t* GetRawIPPointer() {
+        return g_registers.IP->GetRawValuePointer();
+    }
+
+    uint64_t* GetRawNextIPPointer() {
+        return &g_NextIP;
+    }
+
     [[noreturn]] void JumpToIP(uint64_t value) {
         RaiseEvent({EventType::SwitchToIP, value});
         EmulatorThread->join();

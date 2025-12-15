@@ -48,6 +48,9 @@ std::atomic_uchar g_ExecutionRunning = 0;
 std::atomic_uchar g_TerminateExecution = 0;
 std::atomic_uchar g_AllowOneInstruction = 0;
 
+uint64_t* g_rawIPPointer = nullptr;
+uint64_t* g_rawNextIPPointer = nullptr;
+
 struct InsOpcodeArgCountPair {
     void* function;
     uint8_t argCount;
@@ -133,8 +136,10 @@ void InitInstructionSubsystem(uint64_t startingIP, MMU* mmu) {
     SETINSFUNC(ENTERUSER, ins_enteruser, 1);
 #undef SETINSFUNC
 
-    InitInsCache(startingIP, mmu);
+    g_rawIPPointer = Emulator::GetRawIPPointer();
+    g_rawNextIPPointer = Emulator::GetRawNextIPPointer();
 
+    InitInsCache(startingIP, mmu);
 }
 
 void InitInsCache(uint64_t startingIP, MMU *mmu) {
@@ -161,7 +166,11 @@ void InsCache_MaybeSetBaseAddress(uint64_t IP) {
 int FindIPInInsCache(uint64_t IP) {
     if (g_currentInstruction->used && g_currentInstruction->IP == IP)
         return g_currentCacheOffset;
-    for (int i = 0; i < 128; i++) {
+    for (int i = g_currentCacheOffset - 1; i > 0; i--) {
+        if (g_InstructionDataCache[i].used && g_InstructionDataCache[i].IP == IP)
+            return i;
+    }
+    for (int i = 127; i > g_currentCacheOffset; i--) {
         if (g_InstructionDataCache[i].used && g_InstructionDataCache[i].IP == IP)
             return i;
     }
@@ -229,250 +238,247 @@ void RemoveBreakpoint(uint64_t address) {
     spinlock_release(&g_breakpointsLock);
 }
 
-bool ExecuteInstruction(uint64_t IP) {
-    if (g_TerminateExecution.load() == 1) {
-        g_ExecutionRunning.store(0);
-        g_ExecutionRunning.notify_all();
-        return false; // completely stop execution
-    }
-    if (g_ExecutionAllowed.load() == 0) {
-        if (g_ExecutionRunning.load() == 1) {
+void ExecutionLoop() {
+    while (true) {
+        uint64_t IP = *g_rawIPPointer;
+        if (g_TerminateExecution.load() == 1) {
             g_ExecutionRunning.store(0);
             g_ExecutionRunning.notify_all();
+            break; // completely stop execution
         }
-        g_ExecutionAllowed.wait(0);
-        return true; // still looping through instructions, just not doing anything
-    }
-    else if (g_ExecutionRunning.load() == 0) {
-        g_ExecutionRunning.store(1);
-        g_ExecutionRunning.notify_all();
-    }
-
-    if (g_AllowOneInstruction.load() == 1) {
-        g_ExecutionRunning.store(1);
-        g_AllowOneInstruction.store(0);
-        g_AllowOneInstruction.notify_all();
-        g_ExecutionAllowed.store(0);
-    }
-
-    if (g_breakpointsEnabled.load() == 1 && g_AllowOneInstruction.load() == 0) { // don't check on single step
-        // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
-        spinlock_acquire(&g_breakpointsLock);
-        auto it = g_breakpoints.find(IP);
-        if (it != g_breakpoints.end()) {
-            g_ExecutionRunning.store(0);
-            g_ExecutionRunning.notify_all();
-            g_ExecutionAllowed.store(0);
-            g_ExecutionAllowed.notify_all();
-
-            g_CurrentBreakpoint.first = IP;
-            g_CurrentBreakpoint.second = it->second;
-            g_breakpointHit = true;
-            g_breakpoints.erase(it);
-            spinlock_release(&g_breakpointsLock);
-
-            g_CurrentBreakpoint.second(IP);
-
-            return true;
-        }
-        spinlock_release(&g_breakpointsLock);
-    }
-
-    if (g_breakpointHit && g_CurrentBreakpoint.first != IP) {
-        spinlock_acquire(&g_breakpointsLock);
-        g_breakpoints[g_CurrentBreakpoint.first] = g_CurrentBreakpoint.second;
-        g_breakpointHit = false;
-        spinlock_release(&g_breakpointsLock);
-    }
-
-
-    if (int offset = FindIPInInsCache(IP); offset != -1) {
-        g_currentInstruction = &g_InstructionDataCache[offset];
-        g_currentCacheOffset = offset;
-        g_cacheJustMissed = false;
-    }
-    else {
-        if (g_currentInstruction->used) {
-            // need to find a different slot
-            int i_offset = -1;
-            for (int i = g_currentCacheOffset + 1; i < 128; i++) { // start with going from the current offset to the end
-                if (!g_InstructionDataCache[i].used) {
-                    i_offset = i;
-                    break;
-                }
+        if (g_ExecutionAllowed.load() == 0) {
+            if (g_ExecutionRunning.load() == 1) {
+                g_ExecutionRunning.store(0);
+                g_ExecutionRunning.notify_all();
             }
-            if (i_offset == -1) {
-                // start from 0, until current offset
-                for (int i = 0; i < g_currentCacheOffset; i++) {
+            g_ExecutionAllowed.wait(0);
+            continue; // still looping through instructions, just not doing anything
+        }
+        else if (g_ExecutionRunning.load() == 0) {
+            g_ExecutionRunning.store(1);
+            g_ExecutionRunning.notify_all();
+        }
+
+        if (g_AllowOneInstruction.load() == 1) {
+            g_ExecutionRunning.store(1);
+            g_AllowOneInstruction.store(0);
+            g_AllowOneInstruction.notify_all();
+            g_ExecutionAllowed.store(0);
+        }
+
+        if (g_breakpointsEnabled.load() == 1 && g_AllowOneInstruction.load() == 0) { // don't check on single step
+            // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
+            spinlock_acquire(&g_breakpointsLock);
+            auto it = g_breakpoints.find(IP);
+            if (it != g_breakpoints.end()) {
+                g_ExecutionRunning.store(0);
+                g_ExecutionRunning.notify_all();
+                g_ExecutionAllowed.store(0);
+                g_ExecutionAllowed.notify_all();
+
+                g_CurrentBreakpoint.first = IP;
+                g_CurrentBreakpoint.second = it->second;
+                g_breakpointHit = true;
+                g_breakpoints.erase(it);
+                spinlock_release(&g_breakpointsLock);
+
+                g_CurrentBreakpoint.second(IP);
+
+                continue;
+            }
+            spinlock_release(&g_breakpointsLock);
+        }
+
+        if (g_breakpointHit && g_CurrentBreakpoint.first != IP) {
+            spinlock_acquire(&g_breakpointsLock);
+            g_breakpoints[g_CurrentBreakpoint.first] = g_CurrentBreakpoint.second;
+            g_breakpointHit = false;
+            spinlock_release(&g_breakpointsLock);
+        }
+
+
+        if (int offset = FindIPInInsCache(IP); offset != -1) {
+            g_currentInstruction = &g_InstructionDataCache[offset];
+            g_currentCacheOffset = offset;
+            g_cacheJustMissed = false;
+        }
+        else {
+            if (g_currentInstruction->used) {
+                // need to find a different slot
+                int i_offset = -1;
+                for (int i = g_currentCacheOffset + 1; i < 128; i++) { // start with going from the current offset to the end
                     if (!g_InstructionDataCache[i].used) {
                         i_offset = i;
                         break;
                     }
                 }
                 if (i_offset == -1) {
-                    // all used, start from current + 1
-                    if (g_currentCacheOffset == 127)
-                        i_offset = 0;
-                    else
-                        i_offset = g_currentCacheOffset + 1;
+                    // start from 0, until current offset
+                    for (int i = 0; i < g_currentCacheOffset; i++) {
+                        if (!g_InstructionDataCache[i].used) {
+                            i_offset = i;
+                            break;
+                        }
+                    }
+                    if (i_offset == -1) {
+                        // all used, start from current + 1
+                        if (g_currentCacheOffset == 127)
+                            i_offset = 0;
+                        else
+                            i_offset = g_currentCacheOffset + 1;
+                    }
                 }
+                g_currentCacheOffset = i_offset;
+                g_currentInstruction = &g_InstructionDataCache[i_offset];
             }
-            g_currentCacheOffset = i_offset;
-            g_currentInstruction = &g_InstructionDataCache[i_offset];
-        }
-        g_currentInstruction->used = false;
-        g_currentInstruction->IP = 0;
-        g_currentInstruction->pair.function = nullptr;
-        g_currentInstruction->pair.argCount = 0;
-        uint64_t currentOffset = 0;
-        if (!g_cacheJustMissed) {
-            g_insCache.MaybeSetBaseAddress(IP);
-            g_cacheJustMissed = true;
-        }
-        if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction->instruction, g_currentCacheOffset, [](const char* message, void*) {
-    #ifdef EMULATOR_DEBUG
-            printf("Decoding error: %s\n", message);
-    #else
-            (void)message;
-    #endif
-            g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-        }))
-            g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-        InsEncoding::SimpleInstruction& currentIns = g_currentInstruction->instruction;
-        ComplexData* complex = g_currentInstruction->complex;
-        uint8_t Opcode = static_cast<uint8_t>(currentIns.GetOpcode());
-        for (uint64_t i = 0; i < currentIns.operandCount; i++) {
-            switch (InsEncoding::Operand* op = &currentIns.operands[i]; op->type) {
-            case InsEncoding::OperandType::REGISTER: {
-                InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
-                Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), reg);
-                break;
+            g_currentInstruction->used = false;
+            g_currentInstruction->IP = 0;
+            g_currentInstruction->pair.function = nullptr;
+            g_currentInstruction->pair.argCount = 0;
+            uint64_t currentOffset = 0;
+            if (!g_cacheJustMissed) {
+                g_insCache.MaybeSetBaseAddress(IP);
+                g_cacheJustMissed = true;
             }
-            case InsEncoding::OperandType::IMMEDIATE: {
-                uint64_t data;
-                switch (op->size) {
-                case InsEncoding::OperandSize::BYTE:
-                    data = *static_cast<uint8_t*>(op->data);
+            if (!DecodeInstruction(g_insCache, currentOffset, &g_currentInstruction->instruction, g_currentCacheOffset, [](const char* message, void*) {
+        #ifdef EMULATOR_DEBUG
+                printf("Decoding error: %s\n", message);
+        #else
+                (void)message;
+        #endif
+                g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+            }))
+                g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+            InsEncoding::SimpleInstruction& currentIns = g_currentInstruction->instruction;
+            ComplexData* complex = g_currentInstruction->complex;
+            uint8_t Opcode = static_cast<uint8_t>(currentIns.GetOpcode());
+            for (uint64_t i = 0; i < currentIns.operandCount; i++) {
+                switch (InsEncoding::Operand* op = &currentIns.operands[i]; op->type) {
+                case InsEncoding::OperandType::REGISTER: {
+                    InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
+                    Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                    g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), reg);
                     break;
-                case InsEncoding::OperandSize::WORD:
-                    data = *static_cast<uint16_t*>(op->data);
+                }
+                case InsEncoding::OperandType::IMMEDIATE: {
+                    uint64_t data;
+                    switch (op->size) {
+                    case InsEncoding::OperandSize::BYTE:
+                        data = *static_cast<uint8_t*>(op->data);
+                        break;
+                    case InsEncoding::OperandSize::WORD:
+                        data = *static_cast<uint16_t*>(op->data);
+                        break;
+                    case InsEncoding::OperandSize::DWORD:
+                        data = *static_cast<uint32_t*>(op->data);
+                        break;
+                    case InsEncoding::OperandSize::QWORD:
+                        data = *static_cast<uint64_t*>(op->data);
+                        break;
+                    default:
+                        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                        break;
+                    }
+                    g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), data);
                     break;
-                case InsEncoding::OperandSize::DWORD:
-                    data = *static_cast<uint32_t*>(op->data);
+                }
+                case InsEncoding::OperandType::MEMORY: {
+                    uint64_t* temp = static_cast<uint64_t*>(op->data);
+                    g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), *temp, Emulator::HandleMemoryOperation);
                     break;
-                case InsEncoding::OperandSize::QWORD:
-                    data = *static_cast<uint64_t*>(op->data);
+                }
+                case InsEncoding::OperandType::COMPLEX: {
+                    InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
+                    complex[i].base.present = temp->base.present;
+                    complex[i].index.present = temp->index.present;
+                    complex[i].offset.present = temp->offset.present;
+                    if (complex[i].base.present) {
+                        if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                            InsEncoding::Register* tempReg = temp->base.data.reg;
+                            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                            complex[i].base.data.reg = reg;
+                            complex[i].base.type = ComplexItem::Type::REGISTER;
+                        } else {
+                            complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
+                            complex[i].base.data.imm.data = temp->base.data.imm.data;
+                            complex[i].base.type = ComplexItem::Type::IMMEDIATE;
+                        }
+                    } else
+                        complex[i].base.present = false;
+                    if (complex[i].index.present) {
+                        if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                            InsEncoding::Register* tempReg = temp->index.data.reg;
+                            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                            complex[i].index.data.reg = reg;
+                            complex[i].index.type = ComplexItem::Type::REGISTER;
+                        } else {
+                            complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
+                            complex[i].index.data.imm.data = temp->index.data.imm.data;
+                            complex[i].index.type = ComplexItem::Type::IMMEDIATE;
+                        }
+                    } else
+                        complex[i].index.present = false;
+                    if (complex[i].offset.present) {
+                        if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                            InsEncoding::Register* tempReg = temp->offset.data.reg;
+                            Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
+                            complex[i].offset.data.reg = reg;
+                            complex[i].offset.type = ComplexItem::Type::REGISTER;
+                            complex[i].offset.sign = temp->offset.sign;
+                        } else {
+                            complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
+                            complex[i].offset.data.imm.data = temp->offset.data.imm.data;
+                            complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
+                        }
+                    } else
+                        complex[i].offset.present = false;
+                    g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), &complex[i], Emulator::HandleMemoryOperation);
                     break;
+                }
                 default:
                     g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                     break;
                 }
-                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), data);
-                break;
             }
-            case InsEncoding::OperandType::MEMORY: {
-                uint64_t* temp = static_cast<uint64_t*>(op->data);
-                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), *temp, Emulator::HandleMemoryOperation);
-                break;
-            }
-            case InsEncoding::OperandType::COMPLEX: {
-                InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
-                complex[i].base.present = temp->base.present;
-                complex[i].index.present = temp->index.present;
-                complex[i].offset.present = temp->offset.present;
-                if (complex[i].base.present) {
-                    if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                        InsEncoding::Register* tempReg = temp->base.data.reg;
-                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                        complex[i].base.data.reg = reg;
-                        complex[i].base.type = ComplexItem::Type::REGISTER;
-                    } else {
-                        complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
-                        complex[i].base.data.imm.data = temp->base.data.imm.data;
-                        complex[i].base.type = ComplexItem::Type::IMMEDIATE;
-                    }
-                } else
-                    complex[i].base.present = false;
-                if (complex[i].index.present) {
-                    if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                        InsEncoding::Register* tempReg = temp->index.data.reg;
-                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                        complex[i].index.data.reg = reg;
-                        complex[i].index.type = ComplexItem::Type::REGISTER;
-                    } else {
-                        complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
-                        complex[i].index.data.imm.data = temp->index.data.imm.data;
-                        complex[i].index.type = ComplexItem::Type::IMMEDIATE;
-                    }
-                } else
-                    complex[i].index.present = false;
-                if (complex[i].offset.present) {
-                    if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                        InsEncoding::Register* tempReg = temp->offset.data.reg;
-                        Register* reg = Emulator::GetRegisterPointer(static_cast<uint8_t>(*tempReg));
-                        complex[i].offset.data.reg = reg;
-                        complex[i].offset.type = ComplexItem::Type::REGISTER;
-                        complex[i].offset.sign = temp->offset.sign;
-                    } else {
-                        complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
-                        complex[i].offset.data.imm.data = temp->offset.data.imm.data;
-                        complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
-                    }
-                } else
-                    complex[i].offset.present = false;
-                g_currentInstruction->operands[i] = Operand(static_cast<OperandSize>(op->size), &complex[i], Emulator::HandleMemoryOperation);
-                break;
-            }
-            default:
+            g_currentInstruction->IP = IP;
+
+            // Get the instruction
+            g_currentInstruction->pair = g_InstructionFunctions[Opcode];
+            if (g_currentInstruction->pair.function == nullptr)
                 g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-                break;
-            }
+            g_currentInstruction->size = currentOffset;
+            g_currentInstruction->used = true;
         }
-        g_currentInstruction->IP = IP;
 
-        // Get the instruction
-        g_currentInstruction->pair = g_InstructionFunctions[Opcode];
-        if (g_currentInstruction->pair.function == nullptr)
+        // Increment instruction pointer
+        *g_rawNextIPPointer = IP + g_currentInstruction->size;
+
+        InsOpcodeArgCountPair pair = g_currentInstruction->pair;
+        Operand* operands = g_currentInstruction->operands;
+
+        // Update the cache
+        g_currentCacheOffset++;
+        if (g_currentCacheOffset >= 128) // wrap around
+            g_currentCacheOffset = 0;
+        g_currentInstruction = &g_InstructionDataCache[g_currentCacheOffset];
+
+        // Execute the instruction
+        if (pair.argCount == 0)
+            reinterpret_cast<void (*)()>(pair.function)();
+        else if (pair.argCount == 1)
+            reinterpret_cast<void (*)(Operand*)>(pair.function)(&operands[0]);
+        else if (pair.argCount == 2)
+            reinterpret_cast<void (*)(Operand*, Operand*)>(pair.function)(&operands[0], &operands[1]);
+        else if (pair.argCount == 3)
+            reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(pair.function)(&operands[0], &operands[1], &operands[2]);
+        else
             g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-        g_currentInstruction->size = currentOffset;
-        g_currentInstruction->used = true;
+
+        Emulator::SyncRegisters();
+
+        // Set the IP to the next instruction
+        *g_rawIPPointer = *g_rawNextIPPointer;
     }
-
-    // Increment instruction pointer
-    Emulator::SetNextIP(IP + g_currentInstruction->size);
-
-    InsOpcodeArgCountPair pair = g_currentInstruction->pair;
-    Operand* operands = g_currentInstruction->operands;
-
-    // Update the cache
-    g_currentCacheOffset++;
-    if (g_currentCacheOffset >= 128) // wrap around
-        g_currentCacheOffset = 0;
-    g_currentInstruction = &g_InstructionDataCache[g_currentCacheOffset];
-
-    // Execute the instruction
-    if (pair.argCount == 0)
-        reinterpret_cast<void (*)()>(pair.function)();
-    else if (pair.argCount == 1)
-        reinterpret_cast<void (*)(Operand*)>(pair.function)(&operands[0]);
-    else if (pair.argCount == 2)
-        reinterpret_cast<void (*)(Operand*, Operand*)>(pair.function)(&operands[0], &operands[1]);
-    else if (pair.argCount == 3)
-        reinterpret_cast<void (*)(Operand*, Operand*, Operand*)>(pair.function)(&operands[0], &operands[1], &operands[2]);
-    else
-        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-
-    Emulator::SyncRegisters();
-
-    Emulator::SetCPU_IP(Emulator::GetNextIP());
-    return true;
-}
-
-void ExecutionLoop() {
-    bool status = true;
-    while (status)
-        status = ExecuteInstruction(Emulator::GetCPU_IP());
 }
 
 #ifdef EMULATOR_DEBUG
@@ -588,7 +594,7 @@ ALU_INSTRUCTION1(dec)
 void ins_ret() {
     PRINT_INS_INFO0();
     uint64_t IP = g_stack->pop();
-    Emulator::SetNextIP(IP);
+    *g_rawNextIPPointer = IP;
     g_insCache.MaybeSetBaseAddress(IP);
 }
 
@@ -596,14 +602,14 @@ void ins_call(Operand* dst) {
     PRINT_INS_INFO1(dst);
     g_stack->push(Emulator::GetNextIP());
     uint64_t IP = dst->GetValue();
-    Emulator::SetNextIP(IP);
+    *g_rawNextIPPointer = IP;
     g_insCache.MaybeSetBaseAddress(IP);
 }
 
 void ins_jmp(Operand* dst) {
     PRINT_INS_INFO1(dst);
     uint64_t IP = dst->GetValue();
-    Emulator::SetNextIP(IP);
+    *g_rawNextIPPointer = IP;
     g_insCache.MaybeSetBaseAddress(IP);
 }
 
@@ -611,7 +617,7 @@ void ins_jc(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); flags & 1) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -620,7 +626,7 @@ void ins_jnc(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 1)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -629,7 +635,7 @@ void ins_jz(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); flags & 2) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -638,7 +644,7 @@ void ins_jnz(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); !(flags & 2)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -647,7 +653,7 @@ void ins_jl(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -656,7 +662,7 @@ void ins_jle(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) != (flags & 8) || (flags & 2)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -665,7 +671,7 @@ void ins_jnl(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }
@@ -674,7 +680,7 @@ void ins_jnle(Operand* dst) {
     PRINT_INS_INFO1(dst);
     if (uint64_t flags = Emulator::GetCPUStatus(); (flags & 4) == (flags & 8) && !(flags & 2)) {
         uint64_t IP = dst->GetValue();
-        Emulator::SetNextIP(IP);
+        *g_rawNextIPPointer = IP;
         g_insCache.MaybeSetBaseAddress(IP);
     }
 }

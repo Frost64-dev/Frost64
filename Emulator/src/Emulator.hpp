@@ -66,6 +66,10 @@ namespace Emulator {
 
     void SetCPU_IP(uint64_t value);
     uint64_t GetCPU_IP();
+    void SetCPUIPFromNext();
+
+    uint64_t* GetRawIPPointer();
+    uint64_t* GetRawNextIPPointer();
 
     [[noreturn]] void JumpToIP(uint64_t value);
     void JumpToIPExternal(uint64_t value); // assumes the execution thread is dead
