@@ -94,9 +94,11 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoDevice.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/VideoMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/BIOSMemoryRegion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MemoryControlSystem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/MMU.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/StandardMemoryRegion.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/SystemControlMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MMU/VirtualMMU.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/DebugInterface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Emulator.cpp

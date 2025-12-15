@@ -40,6 +40,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <thread>
 
 #include "IO/Devices/Video/backends/XCB/XCBVideoBackend.hpp"
+#include "MMU/SystemControlMemoryRegion.hpp"
 #include "OSSpecific/Signal.hpp"
 
 namespace Emulator {
@@ -78,7 +79,10 @@ namespace Emulator {
 
     bool g_emulatorRunning = false;
 
-    bool g_isInProtectedMode = false;
+    enum class PrivilegeMode {
+        REAL_MODE,
+        PROTECTED_MODE
+    } g_privilegeMode = PrivilegeMode::REAL_MODE;
     bool g_isInUserMode = false;
     bool g_isPagingEnabled = false;
 
@@ -88,7 +92,7 @@ namespace Emulator {
     std::thread* ExecutionThread;
     std::thread* EmulatorThread;
 
-    IOMemoryRegion* g_IOMemoryRegion;
+    SystemControlMemoryRegion* g_SysControlMemoryRegion;
     BIOSMemoryRegion* g_BIOSMemoryRegion;
 
     DebugInterface* g_DebugInterface = nullptr;
@@ -208,18 +212,13 @@ namespace Emulator {
         // Configure the IO bus
         g_IOBus = new IOBus(&g_physicalMMU);
 
-        // Add an IOMemoryRegion
-        g_IOMemoryRegion = new IOMemoryRegion(0xFFFF'FF00, 0x1'0000'0000, g_IOBus);
-        g_physicalMMU.AddMemoryRegion(g_IOMemoryRegion);
+        // Add a SystemControlMemoryRegion
+        g_SysControlMemoryRegion = new SystemControlMemoryRegion(0xFFFF'FF00, 0x1'0000'0000, g_IOBus, ramSize, &g_physicalMMU);
+        g_physicalMMU.AddMemoryRegion(g_SysControlMemoryRegion);
 
         // Add a BIOSMemoryRegion
         g_BIOSMemoryRegion = new BIOSMemoryRegion(0xF000'0000, 0xFFFF'FF00, size);
         g_physicalMMU.AddMemoryRegion(g_BIOSMemoryRegion);
-
-        // Split the RAM into two regions
-        g_physicalMMU.AddMemoryRegion(new StandardMemoryRegion(0, MIN(ramSize, 0xF000'0000)));
-        if (ramSize > 0xF000'0000)
-            g_physicalMMU.AddMemoryRegion(new StandardMemoryRegion(0x1'0000'0000, ramSize + 0x1000'0000));
 
         g_IOInterfaceManager = new IOInterfaceManager();
 
@@ -439,8 +438,8 @@ namespace Emulator {
     void SyncRegisters() {
         if (g_registers.Control[0]->IsDirty()) {
             uint64_t control = g_registers.Control[0]->GetValue();
-            bool wasInProtectedMode = g_isInProtectedMode;
-            g_isInProtectedMode = control & 1;
+            bool wasInProtectedMode = g_privilegeMode == PrivilegeMode::PROTECTED_MODE;
+            g_privilegeMode = control & 1 ? PrivilegeMode::PROTECTED_MODE : PrivilegeMode::REAL_MODE;
             if (((control & 2) > 0) != g_isPagingEnabled) {
                 g_isPagingEnabled = (control & 2) > 0;
                 if (g_isPagingEnabled) {
@@ -448,8 +447,8 @@ namespace Emulator {
                     PageTableLevelCount pageTableLevelCount = static_cast<PageTableLevelCount>((control & 0x30) >> 4);
                     if (pageSize == PS_64KiB && pageTableLevelCount == PTLC_5) {
                         // restore any changes
-                        if (!wasInProtectedMode && g_isInProtectedMode)
-                            g_isInProtectedMode = false;
+                        if (!wasInProtectedMode && g_privilegeMode == PrivilegeMode::PROTECTED_MODE)
+                            g_privilegeMode = PrivilegeMode::REAL_MODE;
                         g_isPagingEnabled = false;
                         g_registers.Control[0]->SetDirty(false);
                         g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
@@ -493,7 +492,7 @@ namespace Emulator {
     }
 
     bool isInProtectedMode() {
-        return g_isInProtectedMode;
+        return g_privilegeMode == PrivilegeMode::PROTECTED_MODE;
     }
 
     bool isInUserMode() {

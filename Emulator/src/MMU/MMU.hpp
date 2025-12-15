@@ -56,6 +56,9 @@ class MMU {
     virtual bool RemoveRegionSegment(uint64_t start, uint64_t end, void** data_out);
     virtual bool ReaddRegionSegment(void* data_in);
 
+    // check if there are any existing regions with the specified address range
+    virtual bool HasRegion(uint64_t address, size_t size);
+
    private:
     struct RegionSegmentInfo {
         uint64_t start;

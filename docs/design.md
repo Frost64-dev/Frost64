@@ -73,17 +73,17 @@
 - The first 32 interrupts are reserved for exceptions.
 - Currently, there are 9 exceptions defined as follows:
 
-| Number | Name                      | Error Code Size in QWORDs | Description                                                        |
-|--------|---------------------------|---------------------------|--------------------------------------------------------------------|
-| 0      | Divide by zero            | 0                         | Thrown when a divide by zero is attempted                          |
-| 1      | Phys Mem Violation        | 1                         | Thrown when an invalid physical memory address is accessed         |
-| 2      | Unhandled Interrupt       | 1                         | Thrown when an interrupt is raised but not handled                 |
-| 3      | Invalid Instruction       | 0                         | Thrown when an invalid instruction is executed                     |
-| 4      | Stack Violation           | 1                         | Thrown when the stack is out of bounds or unaligned                |
-| 5      | User Mode Violation       | 0                         | Thrown when a supervisor mode instruction is executed in user mode |
-| 6      | Supervisor Mode Violation | 0                         | Thrown when a user mode instruction is executed in supervisor mode |
-| 7      | Paging Violation          | 2                         | Thrown when a paging violation occurs                              |
-| 8      | Integer Overflow          | 0                         | Thrown when an integer overflow occurs                             |
+| Number | Name                      | Error Code Size in QWORDs | Description                                                                       |
+|--------|---------------------------|---------------------------|-----------------------------------------------------------------------------------|
+| 0      | Divide by zero            | 0                         | Thrown when a divide by zero is attempted                                         |
+| 1      | Phys Mem Violation        | 1                         | Thrown when an invalid physical memory address is accessed                        |
+| 2      | Unhandled Interrupt       | 1                         | Thrown when an interrupt is raised but not handled                                |
+| 3      | Invalid Instruction       | 0                         | Thrown when an invalid instruction is executed                                    |
+| 4      | Stack Violation           | 1                         | Thrown when the stack is out of bounds or unaligned                               |
+| 5      | User Mode Violation       | 0                         | Thrown when a supervisor mode instruction is executed in user mode                |
+| 6      | Supervisor Mode Violation | 0                         | Thrown when a system mode or user mode instruction is executed in supervisor mode |
+| 7      | Paging Violation          | 2                         | Thrown when a paging violation occurs                                             |
+| 8      | Integer Overflow          | 0                         | Thrown when an integer overflow occurs                                            |
 
 ### Error Info
 
@@ -672,12 +672,93 @@ asciiz "Hello, world!"
 - Expressions are evaluated left to right, with standard operator precedence, similar to languages like C.
 - Expressions must be enclosed in parentheses.
 
+## Memory
+
+### Layout
+
+- This is the current memory layout of the system:
+
+| Start                 | End                   | Description      |
+|-----------------------|-----------------------|------------------|
+| 0x0000'0000'0000'0000 | 0x0000'0000'EFFF'FFFF | Low User memory  |
+| 0x0000'0000'F000'0000 | 0x0000'0000'FFFF'FEFF | BIOS             |
+| 0x0000'0000'FFFF'FF00 | 0x0000'0000'FFFF'FFFF | System Control   |
+| 0x0000'0001'0000'0000 | 0xFFFF'FFFF'FFFF'FFFF | High User memory |
+
+- The BIOS region should never be accessed outside the BIOS.
+
+### System Control
+
+#### System Control layout
+
+| Offset | Width | Name     | Description                  |
+|--------|-------|----------|------------------------------|
+| 0x00   | 8     | SCR0     | System Control Register 0    |
+| 0x08   | 8     | SCR1     | System Control Register 1    |
+| 0x10   | 48    | I/O Bus  | I/O Bus region               |
+| 0x40   | 48    | MEMCTRL  | Memory control system region |
+| 0x70   | 144   | RESERVED | Reserved                     |
+
+- The system control registers are not to be confused with the control registers (CR0-CR7).
+- The I/O Bus region is described in the [Devices](#devices) section.
+- The memory control system region is described in the [Memory control system region](#memory-control-system-region) section.
+
+### System Control Registers
+
+- Both are unused currently and will just return 0 when read, and ignore writes.
+
+### Memory control system region
+
+- The memory control system region is used to control the location of the RAM within the physical address space.
+- It is broken up into 4 QWORD registers.
+- The layout is as follows:
+
+| Offset | Width | Name    | Description      |
+|--------|-------|---------|------------------|
+| 0x00   | 8     | Command | Command register |
+| 0x08   | 8     | Status  | Status register  |
+| 0x10   | 32    | Data    | Data register    |
+
+- The command register is used to send commands to the device, and is write-only, reads will return 0.
+- The status register is used to get the status of the device, and is read-only, writes will be ignored. Bit 0 is set when there is an error.
+
+#### Commands
+
+| Command | Name       | Description                            |
+|---------|------------|----------------------------------------|
+| 0       | Get info   | Get information about available memory |
+| 1       | Set region | Set memory region                      |
+
+##### Get info
+
+- 0 arguments
+- Status register is set to 0 if there is no error.
+- Data register contains the following:
+
+| Offset | Width | Name     | Description          |
+|--------|-------|----------|----------------------|
+| 0      | 8     | RAM Size | Size of RAM in bytes |
+
+##### Set region
+
+- Arguments are as follows:
+
+| Offset | Width | Name       | Description                     |
+|--------|-------|------------|---------------------------------|
+| 0      | 8     | Base Addr  | Base physical address to map to |
+| 8      | 8     | Size       | Size of region in bytes         |
+
+- Status register is set to 0 if there is no error.
+- The region must be page aligned, and the size must be a multiple of the page size. The page size used must be the maximum available base page size of 64KiB.
+- The region must not overlap with any other memory regions, including the BIOS region and the System Control region.
+- The offset in the physical RAM itself is just whatever is the next available.
+
 ## Devices
 
 ### Memory mapped I/O bus device
 
-- 1 64-bit Memory mapped I/O bus device in the last 256 bytes of the BIOS address space.
-- All accesses are 8-byte aligned regardless of the size of the access, allowing for up to 32 ports.
+- The memory mapped I/O bus device is used to configure and manage devices on the I/O bus. It is located in the System Control region.
+- All accesses are 8-byte aligned regardless of the size of the access.
 - This is the current port layout:
 
 | Offset | Size in QWORDS | Name     | Description      |
@@ -685,7 +766,6 @@ asciiz "Hello, world!"
 | 0      | 1              | COMMAND  | Command register |
 | 1      | 1              | STATUS   | Status register  |
 | 2      | 4              | DATA     | Data register    |
-| 6      | 26             | RESERVED | Reserved         |
 
 - The command register is used to send commands to the device.
 - The status register is used to get the status of the device. Bit 0 is set to 1 when the current command is complete, and bit 1 is set to 1 when there is an error.
@@ -956,16 +1036,3 @@ asciiz "Hello, world!"
 
 - The BIOS has a dedicated memory region from 0xF000'0000 to 0xFFFF'FEFF.
 - The IP register is set to 0xF000'0000 on boot.
-
-## Memory layout
-
-- This is the current memory layout of the system:
-
-| Start                 | End                   | Description      |
-|-----------------------|-----------------------|------------------|
-| 0x0000'0000'0000'0000 | 0x0000'0000'EFFF'FFFF | Low User memory  |
-| 0x0000'0000'F000'0000 | 0x0000'0000'FFFF'FEFF | BIOS             |
-| 0x0000'0000'FFFF'FF00 | 0x0000'0000'FFFF'FFFF | I/O bus          |
-| 0x0000'0001'0000'0000 | 0xFFFF'FFFF'FFFF'FFFF | High User memory |
-
-- The BIOS region should never be accessed outside the BIOS.

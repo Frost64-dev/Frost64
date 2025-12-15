@@ -15,13 +15,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "MemoryRegion.hpp"
 #include "MMU.hpp"
-#include "StandardMemoryRegion.hpp"
 
 #include <Common/Util.hpp>
-
 #include <Exceptions.hpp>
+
+#include "Emulator.hpp"
+#include "MemoryRegion.hpp"
+#include "StandardMemoryRegion.hpp"
 
 MMU::MMU() {
 }
@@ -385,6 +386,23 @@ bool MMU::ReaddRegionSegment(void* data_in) {
             }
             return true;
         }
+    }
+    return false;
+}
+
+bool MMU::HasRegion(uint64_t address, size_t size) {
+    for (MemoryRegion* region : m_regions) {
+        uint64_t start = region->getStart();
+        uint64_t end = region->getEnd();
+        // need all conditions where part of the range is inside the region
+        if (address >= start && address + size <= end)
+            return true;
+        if (address + size > start && address + size < end)
+            return true;
+        if (address < end && address > start)
+            return true;
+        if (start > address + size)
+            break;
     }
     return false;
 }
