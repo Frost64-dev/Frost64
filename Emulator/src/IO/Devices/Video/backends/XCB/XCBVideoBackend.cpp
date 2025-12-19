@@ -248,11 +248,9 @@ void XCBVideoBackend::Read(uint64_t offset, uint8_t* data, uint64_t size) {
 }
 
 void XCBVideoBackend::EnterEventLoop() {
-    printf("Entering event loop\n");
     for (xcb_generic_event_t* event; (event = xcb_wait_for_event(m_connection)); free(event)) {
         switch (event->response_type & ~0x80) {
         case XCB_EXPOSE: {
-            printf("expose event\n");
             Draw();
             break;
         }
@@ -273,7 +271,6 @@ void XCBVideoBackend::RenderLoop() {
         Draw();
         m_framebufferDirty.store(false);
     }
-    fprintf(stderr, "exiting render loop\n");
     m_renderRunning.store(false);
     m_renderRunning.notify_all();
 }

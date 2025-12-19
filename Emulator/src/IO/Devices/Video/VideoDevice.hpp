@@ -79,7 +79,7 @@ namespace VideoCommand {
     struct [[gnu::packed]] SetModeRequest {
         uint64_t address;
         uint16_t mode;
-        uint8_t reserved[7];
+        uint8_t reserved[6];
     };
 }
 
