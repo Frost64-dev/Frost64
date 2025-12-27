@@ -436,16 +436,36 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
 }
 
 size_t Lexer::GetLineDifference(const char* src, size_t srcOffset, size_t dstOffset) {
-    char const* lineStart = src + srcOffset;
-    size_t line = 0;
-    while (true) {
-        lineStart = strchr(lineStart, '\n');
-        if (lineStart > src + dstOffset || lineStart == nullptr)
-            break;
-        lineStart++;
-        line++;
+    if (dstOffset < srcOffset)
+        return 0;
+
+    struct Entry {
+        std::vector<size_t> positions;
+        size_t scanned = 0;
+        bool initialized = false;
+    };
+    static std::unordered_map<const char*, Entry> cache;
+
+    Entry& e = cache[src];
+
+    if (!e.initialized) {
+        // first time for this buffer: scan up to dstOffset
+        for (size_t i = 0; i <= dstOffset; ++i)
+            if (src[i] == '\n')
+                e.positions.push_back(i);
+        e.scanned = dstOffset;
+        e.initialized = true;
+    } else if (e.scanned < dstOffset) {
+        // extend previously scanned range only up to dstOffset
+        for (size_t i = e.scanned + 1; i <= dstOffset; ++i)
+            if (src[i] == '\n')
+                e.positions.push_back(i);
+        e.scanned = dstOffset;
     }
-    return line;
+
+    auto lo = std::ranges::lower_bound(e.positions, srcOffset);
+    auto hi = std::ranges::upper_bound(e.positions, dstOffset);
+    return static_cast<size_t>(hi - lo);
 }
 
 [[noreturn]] void Lexer::error(const char* message, Token* token) {
