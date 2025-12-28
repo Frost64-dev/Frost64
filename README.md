@@ -64,7 +64,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ## Running the Assembler
 
-- In the source directory, run `./bin/Assembler < -p path/to/assembly > < -o path/to/binary >` to assemble the assembly file.
+- In the source directory, run `./bin/Assembler < -p path/to/assembly > < -o path/to/binary >` to assemble the assembly file. Note: The Assembler supports outputting either flat binary files or ELF files. 
 - For more options, run `./bin/Assembler --help` to see the available options.
 
 ## Running the Emulator
@@ -88,4 +88,3 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 - custom fs
 - custom executable format
 - more devices
-- proper instruction cache post-decoding
