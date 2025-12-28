@@ -26,6 +26,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Operand.hpp"
 
+struct DataSection;
+
 namespace InsEncoding {
     enum class Opcode {
         ADD = 0x0,
@@ -128,16 +130,32 @@ namespace InsEncoding {
     };
 
     struct Block {
+        struct Jump {
+            DataSection* section;
+            uint64_t offset;
+        };
+
         char* name;
         size_t nameSize;
         LinkedList::RearInsertLinkedList<Data> dataBlocks;
-        LinkedList::RearInsertLinkedList<uint64_t> jumpsToHere;
+        LinkedList::RearInsertLinkedList<Jump> jumpsToHere;
     };
 
     struct Label {
         char* name;
         size_t nameSize;
         LinkedList::RearInsertLinkedList<Block> blocks;
+        uint64_t refCount;
+    };
+
+    struct Section {
+        char* name;
+        size_t nameSize;
+        uint64_t startingAddress;
+        bool startingAddressSet;
+        LinkedList::RearInsertLinkedList<Label> labels;
+        std::string fileName;
+        size_t line;
     };
 
     struct ComplexItem {
@@ -255,7 +273,10 @@ namespace InsEncoding {
         SUBLABEL,
         ASCII,
         ASCIIZ,
-        ALIGNMENT
+        ALIGNMENT,
+        SKIP,
+        ORG,
+        SECTION
     };
 
     struct RawData {
@@ -308,7 +329,7 @@ namespace InsEncoding {
     const char* GetInstructionName(Opcode opcode);
 
     bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, int operandDataBuffersOffset, void (*errorHandler)(const char* message, void* data), void* errorData = nullptr);
-    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t dataSize, uint64_t globalOffset);
+    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t dataSize, uint64_t globalOffset, DataSection* dataSection);
 } // namespace InsEncoding
 
 #endif /* _LIBARCH_INSTRUCTION_HPP */

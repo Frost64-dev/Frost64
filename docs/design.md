@@ -606,16 +606,20 @@ foo:
 - `dw` to define a word (2 bytes)
 - `dd` to define a double-word (4 bytes)
 - `dq` to define a quad-word (8 bytes)
-- `org` to set the origin of the program counter. Can only be set once. Regardless of where the in the program it is specified in, it will be set to the first instruction.
+- `org` to set the origin of the program counter. Can only be set at the start of a section.
+- `section` to define a new section. Only one of each section name can exist, so code that should should be in the same section must be grouped together.
 - `ascii` to define a string
 - `asciiz` to define a null-terminated string
 - `align` to align the current position in the program to a multiple of a number. The number must be a power of 2. It fills the space with `nop` instructions.
+- `skip` to skip the specified number of bytes. It fills the space with `nop` instructions.
 - Example usage:
 
 ```x86asm
+section .text
 org 0xF0000000
 db 0x00
 align 8
+skip 8
 ascii "Hello, world!"
 asciiz "Hello, world!"
 ```

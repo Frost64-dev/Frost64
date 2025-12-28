@@ -34,19 +34,32 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
         if (argv[i][0] == '-') {
             for (Option& opt : m_options) {
                 if (opt.short_name == argv[i][1]) {
-                    if (argv[i][2] != '\0')
-                        m_parsed_options[opt.short_name] = &argv[i][2];
-                    else if (i + 1 < argc) {
-                        m_parsed_options[opt.short_name] = argv[i + 1];
-                        i++;
+                    if (opt.hasParameter) {
+                        if (argv[i][2] != '\0') {
+                            m_parsed_options[opt.short_name] = &argv[i][2];
+                            m_parsed_options_long[opt.option] = argv[i];
+                        } else if (i + 1 < argc) {
+                            m_parsed_options[opt.short_name] = argv[i + 1];
+                            m_parsed_options_long[opt.option] = argv[i + 1];
+                            i++;
+                        }
+                    } else if (argv[i][2] == '\0') {
+                        m_parsed_options[opt.short_name] = argv[i];
+                        m_parsed_options_long[opt.option] = argv[i];
                     }
                 }
                 else if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
-                    if (i + 1 < argc) {
-                        if (opt.short_name != '\0')
-                            m_parsed_options[opt.short_name] = argv[i + 1];
-                        m_parsed_options_long[opt.option] = argv[i + 1];
-                        i++;
+                    fprintf(stderr, "Parsing extended arg");
+                    if (opt.hasParameter) {
+                        if (i + 1 < argc) {
+                            if (opt.short_name != '\0')
+                                m_parsed_options[opt.short_name] = argv[i + 1];
+                            m_parsed_options_long[opt.option] = argv[i + 1];
+                            i++;
+                        }
+                    } else {
+                        m_parsed_options[opt.short_name] = argv[i];
+                        m_parsed_options_long[opt.option] = argv[i];
                     }
                 }
             }
@@ -54,8 +67,8 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
     }
 }
 
-void ArgsParser::AddOption(char short_name, const char* option, const char* description, bool required) {
-    Option opt = {short_name, option, description, required};
+void ArgsParser::AddOption(char short_name, const char* option, const char* description, bool required, bool hasParameter) {
+    Option opt = {short_name, option, description, required, hasParameter};
     m_options.push_back(opt);
 }
 

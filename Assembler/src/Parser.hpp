@@ -41,8 +41,7 @@ public:
 
     void Clear();
 
-    const LinkedList::RearInsertLinkedList<InsEncoding::Label>& GetLabels() const;
-    uint64_t GetBaseAddress() const { return m_baseAddress; }
+    const LinkedList::RearInsertLinkedList<InsEncoding::Section>& GetSections() const;
 
 private:
     InsEncoding::Opcode GetOpcode(const char* name, size_t nameSize);
@@ -58,7 +57,8 @@ private:
 
 private:
     LinkedList::RearInsertLinkedList<Token> m_tokens;
-    LinkedList::RearInsertLinkedList<InsEncoding::Label> m_labels;
+    LinkedList::RearInsertLinkedList<InsEncoding::Section> m_sections;
+    LinkedList::RearInsertLinkedList<InsEncoding::Label> m_labels; // for easier searching
     uint64_t m_baseAddress;
     std::unordered_map<std::string_view, InsEncoding::Opcode> m_opcodes;
     bool m_opcodeTableInitialised;

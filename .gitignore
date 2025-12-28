@@ -5,6 +5,7 @@ build/
 .vscode/
 cmake-build*/
 .idea/
+test/
 tests/
 
 compile_commands.json

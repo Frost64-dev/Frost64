@@ -310,7 +310,14 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
     newToken->refCount = 1;
 
     /* now we identify the token type */
-#define IS_REGISTER(token) ((token) == "r0" || (token) == "r1" || (token) == "r2" || (token) == "r3" || (token) == "r4" || (token) == "r5" || (token) == "r6" || (token) == "r7" || (token) == "r8" || (token) == "r9" || (token) == "r10" || (token) == "r11" || (token) == "r12" || (token) == "r13" || (token) == "r14" || (token) == "r15" || (token) == "scp" || (token) == "sbp" || (token) == "stp" || (token) == "cr0" || (token) == "cr1" || (token) == "cr2" || (token) == "cr3" || (token) == "cr4" || (token) == "cr5" || (token) == "cr6" || (token) == "cr7" || (token) == "sts" || (token) == "ip")
+#define IS_REGISTER(token) ((token) == "r0"  || (token) == "r1"  || (token) == "r2"  || (token) == "r3"   \
+                         || (token) == "r4"  || (token) == "r5"  || (token) == "r6"  || (token) == "r7"   \
+                         || (token) == "r8"  || (token) == "r9"  || (token) == "r10" || (token) == "r11"  \
+                         || (token) == "r12" || (token) == "r13" || (token) == "r14" || (token) == "r15"  \
+                         || (token) == "scp" || (token) == "sbp" || (token) == "stp"                      \
+                         || (token) == "cr0" || (token) == "cr1" || (token) == "cr2" || (token) == "cr3"  \
+                         || (token) == "cr4" || (token) == "cr5" || (token) == "cr6" || (token) == "cr7"  \
+                         || (token) == "sts" || (token) == "ip")
     if IS_REGISTER (lowerToken)
         newToken->type = TokenType::REGISTER;
     else if (IsInstruction(lowerToken))
@@ -325,11 +332,15 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
         newToken->type = TokenType::RPARAN;
     else if (lowerToken == ",")
         newToken->type = TokenType::COMMA;
-    else if (lowerToken == "db" || lowerToken == "dw" || lowerToken == "dd" || lowerToken == "dq" || lowerToken == "org" || lowerToken == "ascii" || lowerToken == "asciiz" || lowerToken == "align")
+    else if (lowerToken == "db" || lowerToken == "dw" || lowerToken == "dd" || lowerToken == "dq"
+             || lowerToken == "org" || lowerToken == "section" || lowerToken == "ascii" || lowerToken == "asciiz"
+             || lowerToken == "align" || lowerToken == "skip")
         newToken->type = TokenType::DIRECTIVE;
     else if (lowerToken == "byte" || lowerToken == "word" || lowerToken == "dword" || lowerToken == "qword")
         newToken->type = TokenType::SIZE;
-    else if (lowerToken == "+" || lowerToken == "-" || lowerToken == "*" || lowerToken == "|" || lowerToken == "&" || lowerToken == "^" || lowerToken == "~" || lowerToken == "/" || lowerToken == "%" || lowerToken == "<<" || lowerToken == ">>")
+    else if (lowerToken == "+" || lowerToken == "-"  || lowerToken == "*" || lowerToken == "|"
+          || lowerToken == "&" || lowerToken == "^"  || lowerToken == "~" || lowerToken == "/"
+          || lowerToken == "%" || lowerToken == "<<" || lowerToken == ">>")
         newToken->type = TokenType::OPERATOR;
     else if (lowerToken[0] == '\"' && lowerToken[lowerToken.size() - 1] == '\"')
         newToken->type = TokenType::STRING;
@@ -436,16 +447,36 @@ void Lexer::AddToken(const std::string& strToken, const std::string& fileName, s
 }
 
 size_t Lexer::GetLineDifference(const char* src, size_t srcOffset, size_t dstOffset) {
-    char const* lineStart = src + srcOffset;
-    size_t line = 0;
-    while (true) {
-        lineStart = strchr(lineStart, '\n');
-        if (lineStart > src + dstOffset || lineStart == nullptr)
-            break;
-        lineStart++;
-        line++;
+    if (dstOffset < srcOffset)
+        return 0;
+
+    struct Entry {
+        std::vector<size_t> positions;
+        size_t scanned = 0;
+        bool initialized = false;
+    };
+    static std::unordered_map<const char*, Entry> cache;
+
+    Entry& e = cache[src];
+
+    if (!e.initialized) {
+        // first time for this buffer: scan up to dstOffset
+        for (size_t i = 0; i <= dstOffset; ++i)
+            if (src[i] == '\n')
+                e.positions.push_back(i);
+        e.scanned = dstOffset;
+        e.initialized = true;
+    } else if (e.scanned < dstOffset) {
+        // extend previously scanned range only up to dstOffset
+        for (size_t i = e.scanned + 1; i <= dstOffset; ++i)
+            if (src[i] == '\n')
+                e.positions.push_back(i);
+        e.scanned = dstOffset;
     }
-    return line;
+
+    auto lo = std::ranges::lower_bound(e.positions, srcOffset);
+    auto hi = std::ranges::upper_bound(e.positions, dstOffset);
+    return static_cast<size_t>(hi - lo);
 }
 
 [[noreturn]] void Lexer::error(const char* message, Token* token) {
