@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     ArgsParser args_parser;
     args_parser.AddOption('p', "program", "Path to the program to disassemble", true);
     args_parser.AddOption('o', "output", "Path to the output file", true);
-    args_parser.AddOption('h', "help", "Show this help message", false);
+    args_parser.AddOption('h', "help", "Show this help message", false, false);
     args_parser.ParseArgs(argc, argv);
 
     if (args_parser.HasOption('h')) {

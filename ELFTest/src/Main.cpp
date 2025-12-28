@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
 
     g_args->AddOption('p', "program", "Input program to convert", true);
     g_args->AddOption('o', "output", "Output ELF file", true);
-    g_args->AddOption('h', "help", "Print this help message", false);
+    g_args->AddOption('h', "help", "Print this help message", false, false);
 
     g_args->ParseArgs(argc, argv);
 

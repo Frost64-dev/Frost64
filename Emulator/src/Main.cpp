@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     g_args->AddOption('D', "drive", "File to use as a storage drive.", false);
     g_args->AddOption('c', "console", R"(Console device location. Valid values are "stdio", "file:<path>", or "port:<port>" (case insensitive).)", false);
     g_args->AddOption(0, "debug", R"(Debug console location. Valid values are "disabled", "stdio", "file:<path>", or "port:<port>" (case insensitive). Default is "disabled".)", false);
-    g_args->AddOption('h', "help", "Print this help message", false);
+    g_args->AddOption('h', "help", "Print this help message", false, false);
 
     g_args->ParseArgs(argc, argv);
 

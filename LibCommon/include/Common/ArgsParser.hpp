@@ -30,7 +30,7 @@ public:
 
     void ParseArgs(int argc, char** argv);
 
-    void AddOption(char short_name, const char* option, const char* description, bool required = false);
+    void AddOption(char short_name, const char* option, const char* description, bool required = false, bool hasParameter = true);
 
     std::string_view GetOption(char short_name);
     std::string_view GetOption(const char* option);
@@ -46,6 +46,7 @@ private:
         const char* option;
         const char* description;
         bool required;
+        bool hasParameter;
     };
 
     std::vector<Option> m_options;
