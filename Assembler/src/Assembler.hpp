@@ -25,12 +25,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <LibArch/Instruction.hpp>
 
-class Section {
+class DataBlock {
 public:
-    
-
-    Section(char* name, uint64_t nameSize, uint64_t offset);
-    ~Section();
+    DataBlock(char* name, uint64_t nameSize, uint64_t offset);
+    ~DataBlock();
 
     [[nodiscard]] char const* GetName() const;
     [[nodiscard]] uint64_t GetNameSize() const;
@@ -42,14 +40,25 @@ private:
     uint64_t m_offset;
 };
 
+enum class AssemblerFileFormat {
+    BINARY,
+    ELF
+};
+
+struct DataSection {
+    uint64_t startingAddress;
+    uint64_t size;
+    char* name;
+    uint64_t nameSize;
+    Buffer buffer;
+};
+
 class Assembler {
 public:
     Assembler();
     ~Assembler();
 
-    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Label>& labels, uint64_t baseAddress);
-
-    [[nodiscard]] const Buffer& GetBuffer() const;
+    void assemble(const LinkedList::RearInsertLinkedList<InsEncoding::Section>& sections, AssemblerFileFormat format, FILE* outStream);
 
     void Clear();
 
@@ -57,9 +66,8 @@ private:
 
     [[noreturn]] static void error(const char* message, const std::string& fileName, size_t line);
 
-    uint64_t m_currentOffset;
-    Buffer m_buffer;
-    LinkedList::RearInsertLinkedList<Section> m_sections;
+    LinkedList::RearInsertLinkedList<DataSection> m_sections;
+    LinkedList::RearInsertLinkedList<DataBlock> m_dataBlocks;
 };
 
 #endif /* _ASSEMBLER_HPP */

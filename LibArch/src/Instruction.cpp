@@ -671,7 +671,7 @@ namespace InsEncoding {
 
 #pragma GCC diagnostic pop
 
-    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset) {
+    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset, DataSection* dataSection) {
         Buffer buffer;
         uint64_t current_offset = 0;
 
@@ -1016,9 +1016,10 @@ namespace InsEncoding {
                         }
                         case ComplexItem::Type::LABEL: {
                             Label* label = item->data.label;
-                            uint64_t* offset = new uint64_t;
-                            *offset = current_offset + global_offset;
-                            label->blocks.get(0)->jumpsToHere.insert(offset);
+                            Block::Jump* jump = new Block::Jump;
+                            jump->offset = current_offset + global_offset;
+                            jump->section = dataSection;
+                            label->blocks.get(0)->jumpsToHere.insert(jump);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -1026,9 +1027,10 @@ namespace InsEncoding {
                         }
                         case ComplexItem::Type::SUBLABEL: {
                             Block* block = item->data.sublabel;
-                            uint64_t* offset = new uint64_t;
-                            *offset = current_offset + global_offset;
-                            block->jumpsToHere.insert(offset);
+                            Block::Jump* jump = new Block::Jump;
+                            jump->offset = current_offset + global_offset;
+                            jump->section = dataSection;
+                            block->jumpsToHere.insert(jump);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                             buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                             current_offset += 8;
@@ -1042,17 +1044,19 @@ namespace InsEncoding {
             } else if (operand->type == OperandType::LABEL) {
                 Label* i_label = static_cast<Label*>(operand->data);
                 Block* i_block = i_label->blocks.get(0);
-                uint64_t* offset = new uint64_t;
-                *offset = current_offset + global_offset;
-                i_block->jumpsToHere.insert(offset);
+                Block::Jump* jump = new Block::Jump;
+                jump->offset = current_offset + global_offset;
+                jump->section = dataSection;
+                i_block->jumpsToHere.insert(jump);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;
             } else if (operand->type == OperandType::SUBLABEL) {
                 Block* i_block = static_cast<Block*>(operand->data);
-                uint64_t* offset = new uint64_t;
-                *offset = current_offset + global_offset;
-                i_block->jumpsToHere.insert(offset);
+                Block::Jump* jump = new Block::Jump;
+                jump->offset = current_offset + global_offset;
+                jump->section = dataSection;
+                i_block->jumpsToHere.insert(jump);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
                 buffer.Write(current_offset, reinterpret_cast<uint8_t*>(&temp_offset), 8);
                 current_offset += 8;

@@ -81,6 +81,7 @@ public:
     ELFProgramSection* CreateNewProgramSection();
     ELFSection* CreateNewSection();
 
+    bool WriteToStream(FILE* stream);
     bool WriteToFile(const char* path);
 
 private:

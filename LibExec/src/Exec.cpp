@@ -158,7 +158,12 @@ bool ELFExecutable::WriteToFile(const char* path) {
     FILE* file = fopen(path, "wb");
     if (file == nullptr)
         return false;
+    bool result = WriteToStream(file);
+    fclose(file);
+    return result;
+}
 
+bool ELFExecutable::WriteToStream(FILE* stream) {
     /* File layout
      *
      * ELF Header
@@ -173,7 +178,7 @@ bool ELFExecutable::WriteToFile(const char* path) {
     m_ehdr->e_phnum = m_programSections.getCount();
 
     // Write ELF header
-    fwrite(m_ehdr, 1, sizeof(Elf64_Ehdr), file);
+    fwrite(m_ehdr, 1, sizeof(Elf64_Ehdr), stream);
 
     // Write Program Headers
     uint64_t dataOffset = sizeof(Elf64_Ehdr) + sizeof(Elf64_Phdr) * m_programSections.getCount();
@@ -181,7 +186,7 @@ bool ELFExecutable::WriteToFile(const char* path) {
         Elf64_Phdr* phdr = section->GetPhdr();
         dataOffset = ALIGN_UP_BASE2(dataOffset, phdr->p_align);
         phdr->p_offset = dataOffset;
-        fwrite(phdr, 1, sizeof(Elf64_Phdr), file);
+        fwrite(phdr, 1, sizeof(Elf64_Phdr), stream);
         dataOffset += phdr->p_filesz;
     });
 
@@ -189,22 +194,22 @@ bool ELFExecutable::WriteToFile(const char* path) {
     m_programSections.EnumerateNoExit([&](ELFProgramSection* section) {
         uint8_t* data = section->GetData();
         Elf64_Phdr* phdr = section->GetPhdr();
-        uint64_t currentPos = ftell(file);
+        uint64_t currentPos = ftell(stream);
         if (currentPos < phdr->p_offset) {
             uint64_t paddingSize = phdr->p_offset - currentPos;
             for (uint64_t i = 0; i < paddingSize; i++)
-                fputc(0, file);
+                fputc(0, stream);
         }
-        fwrite(data, 1, phdr->p_filesz, file);
+        fwrite(data, 1, phdr->p_filesz, stream);
     });
 
     // Update ELF header with section header info
-    m_ehdr->e_shoff = ftell(file);
+    m_ehdr->e_shoff = ftell(stream);
     m_ehdr->e_shnum = m_sections.getCount() + 2; // NULL and string table
     m_ehdr->e_shstrndx = m_sections.getCount() + 1; // Last section is the string table
-    fseek(file, 0, SEEK_SET);
-    fwrite(m_ehdr, 1, sizeof(Elf64_Ehdr), file);
-    fseek(file, m_ehdr->e_shoff, SEEK_SET);
+    fseek(stream, 0, SEEK_SET);
+    fwrite(m_ehdr, 1, sizeof(Elf64_Ehdr), stream);
+    fseek(stream, m_ehdr->e_shoff, SEEK_SET);
 
     // Write NULL Section header
     Elf64_Shdr nullShdr;
@@ -212,7 +217,7 @@ bool ELFExecutable::WriteToFile(const char* path) {
     // even those these 2 values are 0, set them explicitly for clarity
     nullShdr.sh_type = SHT_NULL;
     nullShdr.sh_link = SHN_UNDEF;
-    fwrite(&nullShdr, 1, sizeof(Elf64_Shdr), file);
+    fwrite(&nullShdr, 1, sizeof(Elf64_Shdr), stream);
 
     // Fill in the string table offsets and get its size
     uint64_t stringSize = 1; // initial null byte
@@ -229,30 +234,28 @@ bool ELFExecutable::WriteToFile(const char* path) {
         Elf64_Phdr* phdr = section->GetProgSection()->GetPhdr();
         assert(shdr->sh_type == SHT_PROGBITS);
         shdr->sh_offset = shdr->sh_addr - phdr->p_vaddr + phdr->p_offset;
-        fwrite(shdr, 1, sizeof(Elf64_Shdr), file);
+        fwrite(shdr, 1, sizeof(Elf64_Shdr), stream);
     });
 
     // Write String table section header
     Elf64_Shdr strtabShdr = {};
     strtabShdr.sh_name = stringSize - 10; // offset of ".shstrtab"
     strtabShdr.sh_type = SHT_STRTAB;
-    strtabShdr.sh_offset = ftell(file) + sizeof(Elf64_Shdr);
+    strtabShdr.sh_offset = ftell(stream) + sizeof(Elf64_Shdr);
     strtabShdr.sh_size = stringSize;
     strtabShdr.sh_addralign = 1;
-    fwrite(&strtabShdr, 1, sizeof(Elf64_Shdr), file);
+    fwrite(&strtabShdr, 1, sizeof(Elf64_Shdr), stream);
 
     // Write String table data
-    fputc(0, file); // initial null byte
+    fputc(0, stream); // initial null byte
     m_sections.EnumerateNoExit([&](ELFSection* section) {
         const std::string_view& name = section->GetName();
         if (name.size() > 0) {
-            fwrite(name.data(), 1, name.size(), file);
-            fputc(0, file);
+            fwrite(name.data(), 1, name.size(), stream);
+            fputc(0, stream);
         }
     });
     constexpr char shstrtabName[] = ".shstrtab";
-    fwrite(shstrtabName, 1, 10, file);
-
-    fclose(file);
+    fwrite(shstrtabName, 1, 10, stream);
     return true;
 }

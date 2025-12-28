@@ -440,7 +440,7 @@ namespace LinkedList {
             for (uint64_t i = 0; i < m_count; i++) {
                 // if (temp == nullptr)
                 // 	return;
-                func((T*)(temp->data));
+                func(reinterpret_cast<T*>(temp->data));
                 temp = temp->previous;
             }
         }
@@ -458,6 +458,39 @@ namespace LinkedList {
                 if (!func((T*)(temp->data), i))
                     return;
                 temp = temp->previous;
+            }
+        }
+
+        // Enumerate with possibility of deleting current node. func return 0 to continue, 1 to quit, 2 to delete current node
+        void EnumerateDelete(std::function<int(T* obj, uint64_t index)> func, uint64_t start = 0) {
+            Node* temp = m_start;
+            for (uint64_t i = 0; i < start; i++) {
+                temp = temp->next;
+            }
+            uint64_t index = start;
+            while (temp != nullptr) {
+                Node* next = temp->next;
+                switch (func(reinterpret_cast<T*>(temp->data), index)) {
+                case 1:
+                    return;
+                case 2: {
+                    if (next == nullptr)
+                        m_end = temp->previous;
+                    else
+                        next->previous = temp->previous;
+                    if (temp->previous != nullptr)
+                        temp->previous->next = next;
+                    else
+                        m_start = next;
+                    delete temp;
+                    m_count--;
+                    break;
+                }
+                default:
+                    break;
+                }
+                temp = next;
+                index++;
             }
         }
 

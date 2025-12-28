@@ -19,9 +19,13 @@ Authors:
 - KevinAlavik
 */
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <string_view>
 
 #include <Common/ArgsParser.hpp>
 #include <Common/DataStructures/Buffer.hpp>
@@ -38,6 +42,7 @@ int main(int argc, char** argv) {
 
     g_args->AddOption('p', "program", "Input program to assemble", true);
     g_args->AddOption('o', "output", "Output file", true);
+    g_args->AddOption('f', "format", "Output file format. Valid options are ELF or BINARY, not case-sensitive. Defaults to BINARY.", false);
     g_args->AddOption('h', "help", "Print this help message", false, false);
 
     g_args->ParseArgs(argc, argv);
@@ -50,6 +55,21 @@ int main(int argc, char** argv) {
     if (!g_args->HasOption('p') || !g_args->HasOption('o')) {
         printf("%s", g_args->GetHelpMessage().c_str());
         return 1;
+    }
+
+    AssemblerFileFormat format = AssemblerFileFormat::BINARY;
+
+    if (g_args->HasOption('f')) {
+        std::string formatStr = std::string(g_args->GetOption('f'));
+        std::ranges::transform(formatStr, formatStr.begin(), [](unsigned char c){ return std::tolower(c); });
+        if (formatStr == "binary")
+            format = AssemblerFileFormat::BINARY;
+        else if (formatStr == "elf")
+            format = AssemblerFileFormat::ELF;
+        else {
+            printf("%s", g_args->GetHelpMessage().c_str());
+            return 1;
+        }
     }
 
     std::string_view program = g_args->GetOption('p');
@@ -95,29 +115,19 @@ int main(int argc, char** argv) {
     fflush(stdout);
 #endif
 
-    Assembler assembler;
-    assembler.assemble(parser.GetLabels(), parser.GetBaseAddress());
-
-    const Buffer& buffer = assembler.GetBuffer();
-    size_t bufferSize = buffer.GetSize();
-    uint8_t* bufferData = new uint8_t[bufferSize];
-    buffer.Read(0, bufferData, bufferSize);
-
     FILE* outputFile = fopen(output.data(), "w");
     if (outputFile == nullptr) {
         fprintf(stderr, "Error: could not open output file %s: \"%s\"\n", output.data(), strerror(errno));
         return 1;
     }
 
-    if (bufferSize != fwrite(bufferData, 1, bufferSize, outputFile)) {
-        fprintf(stderr, "Error: could not write to output file %s: \"%s\"", output.data(), strerror(errno));
-        return 1;
-    }
+    Assembler assembler;
+    assembler.assemble(parser.GetSections(), format, outputFile);
+
     fclose(outputFile);
 
     delete[] fileContents;
     delete[] processedBufferData;
-    delete[] bufferData;
 
     assembler.Clear();
     parser.Clear();

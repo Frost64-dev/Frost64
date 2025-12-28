@@ -68,7 +68,7 @@ target_compile_options(Assembler
     PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
 )
 
-target_link_libraries(Assembler PRIVATE arch common)
+target_link_libraries(Assembler PRIVATE arch exec common)
 
 if (BUILD_CONFIG STREQUAL "Debug")
    target_compile_definitions(Assembler PRIVATE ASSEMBLER_DEBUG=1)
