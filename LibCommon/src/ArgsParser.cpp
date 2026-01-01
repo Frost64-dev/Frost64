@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -47,9 +47,9 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
                         m_parsed_options[opt.short_name] = argv[i];
                         m_parsed_options_long[opt.option] = argv[i];
                     }
+                    break;
                 }
-                else if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
-                    fprintf(stderr, "Parsing extended arg");
+                if (argv[i][1] == '-' && strcmp(opt.option, &argv[i][2]) == 0) {
                     if (opt.hasParameter) {
                         if (i + 1 < argc) {
                             if (opt.short_name != '\0')
@@ -61,6 +61,7 @@ void ArgsParser::ParseArgs(int argc, char** argv) {
                         m_parsed_options[opt.short_name] = argv[i];
                         m_parsed_options_long[opt.option] = argv[i];
                     }
+                    break;
                 }
             }
         }
