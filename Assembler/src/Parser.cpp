@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -199,6 +199,10 @@ void Parser::parse() {
     firstBlock->name = const_cast<char*>("");
     firstBlock->nameSize = 0;
     firstLabel->blocks.insert(firstBlock);
+
+    currentSection = firstSection;
+    currentLabel = firstLabel;
+    currentBlock = firstBlock;
 
     // First scan for labels and sections
     m_tokens.Enumerate([&](Token* token) -> void {
