@@ -76,6 +76,7 @@ namespace Emulator {
 
 
     void SyncRegisters();
+    void DumpRegisters(FILE* fp);
     void DumpRegisters(void (*write)(void*, const char*, ...), void* data = nullptr);
 
     Register* GetRegisterPointer(uint8_t ID);

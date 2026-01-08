@@ -58,6 +58,7 @@ class MemoryRegion {
     virtual bool canSplit() { return false; }
 
     virtual bool isBIOS() { return false; }
+    virtual bool isExecutable() { return false; }
 
    private:
     uint64_t m_start;

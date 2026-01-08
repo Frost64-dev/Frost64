@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -267,7 +267,6 @@ void ExecutionLoop() {
         }
 
         if (g_breakpointsEnabled.load() == 1 && g_AllowOneInstruction.load() == 0) { // don't check on single step
-            // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
             spinlock_acquire(&g_breakpointsLock);
             auto it = g_breakpoints.find(IP);
             if (it != g_breakpoints.end()) {
@@ -462,6 +461,10 @@ void ExecutionLoop() {
             g_currentCacheOffset = 0;
         g_currentInstruction = &g_InstructionDataCache[g_currentCacheOffset];
 
+#ifdef EMULATOR_DEBUG
+        printf("%#lx: ", IP);
+#endif
+
         // Execute the instruction
         if (pair.argCount == 0)
             reinterpret_cast<void (*)()>(pair.function)();
@@ -568,7 +571,7 @@ void ExecutionLoop() {
         Emulator::SetCPUStatus(flags & 0xF);                   \
     }
 
-ALU_INSTRUCTION2(add)
+// ALU_INSTRUCTION2(add)
 ALU_INSTRUCTION2(sub)
 ALU_INSTRUCTION3(mul)
 DIV_INSTRUCTION3(div)
@@ -583,9 +586,62 @@ ALU_INSTRUCTION2(nand)
 ALU_INSTRUCTION1(not)
 ALU_INSTRUCTION2(shl)
 ALU_INSTRUCTION2(shr)
-ALU_INSTRUCTION2_NO_RET_VAL(cmp)
+// ALU_INSTRUCTION2_NO_RET_VAL(cmp)
 ALU_INSTRUCTION1(inc)
 ALU_INSTRUCTION1(dec)
+
+void ins_add(Operand* dst, Operand* src) {
+    PRINT_INS_INFO2(dst, src);
+    uint64_t flags = 0;
+    uint64_t srcVal = src->GetValue();
+    uint64_t dstVal = dst->GetValue();
+    // use inline assembly
+    __asm__ volatile (
+        "add %[src], %[dst];"
+        "setc %%al;"
+        "setz %%bl;"
+        "sets %%cl;"
+        "seto %%dl;"
+        "shl $1, %%bl;"
+        "shl $2, %%cl;"
+        "shl $3, %%dl;"
+        "or %%bl, %%al;"
+        "or %%cl, %%al;"
+        "or %%dl, %%al;"
+        : [dst] "+r" (dstVal), "=a" (flags)
+        : [src] "r" (srcVal)
+        : "bl", "cl", "dl"
+    );
+    dst->SetValue(dstVal);
+    Emulator::ClearCPUStatus(0xF);
+    Emulator::SetCPUStatus(flags & 0xF);
+}
+
+void ins_cmp(Operand* dst, Operand* src) {
+    PRINT_INS_INFO2(dst, src);
+    uint64_t flags = 0;
+    uint64_t srcVal = src->GetValue();
+    uint64_t dstVal = dst->GetValue();
+    // use inline assembly
+    __asm__ volatile (
+        "cmp %[src], %[dst];"
+        "setc %%al;"
+        "setz %%bl;"
+        "sets %%cl;"
+        "seto %%dl;"
+        "shl $1, %%bl;"
+        "shl $2, %%cl;"
+        "shl $3, %%dl;"
+        "or %%bl, %%al;"
+        "or %%cl, %%al;"
+        "or %%dl, %%al;"
+        : [dst] "+r" (dstVal), "=a" (flags)
+        : [src] "r" (srcVal)
+        : "bl", "cl", "dl"
+    );
+    Emulator::ClearCPUStatus(0xF);
+    Emulator::SetCPUStatus(flags & 0xF);
+}
 
 #else /* __x86_64__ */
 #error "ALU Instructions: Unsupported architecture"
@@ -607,7 +663,7 @@ void ins_call(Operand* dst) {
 }
 
 void ins_jmp(Operand* dst) {
-    PRINT_INS_INFO1(dst);
+    // PRINT_INS_INFO1(dst);
     uint64_t IP = dst->GetValue();
     *g_rawNextIPPointer = IP;
     g_insCache.MaybeSetBaseAddress(IP);

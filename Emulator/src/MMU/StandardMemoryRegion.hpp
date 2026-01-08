@@ -32,6 +32,8 @@ public:
 
     virtual bool canSplit() override { return true; }
 
+    virtual bool isExecutable() override { return true; }
+
 private:
     uint8_t* m_data;
 };

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -49,7 +49,8 @@ enum class IOBusCommands {
 enum class IODeviceID {
     CONSOLE = 0,
     VIDEO = 1,
-    STORAGE = 2
+    STORAGE = 2,
+    HID = 3
 };
 
 struct [[gnu::packed]] IOBus_GetBusInfoResponse {
@@ -94,7 +95,7 @@ struct [[gnu::packed]] IOBusRegisters {
 
 class IOBus {
    public:
-    IOBus(MMU* mmu);
+    explicit IOBus(MMU* mmu);
     ~IOBus();
 
     uint64_t ReadRegister(uint64_t offset);

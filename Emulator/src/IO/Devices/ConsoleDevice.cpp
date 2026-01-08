@@ -108,7 +108,7 @@ void ConsoleDevice::WriteDWord(uint64_t address, uint32_t data) {
 
 void ConsoleDevice::WriteQWord(uint64_t address, uint64_t data) {
 #ifdef EMULATOR_DEBUG
-    printf("ConsoleDevice::WriteQWord(%lu, %lu)\n", address, data);
+    printf("ConsoleDevice::WriteQWord(%lu, %lx)\n", address, data);
 #else
     (void)address;
 #endif

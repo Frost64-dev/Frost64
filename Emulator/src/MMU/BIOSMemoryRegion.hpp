@@ -29,6 +29,7 @@ public:
     virtual void printData(void (*write)(void* data, const char* format, ...), void* data) override;
 
     virtual bool isBIOS() override { return true; }
+    virtual bool isExecutable() override { return true; }
 
 private:
     uint64_t m_real_size;

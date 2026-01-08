@@ -33,6 +33,8 @@ struct shm_xcb_image_t {
     int shmid;
 };
 
+class XCBKeyboardBackend;
+
 class XCBVideoBackend : public VideoBackend {
    public:
     explicit XCBVideoBackend(const VideoMode& mode = NATIVE_VIDEO_MODE);
@@ -47,6 +49,9 @@ class XCBVideoBackend : public VideoBackend {
 
     void EnterEventLoop();
     void RenderLoop();
+
+    xcb_connection_t* GetXCBConnection();
+    void SetKeyboard(XCBKeyboardBackend* keyboard);
 
    private:
     void Draw();
@@ -65,6 +70,8 @@ class XCBVideoBackend : public VideoBackend {
     std::atomic_bool m_renderAllowed;
     std::atomic_bool m_renderRunning;
     std::atomic_bool m_framebufferDirty;
+
+    XCBKeyboardBackend* m_keyboard;
 };
 
 #endif /* _XCB_VIDEO_BACKEND_HPP */

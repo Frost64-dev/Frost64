@@ -27,6 +27,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstring>
 #include <Emulator.hpp>
 
+#include "IO/Devices/HID/backends/XCB/XCBKeyboard.hpp"
+
 xcb_format_t const* query_xcb_format_for_depth(xcb_connection_t* const m_connection, uint32_t depth) {
     xcb_setup_t const* const setup = xcb_get_setup(m_connection);
     xcb_format_iterator_t it;
@@ -132,7 +134,7 @@ void XCBBackend_Loop(void* data) {
     backend->EnterEventLoop();
 }
 
-XCBVideoBackend::XCBVideoBackend(const VideoMode& mode) : VideoBackend(mode), m_connection(nullptr), m_window(0), m_shm_xcb_image(nullptr), m_gc(0), m_framebuffer(nullptr), m_eventThread(nullptr), m_renderThread(nullptr), m_renderAllowed(true), m_renderRunning(false), m_framebufferDirty(false) {
+XCBVideoBackend::XCBVideoBackend(const VideoMode& mode) : VideoBackend(mode), m_connection(nullptr), m_window(0), m_shm_xcb_image(nullptr), m_gc(0), m_framebuffer(nullptr), m_eventThread(nullptr), m_renderThread(nullptr), m_renderAllowed(true), m_renderRunning(false), m_framebufferDirty(false), m_keyboard(nullptr) {
 
 }
 
@@ -166,7 +168,7 @@ void XCBVideoBackend::Init() {
     xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(m_connection)).data;
 
     uint32_t const mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-    uint32_t const values[] = {screen->white_pixel, XCB_EVENT_MASK_EXPOSURE};
+    uint32_t const values[] = {screen->white_pixel, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE};
 
     m_window = xcb_generate_id(m_connection);
     xcb_create_window(m_connection, XCB_COPY_FROM_PARENT, m_window, screen->root, 0, 0, mode.width, mode.height, 10, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, mask, values);
@@ -250,10 +252,17 @@ void XCBVideoBackend::Read(uint64_t offset, uint8_t* data, uint64_t size) {
 void XCBVideoBackend::EnterEventLoop() {
     for (xcb_generic_event_t* event; (event = xcb_wait_for_event(m_connection)); free(event)) {
         switch (event->response_type & ~0x80) {
-        case XCB_EXPOSE: {
+        case XCB_EXPOSE:
             Draw();
             break;
-        }
+        case XCB_KEY_PRESS:
+            if (m_keyboard != nullptr)
+                m_keyboard->HandleKeyEvent(reinterpret_cast<xcb_key_press_event_t*>(event), false);
+            break;
+        case XCB_KEY_RELEASE:
+            if (m_keyboard != nullptr)
+                m_keyboard->HandleKeyEvent(reinterpret_cast<xcb_key_press_event_t*>(event), true);
+            break;
         default:
             break;
         }
@@ -273,6 +282,14 @@ void XCBVideoBackend::RenderLoop() {
     }
     m_renderRunning.store(false);
     m_renderRunning.notify_all();
+}
+
+xcb_connection_t* XCBVideoBackend::GetXCBConnection() {
+    return m_connection;
+}
+
+void XCBVideoBackend::SetKeyboard(XCBKeyboardBackend* keyboard) {
+    m_keyboard = keyboard;
 }
 
 void XCBVideoBackend::Draw() {

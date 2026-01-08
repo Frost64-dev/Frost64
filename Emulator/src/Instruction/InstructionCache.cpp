@@ -19,6 +19,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstring>
 
+#include <Emulator.hpp>
+#include <Exceptions.hpp>
+
 #include <MMU/MMU.hpp>
 
 InstructionCache::InstructionCache() : m_cache{0}, m_cacheOffset(INSTRUCTION_CACHE_SIZE), m_mmu(nullptr), m_base_address(0) {
@@ -182,5 +185,7 @@ uint64_t InstructionCache::GetOffset() const {
 void InstructionCache::CacheMiss(uint64_t offset) {
     m_cacheOffset = 0;
     m_base_address += offset;
+    if (!m_mmu->ValidateExecute(m_base_address, INSTRUCTION_CACHE_SIZE))
+        g_ExceptionHandler->RaiseException(Emulator::isPagingEnabled() ? Exception::PAGING_VIOLATION : Exception::PHYS_MEM_VIOLATION, m_base_address);
     m_mmu->ReadBuffer(m_base_address, m_cache, INSTRUCTION_CACHE_SIZE);
 }

@@ -102,6 +102,11 @@ public:
 
     void HandleMemoryOperation(bool write, uint64_t address, uint8_t* buffer, uint64_t size);
 
+    VideoBackendType GetBackendType();
+    VideoBackend* GetBackend();
+
+    bool isInitialised();
+
 private:
     void HandleCommand();
 

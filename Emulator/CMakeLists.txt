@@ -1,4 +1,4 @@
-# Copyright (©) 2024-2025  Frosty515 & contributors
+# Copyright (©) 2024-2026  Frosty515 & contributors
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -87,6 +87,8 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/ConsoleDevice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/HIDDeviceBus.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/Keyboard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/PhysicalRegionListBuffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageDevice.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageFile.cpp
@@ -121,6 +123,7 @@ if (ENABLE_XCB STREQUAL "ON")
     set(emulator_sources
         ${emulator_sources}
             ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/backends/XCB/XCBVideoBackend.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/backends/XCB/XCBKeyboard.cpp
     )
 endif ()
 
@@ -146,7 +149,7 @@ if (ENABLE_SDL STREQUAL "ON")
     target_compile_definitions(Emulator PRIVATE ENABLE_SDL=1)
 else ()
     if (ENABLE_XCB STREQUAL "ON")
-        target_link_libraries(Emulator PRIVATE arch common xcb xcb-shm xcb-image)
+        target_link_libraries(Emulator PRIVATE arch common xcb xcb-shm xcb-image xkbcommon xkbcommon-x11 xcb-xkb)
         target_compile_definitions(Emulator PRIVATE ENABLE_XCB=1)
     else ()
         target_link_libraries(Emulator PRIVATE arch common)

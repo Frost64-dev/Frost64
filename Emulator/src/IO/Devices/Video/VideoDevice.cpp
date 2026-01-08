@@ -126,6 +126,18 @@ void VideoDevice::HandleMemoryOperation(bool write, uint64_t address, uint8_t* b
 #endif
 }
 
+VideoBackendType VideoDevice::GetBackendType() {
+    return m_backendType;
+}
+
+VideoBackend* VideoDevice::GetBackend() {
+    return m_backend;
+}
+
+bool VideoDevice::isInitialised() {
+    return m_initialised;
+}
+
 void VideoDevice::HandleCommand() {
 #if defined(ENABLE_SDL) || defined(ENABLE_XCB)
     switch (static_cast<VideoDeviceCommands>(m_command)) {

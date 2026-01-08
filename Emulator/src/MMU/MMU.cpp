@@ -273,7 +273,44 @@ bool MMU::ValidateWrite(uint64_t address, size_t size) {
 
 
 bool MMU::ValidateExecute(uint64_t address, size_t size) {
-    return ValidateRead(address, size);
+    MemoryRegion* startingRegion = nullptr;
+    uint64_t regionIndex = 0;
+    for (MemoryRegion* region : m_regions) {
+        if (region->isInside(address)) {
+            startingRegion = region;
+            regionIndex++;
+            break;
+        }
+    }
+    if (startingRegion == nullptr || !startingRegion->isExecutable()) {
+        // no region found or not executable
+        return false;
+    }
+    size_t remainingSize = size;
+    uint64_t currentAddress = address;
+    while (remainingSize > 0) {
+        size_t currentSize = startingRegion->getEnd() - currentAddress;
+        if (currentSize > remainingSize)
+            currentSize = remainingSize;
+        remainingSize -= currentSize;
+        if (remainingSize == 0)
+            break;
+        currentAddress += currentSize;
+        startingRegion = nullptr;
+        for (auto iterator = m_regions.at(regionIndex); iterator != m_regions.end(); ++iterator) {
+            MemoryRegion* region = *iterator;
+            if (region->isInside(currentAddress)) {
+                startingRegion = region;
+                regionIndex++;
+                break;
+            }
+        }
+        if (startingRegion == nullptr || !startingRegion->isExecutable()) {
+            // no region found or not executable
+            return false;
+        }
+    }
+    return true;
 }
 
 void MMU::AddMemoryRegion(MemoryRegion* region) {

@@ -42,6 +42,7 @@ class IODevice {
     virtual void WriteDWord(uint64_t address, uint32_t data) = 0;
     virtual void WriteQWord(uint64_t address, uint64_t data) = 0;
 
+    // Overridden instances must call Internal_HandleInterrupt to actually handle the interrupt
     virtual void RaiseInterrupt(uint64_t index) { Internal_HandleInterrupt(index); }
 
     uint64_t GetBaseAddress() const { return m_base_address; }

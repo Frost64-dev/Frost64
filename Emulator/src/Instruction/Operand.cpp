@@ -258,30 +258,30 @@ uint64_t Operand::GetValue() const {
         return value;
     }
     case OperandType::Complex: {
-        uint64_t base = 0;
+        int64_t base = 0;
         if (m_complexData->base.present) {
             if (m_complexData->base.type == ComplexItem::Type::REGISTER)
                 base = m_complexData->base.data.reg->GetValue();
             else {
                 switch (m_complexData->base.data.imm.size) {
                 case OperandSize::BYTE:
-                    base = *static_cast<uint8_t*>(m_complexData->base.data.imm.data);
+                    base = *static_cast<int8_t*>(m_complexData->base.data.imm.data);
                     break;
                 case OperandSize::WORD:
-                    base = *static_cast<uint16_t*>(m_complexData->base.data.imm.data);
+                    base = *static_cast<int16_t*>(m_complexData->base.data.imm.data);
                     break;
                 case OperandSize::DWORD:
-                    base = *static_cast<uint32_t*>(m_complexData->base.data.imm.data);
+                    base = *static_cast<int32_t*>(m_complexData->base.data.imm.data);
                     break;
                 case OperandSize::QWORD:
-                    base = *static_cast<uint64_t*>(m_complexData->base.data.imm.data);
+                    base = *static_cast<int64_t*>(m_complexData->base.data.imm.data);
                     break;
                 default:
                     g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         }
-        uint64_t index = 0;
+        int64_t index = 0;
         if (m_complexData->index.present) {
             if (!m_complexData->base.present)
                 base = 1;
@@ -290,16 +290,16 @@ uint64_t Operand::GetValue() const {
             else {
                 switch (m_complexData->index.data.imm.size) {
                 case OperandSize::BYTE:
-                    index = *static_cast<uint8_t*>(m_complexData->index.data.imm.data);
+                    index = *static_cast<int8_t*>(m_complexData->index.data.imm.data);
                     break;
                 case OperandSize::WORD:
-                    index = *static_cast<uint16_t*>(m_complexData->index.data.imm.data);
+                    index = *static_cast<int16_t*>(m_complexData->index.data.imm.data);
                     break;
                 case OperandSize::DWORD:
-                    index = *static_cast<uint32_t*>(m_complexData->index.data.imm.data);
+                    index = *static_cast<int32_t*>(m_complexData->index.data.imm.data);
                     break;
                 case OperandSize::QWORD:
-                    index = *static_cast<uint64_t*>(m_complexData->index.data.imm.data);
+                    index = *static_cast<int64_t*>(m_complexData->index.data.imm.data);
                     break;
                 default:
                     g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
@@ -307,7 +307,7 @@ uint64_t Operand::GetValue() const {
             }
         } else if (m_complexData->base.present)
             index = 1;
-        uint64_t offset = 0;
+        int64_t offset = 0;
         if (m_complexData->offset.present) {
             if (m_complexData->offset.type == ComplexItem::Type::REGISTER) {
                 offset = m_complexData->offset.data.reg->GetValue();
@@ -316,16 +316,16 @@ uint64_t Operand::GetValue() const {
             } else {
                 switch (m_complexData->offset.data.imm.size) {
                 case OperandSize::BYTE:
-                    offset = *static_cast<uint8_t*>(m_complexData->offset.data.imm.data);
+                    offset = *static_cast<int8_t*>(m_complexData->offset.data.imm.data);
                     break;
                 case OperandSize::WORD:
-                    offset = *static_cast<uint16_t*>(m_complexData->offset.data.imm.data);
+                    offset = *static_cast<int16_t*>(m_complexData->offset.data.imm.data);
                     break;
                 case OperandSize::DWORD:
-                    offset = *static_cast<uint32_t*>(m_complexData->offset.data.imm.data);
+                    offset = *static_cast<int32_t*>(m_complexData->offset.data.imm.data);
                     break;
                 case OperandSize::QWORD:
-                    offset = *static_cast<uint64_t*>(m_complexData->offset.data.imm.data);
+                    offset = *static_cast<int64_t*>(m_complexData->offset.data.imm.data);
                     break;
                 default:
                     g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);

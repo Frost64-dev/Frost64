@@ -1036,6 +1036,202 @@ asciiz "Hello, world!"
 
 - The next node is 0 if there is no next node.
 
+### HID Keyboard & Mouse
+
+- The keyboard & mouse share a combined device on the bus, taking up 4 registers
+
+#### HID Registers
+
+| Port | Name      | Description      |
+|------|-----------|------------------|
+| 0    | COMMAND   | Command register |
+| 1    | STATUS    | Status register  |
+| 2    | KEYBOARD  | Keyboard data    |
+| 3    | MOUSE     | Mouse data       |
+
+##### Status register
+
+| Bit  | Name      | Description                |
+|------|-----------|----------------------------|
+| 0    | ERR       | Error flag                 |
+| 1    | KBD_EN    | Keyboard enabled           |
+| 2    | KBD_INT   | Keyboard interrupt enable  |
+| 3    | KBD_INTP  | Keyboard interrupt pending |
+| 4    | KBD_RDY   | Keyboard data ready        |
+| 5    | MSE_EN    | Mouse enabled              |
+| 6    | MSE_INT   | Mouse interrupt enable     |
+| 7    | MSE_INTP  | Mouse interrupt pending    |
+| 8    | MSE_RDY   | Mouse data ready           |
+| 9-63 | RESERVED  | Reserved                   |
+
+Note: KBD_INTP or MSE_INTP might be set before the interrupt arrives.
+
+#### HID Commands
+
+| Command | Description      |
+|---------|------------------|
+| 0       | Initialise       |
+| 1       | Get device info  |
+| 2       | Set device info  |
+| 3       | Acknowledge IRQ0 |
+| 4       | Acknowledge IRQ1 |
+
+##### Initialise
+
+- Initialise the interface, can also be used to set device info.
+- The video device must be initialised before this device.
+- Data to be written to the keyboard & mouse data registers as follows:
+
+| Bit   | Name | Description      |
+|-------|------|------------------|
+| 0     | EN   | Enable           |
+| 1     | INT  | Enable interrupt |
+| 2-63  | RSVD | Reserved         |
+
+##### Get device info
+
+- No arguments. Device info is returned in the keyboard & mouse data registers.
+- The contents of the data are not guaranteed to be the same after a read.
+- Keyboard & Mouse data registers:
+
+| Bit   | Name | Description      |
+|-------|------|------------------|
+| 0     | EN   | Enable           |
+| 1     | INT  | Interrupt enable |
+| 2-63  | RSVD | Reserved         |
+
+##### Set device info
+
+- Data to be written to the keyboard & mouse data registers as follows:
+- Keyboard & Mouse data registers:
+
+| Bit   | Name | Description      |
+|-------|------|------------------|
+| 0     | EN   | Enable           |
+| 1     | INT  | Enable interrupt |
+| 2-63  | RSVD | Reserved         |
+
+##### Acknowledge IRQ0 and Acknowledge IRQ1
+
+- Both commands have no arguments.
+- Acknowledges the relevant interrupt (keyboard or mouse).
+
+#### Data packets
+
+- When a device is enabled, it will start sending data packets to the relevant data register.
+- If interrupts are enabled on a device, an interrupt will be raised when new data is available.
+- New data will not be sent until the previous data has been read. This means that any events that occur while the previous data is unread will be lost.
+- A new interrupt will not be raised until the previous interrupt has been acknowledged.
+- There is an interrupt line per device, so both devices can raise interrupts independently. Interrupt 0 is the keyboard, and interrupt 1 is the mouse.
+
+##### Keyboard data packet
+
+Main packet format:
+
+| Offset | Width | Name       | Description                          |
+|--------|-------|------------|--------------------------------------|
+| 0      | 1     | SCANCODE   | Scancode of the key pressed/released |
+| 1      | 1     | MODIFIERS  | Modifier keys bitfield               |
+| 2      | 1     | FLAGS      | Flags                                |
+| 2-7    | 6     | RESERVED   | Reserved                             |
+
+Flags:
+
+| Bit | Name        | Description                     |
+|-----|-------------|---------------------------------|
+| 0   | RELEASED    | Set if the key was released     |
+| 1-7 | RESERVED    | Reserved                        |
+
+Modifiers:
+
+| Bit | Name    |
+|-----|---------|
+| 0   | L_CTRL  |
+| 1   | R_CTRL  |
+| 2   | L_SHIFT |
+| 3   | R_SHIFT |
+| 4   | L_ALT   |
+| 5   | R_ALT   |
+| 6   | SUPER   |
+| 7   | MENU    |
+
+##### Mouse data packet
+
+Main packet format:
+
+| Offset | Width | Name     | Description                     |
+|--------|-------|----------|---------------------------------|
+| 0      | 2     | DX       | Change in X position            |
+| 2      | 2     | DY       | Change in Y position            |
+| 4      | 1     | WHEEL    | Wheel movement (positive is up) |
+| 5      | 1     | BUTTONS  | Button bitfield                 |
+| 6-7    | 2     | RESERVED | Reserved                        |
+
+##### Keyboard scancode
+
+| Scancode | Name    | Scancode | Name      |
+|----------|---------|----------|-----------|
+| 0        | ESC     | 58       | CAPS      |
+| 1        | F1      | 59       | A         |
+| 2        | F2      | 60       | S         |
+| 3        | F3      | 61       | D         |
+| 4        | F4      | 62       | F         |
+| 5        | F5      | 63       | G         |
+| 6        | F6      | 64       | H         |
+| 7        | F7      | 65       | J         |
+| 8        | F8      | 66       | K         |
+| 9        | F9      | 67       | L         |
+| 10       | F10     | 68       | ; OR :    |
+| 11       | F11     | 69       | \' OR \"  |
+| 12       | F12     | 70       | ENTER     |
+| 13       | PRTSC   | 71       | NUM_4     |
+| 14       | SCRLK   | 72       | NUM_5     |
+| 15       | PAUSE   | 73       | NUM_6     |
+| 16       | \`      | 74       | L_SHIFT   |
+| 17       | 1 OR !  | 75       | Z         |
+| 18       | 2 OR @  | 76       | X         |
+| 19       | 3 OR #  | 77       | C         |
+| 20       | 4 OR $  | 78       | V         |
+| 21       | 5 OR %  | 79       | B         |
+| 22       | 6 OR ^  | 80       | N         |
+| 23       | 7 OR &  | 81       | M         |
+| 24       | 8 OR *  | 82       | , OR <    |
+| 25       | 9 OR (  | 83       | . OR >    |
+| 26       | 0 OR )  | 84       | / OR ?    |
+| 27       | - or _  | 85       | R_SHIFT   |
+| 28       | = or +  | 86       | UP        |
+| 29       | BKSPCE  | 87       | NUM_1     |
+| 30       | INS     | 88       | NUM_2     |
+| 31       | HOME    | 89       | NUM_3     |
+| 32       | PG UP   | 90       | NUM_ENTER |
+| 33       | NUMLCK  | 91       | L_CTRL    |
+| 34       | /       | 92       | SUPER     |
+| 35       | *       | 93       | L_ALT     |
+| 36       | -       | 94       | SPACE     |
+| 37       | TAB     | 95       | R_ALT     |
+| 38       | Q       | 96       | MENU      |
+| 39       | W       | 97       | R_CTRL    |
+| 40       | E       | 98       | LEFT      |
+| 41       | R       | 99       | DOWN      |
+| 42       | T       | 100      | RIGHT     |
+| 43       | Y       | 101      | NUM_0     |
+| 44       | U       | 102      | NUM_.     |
+| 45       | I       |
+| 46       | O       |
+| 47       | P       |
+| 48       | [ OR {  |
+| 49       | ] OR }  |
+| 50       | \ OR \| |
+| 51       | DEL     |
+| 52       | END     |
+| 53       | PG DN   |
+| 54       | NUM_7   |
+| 55       | NUM_8   |
+| 56       | NUM_9   |
+| 57       | +       |
+
+
+
 ## The BIOS
 
 - The BIOS has a dedicated memory region from 0xF000'0000 to 0xFFFF'FEFF.

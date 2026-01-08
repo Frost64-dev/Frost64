@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,30 +18,39 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "Emulator.hpp"
 
 #include <cmath>
-#include <Common/Util.hpp>
 #include <cstdint>
 #include <cstdio>
+#include <thread>
+
 #include <DebugInterface.hpp>
 #include <Exceptions.hpp>
-#include <Instruction/Instruction.hpp>
 #include <Interrupts.hpp>
-#include <IO/Devices/ConsoleDevice.hpp>
-#include <IO/Devices/Storage/StorageDevice.hpp>
-#include <IO/Devices/Video/VideoDevice.hpp>
+#include <Register.hpp>
+#include <Stack.hpp>
+
 #include <IO/IOBus.hpp>
 #include <IO/IOInterfaceManager.hpp>
 #include <IO/IOMemoryRegion.hpp>
+
+#include <IO/Devices/ConsoleDevice.hpp>
+
+#include <IO/Devices/HID/HIDDeviceBus.hpp>
+
+#include <IO/Devices/Storage/StorageDevice.hpp>
+
+#include <IO/Devices/Video/VideoDevice.hpp>
+
+#include <Instruction/Instruction.hpp>
+
 #include <MMU/BIOSMemoryRegion.hpp>
 #include <MMU/MMU.hpp>
 #include <MMU/StandardMemoryRegion.hpp>
+#include <MMU/SystemControlMemoryRegion.hpp>
 #include <MMU/VirtualMMU.hpp>
-#include <Register.hpp>
-#include <Stack.hpp>
-#include <thread>
 
-#include "IO/Devices/Video/backends/XCB/XCBVideoBackend.hpp"
-#include "MMU/SystemControlMemoryRegion.hpp"
-#include "OSSpecific/Signal.hpp"
+#include <OSSpecific/Signal.hpp>
+
+#include <Common/Util.hpp>
 
 namespace Emulator {
 
@@ -62,6 +71,7 @@ namespace Emulator {
     ConsoleDevice* g_ConsoleDevice;
     VideoDevice* g_VideoDevice;
     StorageDevice* g_StorageDevice;
+    HIDDeviceBus* g_HIDDeviceBus;
 
     uint64_t g_NextIP;
 
@@ -238,6 +248,8 @@ namespace Emulator {
         if (has_display) {
             g_VideoDevice = new VideoDevice(displayType, g_physicalMMU);
             assert(g_IOBus->AddDevice(g_VideoDevice));
+            g_HIDDeviceBus = new HIDDeviceBus(VideoBackendToHIDBackend(displayType), g_VideoDevice);
+            assert(g_IOBus->AddDevice(g_HIDDeviceBus));
         }
 
         // Configure the storage device

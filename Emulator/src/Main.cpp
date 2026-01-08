@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -109,8 +109,7 @@ int main(int argc, char** argv) {
     }
 
     uint8_t* data = new uint8_t[fileSize];
-    size_t bytesRead = fread(data, 1, fileSize, fp);
-    if (bytesRead != fileSize) {
+    if (fread(data, 1, fileSize, fp) != fileSize) {
         fprintf(stderr, "Error: failed to read file %s: %s\n", program.data(), strerror(errno));
         delete[] data;
         return 1;
