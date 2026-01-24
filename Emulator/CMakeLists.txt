@@ -157,7 +157,7 @@ else ()
 endif ()
 
 target_compile_options(Emulator
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>
+    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C,ASM_NASM>:-g>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wall>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wextra>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wpedantic>
