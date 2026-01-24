@@ -156,8 +156,10 @@ int main(int argc, char** argv) {
     // Delete the args parser
     delete g_args;
 
+    Emulator::EmulatorArgs args = {data, fileSize, ramSize, 1, console, debug, hasDisplay, displayType, hasDrive, drive.data()};
+
     // Actually start emulator
-    if (int status = Emulator::Start(data, fileSize, ramSize, console, debug, hasDisplay, displayType, hasDrive, drive.data()); status != 0) {
+    if (int status = Emulator::Start(args); status != 0) {
         fprintf(stderr, "Error: Emulator failed to start: %d\n", status);
         return 1;
     }

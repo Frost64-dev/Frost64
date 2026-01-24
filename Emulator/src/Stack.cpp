@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ void Stack::push(uint64_t value) {
         code.under = m_stackPointer < m_stackBase ? 1 : 0;
         code.over = m_stackPointer >= m_stackTop ? 1 : 0;
         code.align = (m_stackPointer % 8) > 0 ? 1 : 0;
-        g_ExceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
     }
     m_stackPointer += 8;
     m_MMU->write64(m_stackPointer, value);
@@ -46,7 +46,7 @@ uint64_t Stack::pop() {
         code.under = m_stackPointer < m_stackBase ? 1 : 0;
         code.over = m_stackPointer >= m_stackTop ? 1 : 0;
         code.align = (m_stackPointer % 8) > 0 ? 1 : 0;
-        g_ExceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
     }
     uint64_t value = m_MMU->read64(m_stackPointer);
     m_stackPointer -= 8;
@@ -59,6 +59,34 @@ uint64_t Stack::peek() {
 
 void Stack::clear() {
     m_stackPointer = m_stackBase;
+}
+
+void Stack::BulkPush(const uint64_t* data, uint64_t count) {
+    if (m_stackPointer < m_stackBase || m_stackPointer + (count * 8) > m_stackTop || (m_stackPointer % 8) > 0) {
+        StackViolationErrorCode code = {0, 0, 0, 0};
+        code.under = m_stackPointer < m_stackBase ? 1 : 0;
+        code.over = m_stackPointer + (count * 8) > m_stackTop ? 1 : 0;
+        code.align = (m_stackPointer % 8) > 0 ? 1 : 0;
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
+    }
+    for (uint64_t i = 0; i < count; i++) {
+        m_stackPointer += 8;
+        m_MMU->write64(m_stackPointer, data[i]);
+    }
+}
+
+void Stack::BulkPop(uint64_t* data, uint64_t count) {
+    if (m_stackPointer < m_stackBase || m_stackPointer - (count * 8) < m_stackBase || (m_stackPointer % 8) > 0) {
+        StackViolationErrorCode code = {0, 0, 0, 0};
+        code.under = m_stackPointer - (count * 8) < m_stackBase ? 1 : 0;
+        code.over = m_stackPointer >= m_stackTop ? 1 : 0;
+        code.align = (m_stackPointer % 8) > 0 ? 1 : 0;
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
+    }
+    for (uint64_t i = 0; i < count; i++) {
+        data[i] = m_MMU->read64(m_stackPointer);
+        m_stackPointer -= 8;
+    }
 }
 
 void Stack::setStackBase(uint64_t base) {
@@ -92,5 +120,3 @@ bool Stack::WillOverflowOnPush() const {
 bool Stack::WillUnderflowOnPop() const {
     return m_stackPointer < m_stackBase;
 }
-
-Stack* g_stack = nullptr;

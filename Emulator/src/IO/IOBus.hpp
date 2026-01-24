@@ -29,6 +29,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 class MMU;
 class IODevice;
 
+namespace Emulator {
+    struct CPUState;
+}
+
 enum class IOBusRegister {
     COMMAND = 0,
     STATUS = 1,

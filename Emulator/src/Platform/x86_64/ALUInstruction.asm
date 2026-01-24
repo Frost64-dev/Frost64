@@ -1,4 +1,4 @@
-; Copyright (©) 2023-2025  Frosty515
+; Copyright (©) 2023-2026  Frosty515
 ; 
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -34,34 +34,65 @@ global _x86_64_cmp
 global _x86_64_inc
 global _x86_64_dec
 
-x86_64_convert_flags: ; di = CPU flags --> rax = flags
-    xor rax, rax
-    mov sil, dil
-    and sil, 1
-    or al, sil ; carry flag
-    mov sil, dil
-    and sil, 1<<6 | 1<<7
-    shr sil, 5
-    or al, sil ; zero and sign flags
-    mov si, di
-    and si, 1<<11
-    shr si, 8 ; overflow flag
-    or ax, si
-    ret
+; macro for flags
+%macro HANDLE_FLAGS 0
+    setc BYTE [rdx]
+    setz al
+    sets sil
+    seto cl
+    shl al, 1
+    shl sil, 2
+    shl cl, 3
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+    or BYTE [rdx], cl
+%endmacro
+
+; macro for OR/XOR/AND flags, which don't set CF/OF
+%macro HANDLE_OR_FLAGS 0
+    setz al
+    sets sil
+    shl al, 1
+    shl sil, 2
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+%endmacro
+
+; macro for SHL/SHR flags, where OF is unaffected
+%macro HANDLE_SHIFT_FLAGS 0
+    setc BYTE [rdx]
+    setz al
+    sets sil
+    shl al, 1
+    shl sil, 2
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+%endmacro
+
+; macro for 1-operand instructions, using rsi instead of rdx
+%macro HANDLE_1OP_FLAGS 0
+    setc BYTE [rsi]
+    setz al
+    sets cl
+    seto dl
+    shl al, 1
+    shl cl, 2
+    shl dl, 3
+    or BYTE [rsi], al
+    or BYTE [rsi], cl
+    or BYTE [rsi], dl
+%endmacro
 
 _x86_64_add:
     push rbp
     mov rbp, rsp
 
-    add rdi, rsi
-    
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    and BYTE [rdx], 0xf0
 
-    pop rax
+    add rdi, rsi
+    HANDLE_FLAGS
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -71,15 +102,12 @@ _x86_64_sub:
     push rbp
     mov rbp, rsp
 
+    and BYTE [rdx], 0xf0
+
     sub rdi, rsi
+    HANDLE_FLAGS
 
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
-
-    pop rax
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -89,19 +117,23 @@ _x86_64_mul:
     push rbp
     mov rbp, rsp
 
+    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
+
     mov rcx, rdx ; move pointer to flags to rcx
 
     mov rax, rdi
     mul rsi ; rdx:rax = rax * rsi
-
-    push rax
-    pushf
-    pop rdi
-    and rdi, ~(1 << 6 | 1 << 7) ; clear zero and sign flags
-    call x86_64_convert_flags
-    mov QWORD [rcx], rax
-
-    pop rax
+    ; carry and overflow flags are set on x86
+    setc BYTE [rcx]
+    seto dil
+    ; need to manually set zero flag
+    mov rsi, rax
+    or rsi, rdx
+    setz sil
+    shl sil, 1
+    shl dil, 3
+    or BYTE [rcx], sil
+    or BYTE [rcx], dil
 
     mov rsp, rbp
     pop rbp
@@ -110,8 +142,6 @@ _x86_64_mul:
 _x86_64_div:
     push rbp
     mov rbp, rsp
-
-    mov QWORD [rcx], 0 ; rcx is the pointer to flags, normally rdx
 
     mov rcx, rdx ; move divisor to rcx
     mov rdx, rsi ; move dividend to rdx:rax
@@ -128,19 +158,23 @@ _x86_64_smul:
     push rbp
     mov rbp, rsp
 
+    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
+
     mov rcx, rdx ; move pointer to flags to rcx
 
     mov rax, rdi
     imul rsi ; rdx:rax = rax * rsi
-
-    push rax
-    pushf
-    pop rdi
-    and rdi, ~(1 << 6 | 1 << 7) ; clear zero and sign flags
-    call x86_64_convert_flags
-    mov QWORD [rcx], rax
-
-    pop rax
+    ; carry and overflow flags are set on x86
+    setc BYTE [rcx]
+    seto dil
+    ; need to manually set zero flag
+    mov rsi, rax
+    or rsi, rdx
+    setz sil
+    shl sil, 1
+    shl dil, 3
+    or BYTE [rcx], sil
+    or BYTE [rcx], dil
 
     mov rsp, rbp
     pop rbp
@@ -149,8 +183,6 @@ _x86_64_smul:
 _x86_64_sdiv:
     push rbp
     mov rbp, rsp
-
-    mov QWORD [rcx], 0 ; rcx is the pointer to flags, normally rdx
 
     mov rcx, rdx ; move divisor to rcx
     mov rdx, rsi ; move dividend to rdx:rax
@@ -167,15 +199,12 @@ _x86_64_or:
     push rbp
     mov rbp, rsp
 
-    or rdi, rsi
-    
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    and BYTE [rdx], 0xf0
 
-    pop rax
+    or rdi, rsi
+    HANDLE_OR_FLAGS
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -185,11 +214,19 @@ _x86_64_nor:
     push rbp
     mov rbp, rsp
 
-    push rdx
-    call _x86_64_or
-    mov rdi, rax
-    pop rsi
-    call _x86_64_not
+    and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
+
+    or rdi, rsi
+    not rdi ; doesn't affect flags
+    setnz al ; invert zero flag
+    bt rdi, 63 ; test sign flag
+    setc sil ; carry flag acts as sign flag here
+    shl al, 1
+    shl sil, 2
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -199,15 +236,12 @@ _x86_64_xor:
     push rbp
     mov rbp, rsp
 
-    xor rdi, rsi
-    
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    and BYTE [rdx], 0xf0
 
-    pop rax
+    xor rdi, rsi
+    HANDLE_OR_FLAGS
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -217,11 +251,19 @@ _x86_64_xnor:
     push rbp
     mov rbp, rsp
 
-    push rdx
-    call _x86_64_xor
-    mov rdi, rax
-    pop rsi
-    call _x86_64_not
+    and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
+
+    xor rdi, rsi
+    not rdi ; doesn't affect flags
+    setnz al ; invert zero flag
+    bt rdi, 63 ; test sign flag
+    setc sil ; carry flag acts as sign flag here
+    shl al, 1
+    shl sil, 2
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -231,15 +273,12 @@ _x86_64_and:
     push rbp
     mov rbp, rsp
 
-    and rdi, rsi
-    
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    and BYTE [rdx], 0xf0
 
-    pop rax
+    and rdi, rsi
+    HANDLE_OR_FLAGS
+    
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -249,11 +288,19 @@ _x86_64_nand:
     push rbp
     mov rbp, rsp
 
-    push rdx
-    call _x86_64_and
-    mov rdi, rax
-    pop rsi
-    call _x86_64_not
+    and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
+
+    and rdi, rsi
+    not rdi ; doesn't affect flags
+    setnz al ; invert zero flag
+    bt rdi, 63 ; test sign flag
+    setc sil ; carry flag acts as sign flag here
+    shl al, 1
+    shl sil, 2
+    or BYTE [rdx], al
+    or BYTE [rdx], sil
+
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -264,7 +311,6 @@ _x86_64_not:
     mov rbp, rsp
 
     not rdi
-    mov QWORD [rsi], 0
     mov rax, rdi
 
     mov rsp, rbp
@@ -275,17 +321,14 @@ _x86_64_shl:
     push rbp
     mov rbp, rsp
 
+    and BYTE [rdx], 0xf8
+
     mov cl, sil
 
     shl rdi, cl
-    push rdi
+    HANDLE_SHIFT_FLAGS
 
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
-
-    pop rax
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -295,17 +338,14 @@ _x86_64_shr:
     push rbp
     mov rbp, rsp
 
+    and BYTE [rdx], 0xf8
+
     mov cl, sil
 
     shr rdi, cl
-    push rdi
+    HANDLE_SHIFT_FLAGS
 
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
-
-    pop rax
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -315,12 +355,10 @@ _x86_64_cmp:
     push rbp
     mov rbp, rsp
 
-    cmp rdi, rsi
+    and BYTE [rdx], 0xf0
 
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rdx], rax
+    cmp rdi, rsi
+    HANDLE_FLAGS
 
     mov rsp, rbp
     pop rbp
@@ -330,15 +368,12 @@ _x86_64_inc:
     push rbp
     mov rbp, rsp
 
-    inc rdi
+    and BYTE [rsi], 0xf0
 
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rsi], rax
+    add rdi, 1
+    HANDLE_1OP_FLAGS
 
-    pop rax
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp
@@ -348,15 +383,12 @@ _x86_64_dec:
     push rbp
     mov rbp, rsp
 
-    dec rdi
+    and BYTE [rsi], 0xf0
 
-    push rdi
-    pushf
-    pop rdi
-    call x86_64_convert_flags
-    mov QWORD [rsi], rax
+    sub rdi, 1
+    HANDLE_1OP_FLAGS
 
-    pop rax
+    mov rax, rdi
 
     mov rsp, rbp
     pop rbp

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,11 +43,15 @@ struct IDTR {
     uint64_t base;
 };
 
+namespace Emulator {
+    struct CPUState;
+}
+
 class ExceptionHandler;
 
 class InterruptHandler {
 public:
-    InterruptHandler(MMU* mmu, ExceptionHandler* exceptionHandler);
+    InterruptHandler(Emulator::CPUState* cpu, MMU* mmu);
     ~InterruptHandler();
 
     void SetIDTR(uint64_t base);
@@ -66,12 +70,10 @@ private:
     void RaiseInterruptCommon(uint8_t interrupt, uint64_t IP);
 
 private:
+    Emulator::CPUState* m_cpu;
     MMU* m_MMU;
-    ExceptionHandler* m_ExceptionHandler;
     InterruptDescriptor m_IDT[256];
     uint64_t m_IDTR;
 };
-
-extern InterruptHandler* g_InterruptHandler;
 
 #endif /* _INTERRUPTS_HPP */

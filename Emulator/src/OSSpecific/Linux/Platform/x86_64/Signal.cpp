@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <csignal>
 
+#include <Emulator.hpp>
 #include <Exceptions.hpp>
 
 #include <Platform/x86_64/ALUInstruction.h>
@@ -27,7 +28,9 @@ void Linux_InstructionSignalHandler(int, siginfo_t* info, void*) {
     if (info->si_signo == SIGFPE) {
         if ((info->si_addr >= _x86_64_div_beforediv && info->si_addr <= _x86_64_div_afterdiv )|| (info->si_addr >= _x86_64_sdiv_beforediv && info->si_addr <= _x86_64_sdiv_afterdiv)) {
             // need to raise an integer overflow exception, as division by zero is handled by the relevant functions for the instructions
-            g_ExceptionHandler->RaiseException(Exception::INTEGER_OVERFLOW);
+            if (Emulator::g_currentCPUState == nullptr || Emulator::g_currentCPUState->exceptionHandler == nullptr)
+                Emulator::Crash("Linux_InstructionSignalHandler: CPUState or ExceptionHandler is null");
+            Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::INTEGER_OVERFLOW);
         }
     }
     // can't handle it, so just fall back to the caller to handle it

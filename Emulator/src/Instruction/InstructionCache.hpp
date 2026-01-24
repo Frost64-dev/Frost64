@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <cstdint>
 
+#include <Emulator.hpp>
+
 #include <MMU/MMU.hpp>
 
 #include <Common/DataStructures/Buffer.hpp>
@@ -28,7 +30,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 class InstructionCache : public StreamBuffer {
 public:
-    InstructionCache();
+    InstructionCache(Emulator::CPUState* cpu);
     ~InstructionCache();
 
     void Init(MMU* mmu, uint64_t base_address);
@@ -76,6 +78,7 @@ private:
     uint64_t m_cacheOffset; // Current offset in the instruction cache
     MMU* m_mmu; // MMU instance
     uint64_t m_base_address; // Base address of the cache
+    Emulator::CPUState* m_cpu;
 };
 
 #endif /* _INSTRUCTION_CACHE_HPP */

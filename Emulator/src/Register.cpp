@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -58,18 +58,10 @@ Register::~Register() {
 }
 
 uint64_t Register::GetValue() const {
-    if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
-    }
     return m_value;
 }
 
 uint64_t Register::GetValue(OperandSize size) const {
-    if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
-    }
     switch (size) {
     case OperandSize::BYTE:
         return m_value & 0xFF;
@@ -221,15 +213,15 @@ void Register::DecodeID(uint8_t ID) {
 }
 
 SyncingRegister::SyncingRegister()
-    : Register() {
+    : Register(), m_callback(nullptr, nullptr) {
 }
 
-SyncingRegister::SyncingRegister(uint8_t ID, bool writable, uint64_t value)
-    : Register(ID, writable, value) {
+SyncingRegister::SyncingRegister(uint8_t ID, bool writable, RegisterSyncCallback callback, uint64_t value)
+    : Register(ID, writable, value), m_callback(callback) {
 }
 
-SyncingRegister::SyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
-    : Register(type, index, writable, value) {
+SyncingRegister::SyncingRegister(RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback, uint64_t value)
+    : Register(type, index, writable, value), m_callback(callback) {
 }
 
 SyncingRegister::~SyncingRegister() {
@@ -238,6 +230,8 @@ SyncingRegister::~SyncingRegister() {
 bool SyncingRegister::SetValue(uint64_t value, bool) {
     m_value = value;
     m_dirty = true;
+    if (m_callback.callback != nullptr)
+        m_callback.callback(m_callback.data, m_value);
     return true;
 }
 
@@ -259,19 +253,25 @@ bool SyncingRegister::SetValue(uint64_t value, OperandSize size) {
         return false;
     }
     m_dirty = true;
+    if (m_callback.callback != nullptr)
+        m_callback.callback(m_callback.data, m_value);
     return true;
 }
 
+void SyncingRegister::SetCallback(RegisterSyncCallback callback) {
+    m_callback = callback;
+}
+
 SafeSyncingRegister::SafeSyncingRegister()
-    : Register() {
+    : Register(), m_cpu(nullptr), m_callback(nullptr, nullptr) {
 }
 
-SafeSyncingRegister::SafeSyncingRegister(uint8_t ID, bool writable, uint64_t value)
-    : Register(ID, writable, value) {
+SafeSyncingRegister::SafeSyncingRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, RegisterSyncCallback callback, uint64_t value)
+    : Register(ID, writable, value), m_cpu(cpu), m_callback(callback) {
 }
 
-SafeSyncingRegister::SafeSyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
-    : Register(type, index, writable, value) {
+SafeSyncingRegister::SafeSyncingRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback, uint64_t value)
+    : Register(type, index, writable, value), m_cpu(cpu), m_callback(callback) {
 }
 
 SafeSyncingRegister::~SafeSyncingRegister() {
@@ -281,11 +281,13 @@ bool SafeSyncingRegister::SetValue(uint64_t value, bool force) {
     if (!force && !m_writable)
         return false;
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     m_value = value;
     m_dirty = true;
+    if (m_callback.callback != nullptr)
+        m_callback.callback(m_callback.data, m_value);
     return true;
 }
 
@@ -293,8 +295,8 @@ bool SafeSyncingRegister::SetValue(uint64_t value, OperandSize size) {
     if (!m_writable)
         return false;
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     switch (size) {
     case OperandSize::BYTE:
@@ -313,21 +315,23 @@ bool SafeSyncingRegister::SetValue(uint64_t value, OperandSize size) {
         return false;
     }
     m_dirty = true;
+    if (m_callback.callback != nullptr)
+        m_callback.callback(m_callback.data, m_value);
     return true;
 }
 
 uint64_t SafeSyncingRegister::GetValue() const {
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     return m_value;
 }
 
 uint64_t SafeSyncingRegister::GetValue(OperandSize size) const {
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     switch (size) {
     case OperandSize::BYTE:
@@ -343,16 +347,20 @@ uint64_t SafeSyncingRegister::GetValue(OperandSize size) const {
     }
 }
 
+void SafeSyncingRegister::SetCallback(RegisterSyncCallback callback) {
+    m_callback = callback;
+}
+
 SafeRegister::SafeRegister()
     : Register() {
 }
 
-SafeRegister::SafeRegister(uint8_t ID, bool writable, uint64_t value)
-    : Register(ID, writable, value) {
+SafeRegister::SafeRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, uint64_t value)
+    : Register(ID, writable, value), m_cpu(cpu) {
 }
 
-SafeRegister::SafeRegister(RegisterType type, uint8_t index, bool writable, uint64_t value)
-    : Register(type, index, writable, value) {
+SafeRegister::SafeRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, uint64_t value)
+    : Register(type, index, writable, value), m_cpu(cpu) {
 }
 
 SafeRegister::~SafeRegister() {
@@ -362,8 +370,8 @@ bool SafeRegister::SetValue(uint64_t value, bool force) {
     if (!force && !m_writable)
         return false;
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     m_value = value;
     return true;
@@ -373,8 +381,8 @@ bool SafeRegister::SetValue(uint64_t value, OperandSize size) {
     if (!m_writable)
         return false;
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     switch (size) {
     case OperandSize::BYTE:
@@ -402,16 +410,16 @@ void SafeRegister::SetValueNoCheck(uint64_t value) {
 
 uint64_t SafeRegister::GetValue() const {
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     return m_value;
 }
 
 uint64_t SafeRegister::GetValue(OperandSize size) const {
     if (m_type == RegisterType::Control) {
-        if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-            g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+        if (Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu))
+            m_cpu->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
     }
     switch (size) {
     case OperandSize::BYTE:

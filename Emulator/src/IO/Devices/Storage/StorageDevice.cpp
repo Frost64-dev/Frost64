@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -179,7 +179,7 @@ void StorageDevice::HandleCommand(StorageDeviceCommands command) {
         m_transferCommandStatus.Count = request.COUNT;
         m_transferCommandStatus.INT = request.FLAGS.INT;
         m_transferCommandStatus.write = false;
-        Emulator::RaiseEvent({Emulator::EventType::StorageTransfer, reinterpret_cast<uint64_t>(this)});
+        Emulator::RaiseEvent({Emulator::EventType::StorageTransfer, Emulator::g_currentCPUState, reinterpret_cast<uint64_t>(this)});
         break;
     }
     case StorageDeviceCommands::WRITE: {
@@ -216,7 +216,7 @@ void StorageDevice::HandleCommand(StorageDeviceCommands command) {
         m_transferCommandStatus.Count = request.COUNT;
         m_transferCommandStatus.INT = request.FLAGS.INT;
         m_transferCommandStatus.write = true;
-        Emulator::RaiseEvent({Emulator::EventType::StorageTransfer, reinterpret_cast<uint64_t>(this)});
+        Emulator::RaiseEvent({Emulator::EventType::StorageTransfer, Emulator::g_currentCPUState, reinterpret_cast<uint64_t>(this)});
         break;
     }
     }

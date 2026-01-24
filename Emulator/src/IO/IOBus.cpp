@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -51,10 +51,8 @@ uint64_t IOBus::ReadRegister(uint64_t offset) {
     switch (static_cast<IOBusRegister>(offset)) {
     case IOBusRegister::COMMAND:
         return 0;
-    case IOBusRegister::STATUS: {
-        uint64_t* temp = reinterpret_cast<uint64_t*>(&m_registers);
-        return temp[1];
-    }
+    case IOBusRegister::STATUS:
+        return std::bit_cast<uint64_t, IOBus_StatusRegister>(m_registers.status);
     case IOBusRegister::DATA0:
     case IOBusRegister::DATA1:
     case IOBusRegister::DATA2:
@@ -106,13 +104,15 @@ void IOBus::RemoveDevice(IODevice* device) {
 
 void IOBus::HandleDeviceInterrupt(IODeviceID device, uint64_t index) {
     if (uint8_t SINT = m_interruptMapping[{device, index}]; SINT != 0)
-        g_InterruptHandler->RaiseInterruptExternal(SINT);
+        Emulator::g_cpuStates->interruptHandler->RaiseInterruptExternal(SINT); // just use CPU 0 for now
 }
 
 
 void IOBus::Validate() const {
-    if (Emulator::isInProtectedMode() && Emulator::isInUserMode())
-        g_ExceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
+    if (Emulator::g_currentCPUState == nullptr)
+        Emulator::Crash("Cannot get current CPU state in IOBus::Validate");
+    if (Emulator::isInProtectedMode(Emulator::g_currentCPUState) && Emulator::isInUserMode(Emulator::g_currentCPUState))
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::USER_MODE_VIOLATION);
 }
 
 void IOBus::RunCommand(uint64_t command) {

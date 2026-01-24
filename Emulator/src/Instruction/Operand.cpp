@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,26 +20,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "Exceptions.hpp"
+#include <Emulator.hpp>
+#include <Exceptions.hpp>
 
 Operand::Operand()
-    : m_register(nullptr), m_type(OperandType::Register), m_size(OperandSize::Unknown), m_offset(0), m_address(0), m_complexData(nullptr), m_memoryOperation(nullptr) {
+    : m_cpu(nullptr), m_register(nullptr), m_type(OperandType::Register), m_size(OperandSize::Unknown), m_offset(0), m_address(0), m_complexData(nullptr), m_mmu(nullptr) {
 }
 
-Operand::Operand(OperandSize size, Register* reg)
-    : m_register(reg), m_type(OperandType::Register), m_size(size) {
+Operand::Operand(Emulator::CPUState* cpu, OperandSize size, Register* reg)
+    : m_cpu(cpu), m_register(reg), m_type(OperandType::Register), m_size(size) {
 }
 
-Operand::Operand(OperandSize size, uint64_t immediate)
-    :  m_type(OperandType::Immediate), m_size(size), m_offset(immediate) {
+Operand::Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t immediate)
+    : m_cpu(cpu), m_type(OperandType::Immediate), m_size(size), m_offset(immediate) {
 }
 
-Operand::Operand(OperandSize size, uint64_t address, MemoryOperation_t operation)
-    : m_type(OperandType::Memory), m_size(size), m_address(address), m_memoryOperation(operation) {
+Operand::Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t address, MMU* mmu)
+    : m_cpu(cpu), m_type(OperandType::Memory), m_size(size), m_address(address), m_mmu(mmu) {
 }
 
-Operand::Operand(OperandSize size, ComplexData* complexData, MemoryOperation_t operation)
-    : m_type(OperandType::Complex), m_size(size), m_complexData(complexData), m_memoryOperation(operation) {
+Operand::Operand(Emulator::CPUState* cpu, OperandSize size, ComplexData* complexData, MMU* mmu)
+    : m_cpu(cpu), m_type(OperandType::Complex), m_size(size), m_complexData(complexData), m_mmu(mmu) {
 }
 
 Operand::~Operand() {
@@ -142,7 +143,7 @@ void Operand::PrintInfo() const {
                     base = *static_cast<uint64_t*>(m_complexData->base.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
                 base_type = true;
             }
@@ -170,7 +171,7 @@ void Operand::PrintInfo() const {
                     index = *static_cast<uint64_t*>(m_complexData->index.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
                 index_type = true;
             }
@@ -199,7 +200,7 @@ void Operand::PrintInfo() const {
                     offset = *static_cast<uint64_t*>(m_complexData->offset.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
                 offset_type = true;
             }
@@ -254,7 +255,22 @@ uint64_t Operand::GetValue() const {
         return m_offset;
     case OperandType::Memory: {
         uint64_t value = 0;
-        m_memoryOperation(m_address, &value, 1 << static_cast<uint8_t>(m_size), 1, false);
+        switch (m_size) {
+        case OperandSize::BYTE:
+            value = m_mmu->read8(m_address);
+            break;
+        case OperandSize::WORD:
+            value = m_mmu->read16(m_address);
+            break;
+        case OperandSize::DWORD:
+            value = m_mmu->read32(m_address);
+            break;
+        case OperandSize::QWORD:
+            value = m_mmu->read64(m_address);
+            break;
+        default:
+            m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        }
         return value;
     }
     case OperandType::Complex: {
@@ -277,7 +293,7 @@ uint64_t Operand::GetValue() const {
                     base = *static_cast<int64_t*>(m_complexData->base.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         }
@@ -302,7 +318,7 @@ uint64_t Operand::GetValue() const {
                     index = *static_cast<int64_t*>(m_complexData->index.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         } else if (m_complexData->base.present)
@@ -328,12 +344,28 @@ uint64_t Operand::GetValue() const {
                     offset = *static_cast<int64_t*>(m_complexData->offset.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         }
         uint64_t value = 0;
-        m_memoryOperation(base * index + offset, &value, 1 << static_cast<uint8_t>(m_size), 1, false);
+
+        switch (m_size) {
+        case OperandSize::BYTE:
+            value = m_mmu->read8(base * index + offset);
+            break;
+        case OperandSize::WORD:
+            value = m_mmu->read16(base * index + offset);
+            break;
+        case OperandSize::DWORD:
+            value = m_mmu->read32(base * index + offset);
+            break;
+        case OperandSize::QWORD:
+            value = m_mmu->read64(base * index + offset);
+            break;
+        default:
+            m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        }
         return value;
     }
     default:
@@ -345,12 +377,27 @@ void Operand::SetValue(uint64_t value) {
     switch (m_type) {
     case OperandType::Register:
         if (!m_register->SetValue(value, m_size))
-            g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+            m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
         break;
     case OperandType::Immediate:
-        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
     case OperandType::Memory:
-        m_memoryOperation(m_address, &value, 1 << static_cast<uint8_t>(m_size), 1, true);
+        switch (m_size) {
+        case OperandSize::BYTE:
+            m_mmu->write8(m_address, static_cast<uint8_t>(value));
+            break;
+        case OperandSize::WORD:
+            m_mmu->write16(m_address, static_cast<uint16_t>(value));
+            break;
+        case OperandSize::DWORD:
+            m_mmu->write32(m_address, static_cast<uint32_t>(value));
+            break;
+        case OperandSize::QWORD:
+            m_mmu->write64(m_address, value);
+            break;
+        default:
+            m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        }
         break;
     case OperandType::Complex: {
         uint64_t base = 0;
@@ -372,7 +419,7 @@ void Operand::SetValue(uint64_t value) {
                     base = *static_cast<uint64_t*>(m_complexData->base.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         }
@@ -397,7 +444,7 @@ void Operand::SetValue(uint64_t value) {
                     index = *static_cast<uint64_t*>(m_complexData->index.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         } else if (m_complexData->base.present)
@@ -423,11 +470,26 @@ void Operand::SetValue(uint64_t value) {
                     offset = *static_cast<uint64_t*>(m_complexData->offset.data.imm.data);
                     break;
                 default:
-                    g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                    m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                 }
             }
         }
-        m_memoryOperation(base * index + offset, &value, 1 << static_cast<uint8_t>(m_size), 1, true);
+        switch (m_size) {
+        case OperandSize::BYTE:
+            m_mmu->write8(base * index + offset, static_cast<uint8_t>(value));
+            break;
+        case OperandSize::WORD:
+            m_mmu->write16(base * index + offset, static_cast<uint16_t>(value));
+            break;
+        case OperandSize::DWORD:
+            m_mmu->write32(base * index + offset, static_cast<uint32_t>(value));
+            break;
+        case OperandSize::QWORD:
+            m_mmu->write64(base * index + offset, value);
+            break;
+        default:
+            m_cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+        }
         break;
     }
     }

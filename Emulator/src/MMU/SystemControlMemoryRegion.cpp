@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ void SystemControlMemoryRegion::read(uint64_t address, uint8_t* buffer, size_t s
         for (size_t i = 0; i < size; i++)
             buffer[i] = m_MemControl.ReadRegister((offset + i) / 8) >> ((address + i) % 8 * 8) & 0xFF;
     } else
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void SystemControlMemoryRegion::write(uint64_t address, const uint8_t* buffer, size_t size) {
@@ -65,7 +65,7 @@ void SystemControlMemoryRegion::write(uint64_t address, const uint8_t* buffer, s
         }
     }
     else
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 #define SYSCTRLReadFunc(size) \
@@ -77,7 +77,7 @@ void SystemControlMemoryRegion::read##size(uint64_t address, uint##size##_t* buf
     else if (offset < 0x70)                                                             \
         *buffer = m_MemControl.ReadRegister((offset - 0x40) / 8);                       \
     else                                                                                \
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);     \
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);     \
 }
 
 #define SYSCTRLWriteFunc(size) \
@@ -89,7 +89,7 @@ void SystemControlMemoryRegion::write##size(uint64_t address, const uint##size##
     else if (offset < 0x70)                                                                    \
         m_MemControl.WriteRegister((offset - 0x40) / 8, *buffer);                              \
     else                                                                                       \
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);            \
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);            \
 }
 
 SYSCTRLReadFunc(8)

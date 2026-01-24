@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,8 +24,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
 
-VirtualMMU::VirtualMMU(MMU* physicalMMU, uint64_t pageTableRoot, PageSize pageSize, PageTableLevelCount pageTableLevelCount)
-    : m_physicalMMU(physicalMMU), m_pageTableRoot(pageTableRoot), m_pageSize(pageSize), m_pageTableLevelCount(pageTableLevelCount) {
+VirtualMMU::VirtualMMU(Emulator::CPUState* cpu, MMU* physicalMMU, uint64_t pageTableRoot, PageSize pageSize, PageTableLevelCount pageTableLevelCount)
+    : m_cpu(cpu), m_physicalMMU(physicalMMU), m_pageTableRoot(pageTableRoot), m_pageSize(pageSize), m_pageTableLevelCount(pageTableLevelCount) {
     assert(m_physicalMMU != nullptr);
 }
 
@@ -210,7 +210,7 @@ uint64_t VirtualMMU::TranslateAddress(uint64_t address, PageTranslateMode mode, 
     default:
         assert(false); // deal with error handling later...
     }
-    bool inUserMode = Emulator::isInProtectedMode() && Emulator::isInUserMode();
+    bool inUserMode = Emulator::isInProtectedMode(m_cpu) && Emulator::isInUserMode(m_cpu);
     PageTableEntry table;
     uint64_t physicalAddress = 0;
     for (uint8_t i = 0; i < levelCount; i++) {
@@ -218,7 +218,7 @@ uint64_t VirtualMMU::TranslateAddress(uint64_t address, PageTranslateMode mode, 
         if (i == 0) {
             // need to fetch the table from guest memory
             if (!m_physicalMMU->ValidateRead(m_pageTableRoot + index * 8, 8))
-                g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, m_pageTableRoot + index * 8);
+                m_cpu->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, m_pageTableRoot + index * 8);
             {
                 uint64_t raw = m_physicalMMU->read64(m_pageTableRoot + index * 8);
                 PageTableEntry* temp = reinterpret_cast<PageTableEntry*>(&raw);
@@ -239,7 +239,7 @@ uint64_t VirtualMMU::TranslateAddress(uint64_t address, PageTranslateMode mode, 
             code.write = mode == PageTranslateMode::Write;
             code.execute = mode == PageTranslateMode::Execute;
             code.user = inUserMode;
-            g_ExceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
+            m_cpu->exceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
         }
         if (!table.Present) {
             if (safe) {
@@ -252,7 +252,7 @@ uint64_t VirtualMMU::TranslateAddress(uint64_t address, PageTranslateMode mode, 
             code.write = mode == PageTranslateMode::Write;
             code.execute = mode == PageTranslateMode::Execute;
             code.user = inUserMode;
-            g_ExceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
+            m_cpu->exceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
         }
         if ((!table.Readable && mode == PageTranslateMode::Read) || (!table.Writable && mode == PageTranslateMode::Write) || (!table.Executable && mode == PageTranslateMode::Execute) || (inUserMode && !table.User)) {
             if (safe) {
@@ -265,7 +265,7 @@ uint64_t VirtualMMU::TranslateAddress(uint64_t address, PageTranslateMode mode, 
             code.write = mode == PageTranslateMode::Write;
             code.execute = mode == PageTranslateMode::Execute;
             code.user = inUserMode;
-            g_ExceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
+            m_cpu->exceptionHandler->RaiseException(Exception::PAGING_VIOLATION, address, code);
         }
         physicalAddress = table.PhysicalAddress >> (pageShift - 12);
     }
@@ -285,7 +285,7 @@ bool VirtualMMU::GetNextTableLevel(PageTableEntry table, uint64_t tableIndex, Pa
 
     // data structure for PageTableEntry only supports 4KiB pages, so just shift by 12
     if (!m_physicalMMU->ValidateRead(((uint64_t)table.PhysicalAddress << 12) + tableIndex * 8, 8))
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, ((uint64_t)table.PhysicalAddress << 12) + tableIndex * 8);
+        m_cpu->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, ((uint64_t)table.PhysicalAddress << 12) + tableIndex * 8);
 
     uint64_t raw = m_physicalMMU->read64(((uint64_t)table.PhysicalAddress << 12) + tableIndex * 8);
     PageTableEntry* temp = reinterpret_cast<PageTableEntry*>(&raw);

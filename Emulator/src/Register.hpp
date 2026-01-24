@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -64,6 +64,10 @@ enum RegisterID {
     RegisterID_UNKNOWN = 0xFF
 };
 
+namespace Emulator {
+    struct CPUState;
+}
+
 class Register {
 public:
     Register();
@@ -106,22 +110,32 @@ private:
     uint8_t m_ID;
 };
 
+struct RegisterSyncCallback {
+    void (*callback)(void* data, uint64_t value);
+    void* data;
+};
+
 class SyncingRegister : public Register {
 public:
     SyncingRegister();
-    SyncingRegister(uint8_t ID, bool writable, uint64_t value = 0);
-    SyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
+    SyncingRegister(uint8_t ID, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
+    SyncingRegister(RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
     ~SyncingRegister();
 
     bool SetValue(uint64_t value, bool = false) override;
     bool SetValue(uint64_t value, OperandSize size) override;
+
+    void SetCallback(RegisterSyncCallback callback);
+
+private:
+    RegisterSyncCallback m_callback;
 };
 
 class SafeSyncingRegister : public Register {
 public:
     SafeSyncingRegister();
-    SafeSyncingRegister(uint8_t ID, bool writable, uint64_t value = 0);
-    SafeSyncingRegister(RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
+    SafeSyncingRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
+    SafeSyncingRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
     ~SafeSyncingRegister();
 
     bool SetValue(uint64_t value, bool force = false) override;
@@ -129,13 +143,19 @@ public:
 
     uint64_t GetValue() const override;
     uint64_t GetValue(OperandSize size) const override;
+
+    void SetCallback(RegisterSyncCallback callback);
+
+private:
+    Emulator::CPUState* m_cpu;
+    RegisterSyncCallback m_callback;
 };
 
 class SafeRegister : public Register {
 public:
     SafeRegister();
-    SafeRegister(uint8_t ID, bool writable, uint64_t value = 0);
-    SafeRegister(RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
+    SafeRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, uint64_t value = 0);
+    SafeRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
     ~SafeRegister();
 
     bool SetValue(uint64_t value, bool force = false) override;
@@ -145,6 +165,9 @@ public:
     uint64_t GetValue() const override;
     uint64_t GetValue(OperandSize size) const override;
     uint64_t GetValueNoCheck() const { return m_value; }
+
+private:
+    Emulator::CPUState* m_cpu;
 };
 
 #endif /* _REGISTER_HPP */

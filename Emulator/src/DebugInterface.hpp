@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ public:
         Signal,
     };
 
-    DebugInterface(IOInterfaceType type, MMU* physicalMMU, VirtualMMU* virtualMMU, const std::string_view& data = "");
+    DebugInterface(IOInterfaceType type, MMU* physicalMMU, const std::string_view& data = "");
     ~DebugInterface();
 
     void InterfaceInit() override;
@@ -54,6 +54,7 @@ public:
 private:
     void MainLoop();
     void HandleBreakpoint(uint64_t address);
+    void SwitchCPU(uint64_t ID);
 
 #define COMMAND(name) bool Command_##name(const std::vector<std::string_view>&)
 
@@ -66,6 +67,7 @@ private:
     COMMAND(Delete);
     COMMAND(Info);
     COMMAND(Dump);
+    COMMAND(SwitchCPU);
 
 #undef COMMAND
 
@@ -74,6 +76,8 @@ private:
         EventType type;
         void* data;
     };
+
+    Emulator::CPUState* m_cpu;
 
     MMU* m_physicalMMU;
     VirtualMMU* m_virtualMMU;

@@ -20,7 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <thread>
+
+#include <LibArch/Instruction.hpp>
 
 #include <DebugInterface.hpp>
 #include <Exceptions.hpp>
@@ -54,52 +57,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace Emulator {
 
-    void EmulatorMain();
+    void EmulatorMain(uint64_t cpuCount);
 
-    struct CPURegisters {
-        SafeRegister* IP;
-        Register* SCP;
-        Register* SBP;
-        Register* STP;
-        Register* GPR[16];
-        SafeRegister* STS;
-        SafeSyncingRegister* Control[8];
-    } g_registers;
-
-    bool g_registersInitialised = false;
+    struct RegisterSyncData {
+        CPUState* state;
+        InsEncoding::Register reg;
+    };
 
     ConsoleDevice* g_ConsoleDevice;
     VideoDevice* g_VideoDevice;
     StorageDevice* g_StorageDevice;
     HIDDeviceBus* g_HIDDeviceBus;
 
-    uint64_t g_NextIP;
-
     MMU g_physicalMMU;
-    VirtualMMU* g_virtualMMU = nullptr;
-    MMU* g_CurrentMMU = &g_physicalMMU;
 
     uint64_t g_ramSize = 0;
 
-    bool g_instructionInProgress = false;
-
-    uint64_t g_currentInstruction = 0;
-
-    uint64_t g_currentInstructionOffset = 0;
-
     bool g_emulatorRunning = false;
-
-    enum class PrivilegeMode {
-        REAL_MODE,
-        PROTECTED_MODE
-    } g_privilegeMode = PrivilegeMode::REAL_MODE;
-    bool g_isInUserMode = false;
-    bool g_isPagingEnabled = false;
 
     LinkedList::LockableLinkedList<Event> g_events;
     std::atomic_uchar g_eventWait = 0;
 
-    std::thread* ExecutionThread;
     std::thread* EmulatorThread;
 
     SystemControlMemoryRegion* g_SysControlMemoryRegion;
@@ -107,49 +85,10 @@ namespace Emulator {
 
     DebugInterface* g_DebugInterface = nullptr;
 
-    void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write) {
-        if (write) {
-            for (uint64_t i = 0; i < count; i++) {
-                switch (size) {
-                case 1:
-                    g_CurrentMMU->write8(address + i, static_cast<uint8_t*>(data)[i]);
-                    break;
-                case 2:
-                    g_CurrentMMU->write16(address + i * 2, static_cast<uint16_t*>(data)[i]);
-                    break;
-                case 4:
-                    g_CurrentMMU->write32(address + i * 4, static_cast<uint32_t*>(data)[i]);
-                    break;
-                case 8:
-                    g_CurrentMMU->write64(address + i * 8, static_cast<uint64_t*>(data)[i]);
-                    break;
-                default:
-                    printf("Invalid size: %lu\n", size);
-                    abort();
-                }
-            }
-        } else {
-            for (uint64_t i = 0; i < count; i++) {
-                switch (size) {
-                case 1:
-                    static_cast<uint8_t*>(data)[i] = g_CurrentMMU->read8(address + i);
-                    break;
-                case 2:
-                    static_cast<uint16_t*>(data)[i] = g_CurrentMMU->read16(address + i * 2);
-                    break;
-                case 4:
-                    static_cast<uint32_t*>(data)[i] = g_CurrentMMU->read32(address + i * 4);
-                    break;
-                case 8:
-                    static_cast<uint64_t*>(data)[i] = g_CurrentMMU->read64(address + i * 8);
-                    break;
-                default:
-                    printf("Invalid size: %lu\n", size);
-                    abort();
-                }
-            }
-        }
-    }
+    CPUState* g_cpuStates;
+    uint64_t g_cpuCount;
+
+    thread_local CPUState* g_currentCPUState = nullptr;
 
     void RaiseEvent(Event event) {
         g_events.lock();
@@ -175,25 +114,40 @@ namespace Emulator {
             for (uint64_t i = 0; i < g_events.getCount(); i++) {
                 Event* event = g_events.getHead();
                 switch (event->type) {
-                case EventType::SwitchToIP: // assuming that the execution thread has joined this thread
-                    assert(ExecutionThread != nullptr);
-                    ExecutionThread->detach();
-                    delete ExecutionThread;
-                    SetCPU_IP(event->data);
-                    InsCache_MaybeSetBaseAddress(event->data);
-                    ExecutionThread = new std::thread(ExecutionLoop);
+                case EventType::SwitchToIP: {
+                    // assuming that the execution thread has joined this thread
+                    CPUState* state = event->state;
+                    if (state == nullptr)
+                        Crash("No CPU state on SwitchToIP event");
+                    if (state->executionThread == nullptr)
+                        Crash("No executionThread for SwitchToIP event");
+                    state->executionThread->detach();
+                    delete state->executionThread;
+                    state->registers.IP->SetValue(event->data);
+                    InsCache_MaybeSetBaseAddress(state, event->data);
+                    state->executionThread = new std::thread(StartExecution, state);
                     break;
-                case EventType::NewMMU: // assuming that the execution thread has joined this thread
-                    g_InterruptHandler->ChangeMMU(g_CurrentMMU);
-                    assert(ExecutionThread != nullptr);
-                    ExecutionThread->detach();
-                    delete ExecutionThread;
-                    UpdateInsCacheMMU(g_CurrentMMU);
-                    ExecutionThread = new std::thread(ExecutionLoop);
+                }
+                case EventType::NewMMU: {
+                    // assuming that the execution thread has joined this thread
+                    CPUState* state = event->state;
+                    if (state == nullptr)
+                        Crash("No CPU state on SwitchToIP event");
+                    state->interruptHandler->ChangeMMU(state->currentMMU);
+                    assert(state->executionThread != nullptr);
+                    state->executionThread->detach();
+                    delete state->executionThread;
+                    UpdateInsCacheMMU(state, state->currentMMU);
+                    state->executionThread = new std::thread(StartExecution, state);
                     break;
+                }
                 case EventType::StorageTransfer: {
                     StorageDevice* device = reinterpret_cast<StorageDevice*>(event->data);
+                    g_currentCPUState = event->state;
+                    if (g_currentCPUState == nullptr)
+                        Crash("No CPU state on StorageTransfer event");
                     device->StartTransfer();
+                    g_currentCPUState = nullptr;
                     break;
                 }
                 default:
@@ -206,111 +160,161 @@ namespace Emulator {
         }
     }
 
-    int Start(uint8_t* program, size_t size, const size_t ramSize, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display, VideoBackendType displayType, bool has_drive, const char* drivePath) {
-        if (size > 0x1000'0000)
+    int Start(const EmulatorArgs& args) {
+        if (args.firmwareSize > 0x1000'0000)
             return 1; // program too large
 
-        g_ramSize = ramSize;
-
-        // Configure the exception handler
-        g_ExceptionHandler = new ExceptionHandler();
-
-        // Configure the interrupt handler
-        g_InterruptHandler = new InterruptHandler(&g_physicalMMU, g_ExceptionHandler);
-        g_ExceptionHandler->SetINTHandler(g_InterruptHandler);
+        g_ramSize = args.ramSize;
 
         // Configure the IO bus
         g_IOBus = new IOBus(&g_physicalMMU);
 
         // Add a SystemControlMemoryRegion
-        g_SysControlMemoryRegion = new SystemControlMemoryRegion(0xFFFF'FF00, 0x1'0000'0000, g_IOBus, ramSize, &g_physicalMMU);
+        g_SysControlMemoryRegion = new SystemControlMemoryRegion(0xFFFF'FF00, 0x1'0000'0000, g_IOBus, args.ramSize, &g_physicalMMU);
         g_physicalMMU.AddMemoryRegion(g_SysControlMemoryRegion);
 
         // Add a BIOSMemoryRegion
-        g_BIOSMemoryRegion = new BIOSMemoryRegion(0xF000'0000, 0xFFFF'FF00, size);
+        g_BIOSMemoryRegion = new BIOSMemoryRegion(0xF000'0000, 0xFFFF'FF00, args.firmwareSize);
         g_physicalMMU.AddMemoryRegion(g_BIOSMemoryRegion);
 
         g_IOInterfaceManager = new IOInterfaceManager();
 
         // Configure the console device
-        g_ConsoleDevice = new ConsoleDevice(16, consoleMode);
+        g_ConsoleDevice = new ConsoleDevice(16, args.consoleMode);
         g_IOBus->AddDevice(g_ConsoleDevice);
         g_IOInterfaceManager->AddInterfaceItem(g_ConsoleDevice);
 
         // Configure the debug interface
-        if (debugConsoleMode != "disabled") {
-            g_DebugInterface = new DebugInterface(IOInterfaceType::UNKNOWN, &g_physicalMMU, g_virtualMMU, debugConsoleMode);
+        if (args.debugConsoleMode != "disabled") {
+            g_DebugInterface = new DebugInterface(IOInterfaceType::UNKNOWN, &g_physicalMMU, args.debugConsoleMode);
             g_IOInterfaceManager->AddInterfaceItem(g_DebugInterface);
             g_DebugInterface->InterfaceInit();
         }
 
         // Configure the video device
-        if (has_display) {
-            g_VideoDevice = new VideoDevice(displayType, g_physicalMMU);
+        if (args.has_display) {
+            g_VideoDevice = new VideoDevice(args.displayType, g_physicalMMU);
             assert(g_IOBus->AddDevice(g_VideoDevice));
-            g_HIDDeviceBus = new HIDDeviceBus(VideoBackendToHIDBackend(displayType), g_VideoDevice);
+            g_HIDDeviceBus = new HIDDeviceBus(VideoBackendToHIDBackend(args.displayType), g_VideoDevice);
             assert(g_IOBus->AddDevice(g_HIDDeviceBus));
         }
 
         // Configure the storage device
-        if (has_drive) {
-            g_StorageDevice = new StorageDevice(&g_physicalMMU, drivePath);
+        if (args.has_drive) {
+            g_StorageDevice = new StorageDevice(&g_physicalMMU, args.drivePath);
             g_StorageDevice->Initialise();
             assert(g_IOBus->AddDevice(g_StorageDevice));
         }
 
-        // Configure the stack
-        g_registers.SCP = new Register(RegisterType::Stack, 0, true);
-        g_registers.SBP = new Register(RegisterType::Stack, 1, true);
-        g_registers.STP = new Register(RegisterType::Stack, 2, true);
-
-        g_stack = new Stack(&g_physicalMMU, *g_registers.SBP, *g_registers.STP, *g_registers.SCP);
-
         // Load program into RAM
-        g_physicalMMU.WriteBuffer(0xF000'0000, program, size);
-
-        g_registers.IP = new SafeRegister(RegisterType::Instruction, 0, false, 0xF000'0000); // explicitly initialise instruction pointer to start of BIOS region
-        g_NextIP = 0;
+        g_physicalMMU.WriteBuffer(0xF000'0000, args.firmware, args.firmwareSize);
 
         ConfigureEmulatorSignalHandlers(nullptr, nullptr);
 
         g_emulatorRunning = true;
 
-        EmulatorMain();
+        EmulatorMain(args.cpuCount);
         return 0;
     }
 
-    void DumpRegisters(FILE* fp) {
-        if (!g_registersInitialised)
-            return;
-        fprintf(fp, "Registers:\n");
-        fprintf(fp, "R0 =%016lx R1 =%016lx R2 =%016lx R3 =%016lx\n", g_registers.GPR[0]->GetValue(), g_registers.GPR[1]->GetValue(), g_registers.GPR[2]->GetValue(), g_registers.GPR[3]->GetValue());
-        fprintf(fp, "R4 =%016lx R5 =%016lx R6 =%016lx R7 =%016lx\n", g_registers.GPR[4]->GetValue(), g_registers.GPR[5]->GetValue(), g_registers.GPR[6]->GetValue(), g_registers.GPR[7]->GetValue());
-        fprintf(fp, "R8 =%016lx R9 =%016lx R10=%016lx R11=%016lx\n", g_registers.GPR[8]->GetValue(), g_registers.GPR[9]->GetValue(), g_registers.GPR[10]->GetValue(), g_registers.GPR[11]->GetValue());
-        fprintf(fp, "R12=%016lx R13=%016lx R14=%016lx R15=%016lx\n", g_registers.GPR[12]->GetValue(), g_registers.GPR[13]->GetValue(), g_registers.GPR[14]->GetValue(), g_registers.GPR[15]->GetValue());
-        fprintf(fp, "SCP=%016lx SBP=%016lx STP=%016lx\n", g_registers.SCP->GetValue(), g_registers.SBP->GetValue(), g_registers.STP->GetValue());
-        fprintf(fp, "IP =%016lx\n", g_registers.IP->GetValue());
-        fprintf(fp, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", g_registers.Control[0]->GetValue(), g_registers.Control[1]->GetValue(), g_registers.Control[2]->GetValue(), g_registers.Control[3]->GetValue());
-        fprintf(fp, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", g_registers.Control[4]->GetValue(), g_registers.Control[5]->GetValue(), g_registers.Control[6]->GetValue(), g_registers.Control[7]->GetValue());
-        fprintf(fp, "STS = %016lx\n", g_registers.STS->GetValue());
+    void StartCPU(CPUState* state, uint64_t startingIP) {
+        memset(&state->registers, 0, sizeof(CPUState) - sizeof(uint64_t));
+        state->stateLock = SPINLOCK_LOCKED_VALUE; // initialise as locked
+
+        state->registers.SCP = new Register(RegisterType::Stack, 0, true);
+        state->registers.SBP = new Register(RegisterType::Stack, 1, true);
+        state->registers.STP = new Register(RegisterType::Stack, 2, true);
+
+        state->stack = new Stack(&g_physicalMMU, *state->registers.SBP, *state->registers.STP, *state->registers.SCP);
+
+        // explicitly initialise instruction pointer to start of BIOS region, for now
+        state->registers.IP = new SafeRegister(state, RegisterType::Instruction, 0, false, startingIP);
+        state->nextIP = 0;
+
+        // Init all the other registers
+        for (int i = 0; i < 16; i++)
+            state->registers.GPR[i] = new Register(RegisterType::GeneralPurpose, i, true);
+        for (int i = 0; i < 8; i++)
+            state->registers.Control[i] = new SafeSyncingRegister(state, RegisterType::Control, i, true);
+        state->registers.STS = new SafeRegister(state, RegisterType::Status, 0, false, 0);
+
+        state->registersInitialised = true;
+
+        // Build the register lookup table
+        for (int i = 0; i < 16; i++)
+            state->registerLookup[static_cast<int>(InsEncoding::Register::r0) + i] = state->registers.GPR[i];
+        state->registerLookup[static_cast<int>(InsEncoding::Register::scp)] = state->registers.SCP;
+        state->registerLookup[static_cast<int>(InsEncoding::Register::sbp)] = state->registers.SBP;
+        state->registerLookup[static_cast<int>(InsEncoding::Register::stp)] = state->registers.STP;
+        for (int i = 0; i < 8; i++)
+            state->registerLookup[static_cast<int>(InsEncoding::Register::cr0) + i] = state->registers.Control[i];
+        state->registerLookup[static_cast<int>(InsEncoding::Register::sts)] = state->registers.STS;
+        state->registerLookup[static_cast<int>(InsEncoding::Register::ip)] = state->registers.IP;
+
+        // Setup callbacks for CR0 and CR3
+        RegisterSyncData* syncData = new RegisterSyncData();
+        syncData->reg = InsEncoding::Register::cr0;
+        syncData->state = state;
+        SafeSyncingRegister* reg = state->registers.Control[0];
+        reg->SetCallback({SyncRegisters, syncData});
+        syncData = new RegisterSyncData();
+        syncData->reg = InsEncoding::Register::cr3;
+        syncData->state = state;
+        reg = state->registers.Control[3];
+        reg->SetCallback({SyncRegisters, syncData});
+
+        // MMU - just physical for now
+        state->currentMMU = &g_physicalMMU;
+
+        // Interrupts & Exceptions
+        state->interruptHandler = new InterruptHandler(state, &g_physicalMMU);
+        state->exceptionHandler = new ExceptionHandler(state, state->interruptHandler);
+
+        if (!InitInstructionSubsystem(state, startingIP, state->currentMMU)) {
+            spinlock_release(&state->stateLock);
+            Crash("Failed to initialise instruction subsystem");
+        }
+
+        state->executionThread = new std::thread(StartExecution, state);
+
+        spinlock_release(&state->stateLock);
     }
 
-    void DumpRegisters(void (*write)(void*, const char*, ...), void* data) {
-        if (!g_registersInitialised)
+    void DumpRegisters(CPUState* state, FILE* fp) {
+        if (state == nullptr)
+            return;
+        if (!state->registersInitialised)
+            return;
+        fprintf(fp, "Registers:\n");
+        fprintf(fp, "R0 =%016lx R1 =%016lx R2 =%016lx R3 =%016lx\n", state->registers.GPR[0]->GetValue(), state->registers.GPR[1]->GetValue(), state->registers.GPR[2]->GetValue(), state->registers.GPR[3]->GetValue());
+        fprintf(fp, "R4 =%016lx R5 =%016lx R6 =%016lx R7 =%016lx\n", state->registers.GPR[4]->GetValue(), state->registers.GPR[5]->GetValue(), state->registers.GPR[6]->GetValue(), state->registers.GPR[7]->GetValue());
+        fprintf(fp, "R8 =%016lx R9 =%016lx R10=%016lx R11=%016lx\n", state->registers.GPR[8]->GetValue(), state->registers.GPR[9]->GetValue(), state->registers.GPR[10]->GetValue(), state->registers.GPR[11]->GetValue());
+        fprintf(fp, "R12=%016lx R13=%016lx R14=%016lx R15=%016lx\n", state->registers.GPR[12]->GetValue(), state->registers.GPR[13]->GetValue(), state->registers.GPR[14]->GetValue(), state->registers.GPR[15]->GetValue());
+        fprintf(fp, "SCP=%016lx SBP=%016lx STP=%016lx\n", state->registers.SCP->GetValue(), state->registers.SBP->GetValue(), state->registers.STP->GetValue());
+        fprintf(fp, "IP =%016lx\n", state->registers.IP->GetValue());
+        fprintf(fp, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", state->registers.Control[0]->GetValue(), state->registers.Control[1]->GetValue(), state->registers.Control[2]->GetValue(), state->registers.Control[3]->GetValue());
+        fprintf(fp, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", state->registers.Control[4]->GetValue(), state->registers.Control[5]->GetValue(), state->registers.Control[6]->GetValue(), state->registers.Control[7]->GetValue());
+        fprintf(fp, "STS = %016lx\n", state->registers.STS->GetValue());
+    }
+
+    void DumpRegisters(CPUState* state, void (*write)(void*, const char*, ...), void* data) {
+        if (state == nullptr)
+            return;
+        if (!state->registersInitialised)
             return;
         if (write == nullptr)
-            return DumpRegisters(stdout);
+            return DumpRegisters(state, stdout);
 
         write(data, "Registers:\n");
-        write(data, "R0 =%016lx R1 =%016lx R2 =%016lx R3 =%016lx\n", g_registers.GPR[0]->GetValue(), g_registers.GPR[1]->GetValue(), g_registers.GPR[2]->GetValue(), g_registers.GPR[3]->GetValue());
-        write(data, "R4 =%016lx R5 =%016lx R6 =%016lx R7 =%016lx\n", g_registers.GPR[4]->GetValue(), g_registers.GPR[5]->GetValue(), g_registers.GPR[6]->GetValue(), g_registers.GPR[7]->GetValue());
-        write(data, "R8 =%016lx R9 =%016lx R10=%016lx R11=%016lx\n", g_registers.GPR[8]->GetValue(), g_registers.GPR[9]->GetValue(), g_registers.GPR[10]->GetValue(), g_registers.GPR[11]->GetValue());
-        write(data, "R12=%016lx R13=%016lx R14=%016lx R15=%016lx\n", g_registers.GPR[12]->GetValue(), g_registers.GPR[13]->GetValue(), g_registers.GPR[14]->GetValue(), g_registers.GPR[15]->GetValue());
-        write(data, "SCP=%016lx SBP=%016lx STP=%016lx\n", g_registers.SCP->GetValue(), g_registers.SBP->GetValue(), g_registers.STP->GetValue());
-        write(data, "IP =%016lx\n", g_registers.IP->GetValue());
-        write(data, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", g_registers.Control[0]->GetValue(), g_registers.Control[1]->GetValue(), g_registers.Control[2]->GetValue(), g_registers.Control[3]->GetValue());
-        write(data, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", g_registers.Control[4]->GetValue(), g_registers.Control[5]->GetValue(), g_registers.Control[6]->GetValue(), g_registers.Control[7]->GetValue());
-        write(data, "STS = %016lx\n", g_registers.STS->GetValue());
+        write(data, "R0 =%016lx R1 =%016lx R2 =%016lx R3 =%016lx\n", state->registers.GPR[0]->GetValue(), state->registers.GPR[1]->GetValue(), state->registers.GPR[2]->GetValue(), state->registers.GPR[3]->GetValue());
+        write(data, "R4 =%016lx R5 =%016lx R6 =%016lx R7 =%016lx\n", state->registers.GPR[4]->GetValue(), state->registers.GPR[5]->GetValue(), state->registers.GPR[6]->GetValue(), state->registers.GPR[7]->GetValue());
+        write(data, "R8 =%016lx R9 =%016lx R10=%016lx R11=%016lx\n", state->registers.GPR[8]->GetValue(), state->registers.GPR[9]->GetValue(), state->registers.GPR[10]->GetValue(), state->registers.GPR[11]->GetValue());
+        write(data, "R12=%016lx R13=%016lx R14=%016lx R15=%016lx\n", state->registers.GPR[12]->GetValue(), state->registers.GPR[13]->GetValue(), state->registers.GPR[14]->GetValue(), state->registers.GPR[15]->GetValue());
+        write(data, "SCP=%016lx SBP=%016lx STP=%016lx\n", state->registers.SCP->GetValue(), state->registers.SBP->GetValue(), state->registers.STP->GetValue());
+        write(data, "IP =%016lx\n", state->registers.IP->GetValue());
+        write(data, "CR0=%016lx CR1=%016lx CR2=%016lx CR3=%016lx\n", state->registers.Control[0]->GetValue(), state->registers.Control[1]->GetValue(), state->registers.Control[2]->GetValue(), state->registers.Control[3]->GetValue());
+        write(data, "CR4=%016lx CR5=%016lx CR6=%016lx CR7=%016lx\n", state->registers.Control[4]->GetValue(), state->registers.Control[5]->GetValue(), state->registers.Control[6]->GetValue(), state->registers.Control[7]->GetValue());
+        write(data, "STS = %016lx\n", state->registers.STS->GetValue());
     }
 
     void DumpRAM(FILE* fp) {
@@ -319,192 +323,83 @@ namespace Emulator {
         fprintf(fp, "\n");
     }
 
-    Register* GetRegisterPointer(uint8_t ID) {
-        uint8_t type = (ID & 0xF0) >> 4;
-        uint8_t index = ID & 0xF;
-        Register* returnVal = nullptr;
-        switch (type) {
-        case 0: // GPR
-            returnVal = g_registers.GPR[index];
-            break;
-        case 1: // stack
-            switch (index) {
-            case 0:
-                returnVal = g_registers.SCP;
-                break;
-            case 1:
-                returnVal = g_registers.SBP;
-                break;
-            case 2:
-                returnVal = g_registers.STP;
-                break;
-            default:
-                break;
-            }
-            break;
-        case 2:
-            if (index < 8)
-                returnVal = g_registers.Control[index];
-            else {
-                index -= 8;
-                switch (index) {
-                case 0: // STS
-                    returnVal = g_registers.STS;
-                    break;
-                case 1: // IP
-                    returnVal = g_registers.IP;
-                    break;
-                default:
-                    break;
-                }
-            }
-            break;
-        default:
-            break;
+    void EmulatorMain(uint64_t cpuCount) {
+        g_cpuStates = new CPUState[cpuCount];
+        g_cpuCount = cpuCount;
+
+        for (uint64_t i = 0; i < cpuCount; i++) {
+            CPUState* cpu = &g_cpuStates[i];
+            cpu->ID = i;
+            StartCPU(cpu, i == 0 ? 0xF000'0000 : 0);
         }
-        return returnVal;
-    }
-
-    uint64_t ReadRegister(uint8_t ID) {
-        Register* pointer = GetRegisterPointer(ID);
-        return pointer->GetValue();
-    }
-
-    bool WriteRegister(uint8_t ID, uint64_t value) {
-        Register* pointer = GetRegisterPointer(ID);
-        if (ID == 0x28 || ID == 0x29 || ID == 0x2A)
-            return false;
-        pointer->SetValue(value);
-        return true;
-    }
-
-    void EmulatorMain() {
-        // Initialise all the registers
-        for (int i = 0; i < 16; i++)
-            g_registers.GPR[i] = new Register(RegisterType::GeneralPurpose, i, true);
-
-        for (int i = 0; i < 8; i++)
-            g_registers.Control[i] = new SafeSyncingRegister(RegisterType::Control, i, true);
-
-        g_registers.STS = new SafeRegister(RegisterType::Status, 0, false);
-
-        g_registersInitialised = true;
-
-        SyncRegisters();
-
-        InitInstructionSubsystem(g_registers.IP->GetValue(), &g_physicalMMU);
 
         // setup instruction switch handling
         EmulatorThread = new std::thread(WaitForOperation);
 
-        // setup instruction stuff
-        g_instructionInProgress = false;
-
-        // begin instruction loop.
-        ExecutionThread = new std::thread(ExecutionLoop);
+        AllowExecution(&g_cpuStates[0]);
 
         // join with the emulator thread
         EmulatorThread->join();
     }
 
-    void SetCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() | mask);
-    }
-
-    void ClearCPUStatus(uint64_t mask) {
-        g_registers.STS->SetValueNoCheck(g_registers.STS->GetValueNoCheck() & ~mask);
-    }
-
-    uint64_t GetCPUStatus() {
-        return g_registers.STS->GetValueNoCheck();
-    }
-
-    void SetNextIP(uint64_t value) {
-        g_NextIP = value;
-    }
-
-    uint64_t GetNextIP() {
-        return g_NextIP;
-    }
-
-    void SetCPU_IP(uint64_t value) {
-        g_registers.IP->SetValueNoCheck(value);
-    }
-
-    uint64_t GetCPU_IP() {
-        return g_registers.IP->GetValueNoCheck();
-    }
-
-    void SetCPUIPFromNext() {
-        g_registers.IP->SetValueNoCheck(g_NextIP);
-    }
-
-    uint64_t* GetRawIPPointer() {
-        return g_registers.IP->GetRawValuePointer();
-    }
-
-    uint64_t* GetRawNextIPPointer() {
-        return &g_NextIP;
-    }
-
-    [[noreturn]] void JumpToIP(uint64_t value) {
-        RaiseEvent({EventType::SwitchToIP, value});
+    [[noreturn]] void JumpToIP(CPUState* state, uint64_t value) {
+        RaiseEvent({EventType::SwitchToIP, state, value});
         EmulatorThread->join();
         Crash("Emulator thread exited unexpectedly"); // should be unreachable
     }
 
-    void JumpToIPExternal(uint64_t value) {
-        SetCPU_IP(value);
-        InsCache_MaybeSetBaseAddress(value);
-        ExecutionThread = new std::thread(ExecutionLoop);
+    void JumpToIPExternal(CPUState* state, uint64_t value) {
+        state->registers.IP->SetValue(value);
+        InsCache_MaybeSetBaseAddress(state, value);
+        state->executionThread = new std::thread(StartExecution, state); // already allowed to execute from when it was killed.
     }
 
-    void SyncRegisters() {
-        if (g_registers.Control[0]->IsDirty()) {
-            uint64_t control = g_registers.Control[0]->GetValue();
-            bool wasInProtectedMode = g_privilegeMode == PrivilegeMode::PROTECTED_MODE;
-            g_privilegeMode = control & 1 ? PrivilegeMode::PROTECTED_MODE : PrivilegeMode::REAL_MODE;
-            if (((control & 2) > 0) != g_isPagingEnabled) {
-                g_isPagingEnabled = (control & 2) > 0;
-                if (g_isPagingEnabled) {
-                    PageSize pageSize = static_cast<PageSize>((control & 0xC) >> 2);
-                    PageTableLevelCount pageTableLevelCount = static_cast<PageTableLevelCount>((control & 0x30) >> 4);
+    void SyncRegisters(void* data, uint64_t value) {
+        RegisterSyncData* syncData = static_cast<RegisterSyncData*>(data);
+        if (syncData == nullptr || syncData->state == nullptr)
+            return;
+        CPUState* cpu = syncData->state;
+        if (syncData->reg == InsEncoding::Register::cr0) {
+            bool wasInProtectedMode = cpu->privilegeMode == PrivilegeMode::PROTECTED_MODE;
+            cpu->privilegeMode = value & 1 ? PrivilegeMode::PROTECTED_MODE : PrivilegeMode::REAL_MODE;
+            if (((value & 2) > 0) != cpu->isPagingEnabled) {
+                cpu->isPagingEnabled = (value & 2) > 0;
+                if (cpu->isPagingEnabled) {
+                    PageSize pageSize = static_cast<PageSize>((value & 0xC) >> 2);
+                    PageTableLevelCount pageTableLevelCount = static_cast<PageTableLevelCount>((value & 0x30) >> 4);
                     if (pageSize == PS_64KiB && pageTableLevelCount == PTLC_5) {
                         // restore any changes
-                        if (!wasInProtectedMode && g_privilegeMode == PrivilegeMode::PROTECTED_MODE)
-                            g_privilegeMode = PrivilegeMode::REAL_MODE;
-                        g_isPagingEnabled = false;
-                        g_registers.Control[0]->SetDirty(false);
-                        g_ExceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                        if (!wasInProtectedMode && cpu->privilegeMode == PrivilegeMode::PROTECTED_MODE)
+                            cpu->privilegeMode = PrivilegeMode::REAL_MODE;
+                        cpu->isPagingEnabled = false;
+                        cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                     }
-                    uint64_t pageTableRoot = g_registers.Control[3]->GetValue();
-                    g_registers.Control[3]->SetDirty(false);
-                    g_virtualMMU = new VirtualMMU(&g_physicalMMU, pageTableRoot, pageSize, pageTableLevelCount);
-                    g_CurrentMMU = g_virtualMMU;
+                    uint64_t pageTableRoot = cpu->registers.Control[3]->GetValue();
+                    cpu->virtualMMU = new VirtualMMU(cpu, &g_physicalMMU, pageTableRoot, pageSize, pageTableLevelCount);
+                    cpu->currentMMU = cpu->virtualMMU;
                 } else {
-                    g_CurrentMMU = &g_physicalMMU;
-                    delete g_virtualMMU;
+                    cpu->currentMMU = &g_physicalMMU;
+                    delete cpu->virtualMMU;
                 }
-                g_registers.Control[0]->SetDirty(false);
-                g_registers.IP->SetValue(g_NextIP);
-                RaiseEvent({EventType::NewMMU, 0});
+                cpu->registers.IP->SetValue(cpu->nextIP);
+                RaiseEvent({EventType::NewMMU, cpu, 0});
                 EmulatorThread->join();
                 Crash("Emulator thread exited unexpectedly"); // should be unreachable
             }
-            g_registers.Control[0]->SetDirty(false);
         }
-        if (g_registers.Control[3]->IsDirty() && g_isPagingEnabled) {
-            uint64_t pageTableRoot = g_registers.Control[3]->GetValue();
-            g_registers.Control[3]->SetDirty(false);
-            g_virtualMMU->SetPageTableRoot(pageTableRoot);
-        }
+        if (syncData->reg == InsEncoding::Register::cr3 && cpu->isPagingEnabled)
+            cpu->virtualMMU->SetPageTableRoot(value);
     }
 
     [[noreturn]] void Crash(const char* message) {
         g_emulatorRunning = false;
         printf("Crash: %s\n", message);
-        DumpRegisters(stdout);
-        // DumpRAM(stderr);
+        for (uint64_t i = 0; i < g_cpuCount; i++) {
+            CPUState* state = &g_cpuStates[i];
+            printf("CPU %lu:\n", state->ID);
+            DumpRegisters(state, stdout);
+            putc('\n', stdout);
+        }
         exit(0);
     }
 
@@ -515,59 +410,63 @@ namespace Emulator {
         exit(0);
     }
 
-    bool isInProtectedMode() {
-        return g_privilegeMode == PrivilegeMode::PROTECTED_MODE;
+    bool isInProtectedMode(CPUState* state) {
+        return state->privilegeMode == PrivilegeMode::PROTECTED_MODE;
     }
 
-    bool isInUserMode() {
-        return g_isInUserMode;
+    bool isInUserMode(CPUState* state) {
+        return state->isInUserMode;
     }
 
-    void EnterUserMode() {
-        uint64_t status = g_registers.STS->GetValue();
-        g_registers.STS->SetValue(g_registers.Control[1]->GetValue(), true);
-        g_registers.Control[1]->SetValue(status, true);
-        g_NextIP = g_registers.GPR[14]->GetValue();
-        g_registers.SCP->SetValue(g_registers.GPR[15]->GetValue());
-        g_isInUserMode = true;
+    void EnterUserMode(CPUState* state) {
+        uint64_t status = state->registers.STS->GetValue();
+        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true);
+        state->registers.Control[1]->SetValue(status, true);
+        state->nextIP = state->registers.GPR[14]->GetValue();
+        state->registers.SCP->SetValue(state->registers.GPR[15]->GetValue());
+        state->isInUserMode = true;
     }
 
-    void EnterUserMode(uint64_t address) {
-        g_registers.STS->SetValue(0, true);
-        g_NextIP = address;
-        g_isInUserMode = true;
+    void EnterUserMode(CPUState* state, uint64_t address) {
+        state->registers.STS->SetValue(0, true);
+        state->nextIP = address;
+        state->isInUserMode = true;
     }
 
-    void ExitUserMode() {
-        g_isInUserMode = false;
-        uint64_t status = g_registers.STS->GetValue();
-        g_registers.STS->SetValue(g_registers.Control[1]->GetValue(), true);
-        g_registers.Control[1]->SetValue(status, true);
-        g_registers.GPR[14]->SetValue(GetNextIP(), true);
-        g_NextIP = g_registers.Control[2]->GetValue();
-        g_registers.GPR[15]->SetValue(g_registers.SCP->GetValue());
+    void ExitUserMode(CPUState* state) {
+        state->isInUserMode = false;
+        uint64_t status = state->registers.STS->GetValue();
+        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true);
+        state->registers.Control[1]->SetValue(status, true);
+        state->registers.GPR[14]->SetValue(state->nextIP, true);
+        state->nextIP = state->registers.Control[2]->GetValue();
+        state->registers.GPR[15]->SetValue(state->registers.SCP->GetValue());
     }
 
-    void KillCurrentInstruction() {
-        if (std::this_thread::get_id() == ExecutionThread->get_id())
+    void KillCurrentInstruction(CPUState* cpu) {
+        if (std::this_thread::get_id() == cpu->executionThread->get_id())
             Crash("Cannot kill current instruction from the instruction thread");
 
         void* state = nullptr;
 
-        StopExecution(&state); // wait for current instruction to finish executing
+        StopExecution(cpu, &state); // wait for current instruction to finish executing
 
-        ExecutionThread->join(); // ensure the thread has finished executing
-        delete ExecutionThread;
+        cpu->executionThread->join(); // ensure the thread has finished executing
+        delete cpu->executionThread;
 
-        AllowExecution(&state);
+        AllowExecution(cpu, &state);
     }
 
-    bool isPagingEnabled() {
-        return g_isPagingEnabled;
+    bool isPagingEnabled(CPUState* state) {
+        return state->isPagingEnabled;
     }
 
     DebugInterface* GetDebugInterface() {
         return g_DebugInterface;
+    }
+
+    uint64_t GetCPUCount() {
+        return g_cpuCount;
     }
 
 } // namespace Emulator

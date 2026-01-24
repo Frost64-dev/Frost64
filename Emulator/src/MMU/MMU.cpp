@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ void MMU::ReadBuffer(uint64_t address, uint8_t* data, size_t size) {
     }
     if (startingRegion == nullptr) {
         // no region found
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     }
     size_t remainingSize = size;
     uint64_t currentAddress = address;
@@ -67,7 +67,7 @@ void MMU::ReadBuffer(uint64_t address, uint8_t* data, size_t size) {
         }
         if (startingRegion == nullptr) {
             // no region found
-            g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, currentAddress);
+            Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, currentAddress);
         }
     }
 }
@@ -84,7 +84,7 @@ void MMU::WriteBuffer(uint64_t address, const uint8_t* data, size_t size) {
     }
     if (startingRegion == nullptr) {
         // no region found
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     }
     size_t remainingSize = size;
     uint64_t currentAddress = address;
@@ -109,7 +109,7 @@ void MMU::WriteBuffer(uint64_t address, const uint8_t* data, size_t size) {
         }
         if (startingRegion == nullptr) {
             // no region found
-            g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, currentAddress);
+            Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, currentAddress);
         }
     }
 }
@@ -125,7 +125,7 @@ uint8_t MMU::read8(uint64_t address) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     return data;
 }
 
@@ -140,7 +140,7 @@ uint16_t MMU::read16(uint64_t address) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     return data;
 }
 
@@ -155,7 +155,7 @@ uint32_t MMU::read32(uint64_t address) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     return data;
 }
 
@@ -170,7 +170,7 @@ uint64_t MMU::read64(uint64_t address) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
     return data;
 }
 
@@ -184,7 +184,7 @@ void MMU::write8(uint64_t address, uint8_t data) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void MMU::write16(uint64_t address, uint16_t data) {
@@ -197,7 +197,7 @@ void MMU::write16(uint64_t address, uint16_t data) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void MMU::write32(uint64_t address, uint32_t data) {
@@ -210,7 +210,7 @@ void MMU::write32(uint64_t address, uint32_t data) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);    
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 void MMU::write64(uint64_t address, uint64_t data) {
@@ -223,7 +223,7 @@ void MMU::write64(uint64_t address, uint64_t data) {
         }
     }
     if (!found)
-        g_ExceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);
 }
 
 bool MMU::ValidateRead(uint64_t address, size_t size) {

@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -52,10 +52,14 @@ struct [[gnu::packed]] PagingViolationErrorCode {
     uint64_t reserved : 58;
 };
 
+namespace Emulator {
+    struct CPUState;
+}
+
 class ExceptionHandler {
    public:
     ExceptionHandler();
-    ExceptionHandler(InterruptHandler* INTHandler);
+    ExceptionHandler(Emulator::CPUState* cpu, InterruptHandler* INTHandler);
     ~ExceptionHandler();
 
     [[noreturn]] void RaiseException(Exception exception, ...);
@@ -63,9 +67,8 @@ class ExceptionHandler {
     void SetINTHandler(InterruptHandler* INTHandler);
 
    private:
+    Emulator::CPUState* m_cpu;
     InterruptHandler* m_INTHandler;
 };
-
-extern ExceptionHandler* g_ExceptionHandler;
 
 #endif /* _EXCEPTIONS_HPP */

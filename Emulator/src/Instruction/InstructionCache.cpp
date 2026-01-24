@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <MMU/MMU.hpp>
 
-InstructionCache::InstructionCache() : m_cache{0}, m_cacheOffset(INSTRUCTION_CACHE_SIZE), m_mmu(nullptr), m_base_address(0) {
+InstructionCache::InstructionCache(Emulator::CPUState* cpu) : m_cache{0}, m_cacheOffset(INSTRUCTION_CACHE_SIZE), m_mmu(nullptr), m_base_address(0), m_cpu(cpu) {
 
 }
 
@@ -186,6 +186,6 @@ void InstructionCache::CacheMiss(uint64_t offset) {
     m_cacheOffset = 0;
     m_base_address += offset;
     if (!m_mmu->ValidateExecute(m_base_address, INSTRUCTION_CACHE_SIZE))
-        g_ExceptionHandler->RaiseException(Emulator::isPagingEnabled() ? Exception::PAGING_VIOLATION : Exception::PHYS_MEM_VIOLATION, m_base_address);
+        m_cpu->exceptionHandler->RaiseException(Emulator::isPagingEnabled(m_cpu) ? Exception::PAGING_VIOLATION : Exception::PHYS_MEM_VIOLATION, m_base_address);
     m_mmu->ReadBuffer(m_base_address, m_cache, INSTRUCTION_CACHE_SIZE);
 }

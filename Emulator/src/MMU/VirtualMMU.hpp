@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -49,9 +49,13 @@ enum class PageTranslateMode {
     Execute
 };
 
+namespace Emulator {
+    struct CPUState;
+}
+
 class VirtualMMU : public MMU {
    public:
-    VirtualMMU(MMU* physicalMMU, uint64_t pageTableRoot, PageSize pageSize, PageTableLevelCount pageTableLevelCount);
+    VirtualMMU(Emulator::CPUState* cpu, MMU* physicalMMU, uint64_t pageTableRoot, PageSize pageSize, PageTableLevelCount pageTableLevelCount);
     virtual ~VirtualMMU() override;
 
     virtual void ReadBuffer(uint64_t address, uint8_t* data, size_t size) override;
@@ -90,6 +94,7 @@ class VirtualMMU : public MMU {
     bool GetNextTableLevel(PageTableEntry table, uint64_t tableIndex, PageTableEntry* out) const;
 
    private:
+    Emulator::CPUState* m_cpu;
     MMU* m_physicalMMU;
     uint64_t m_pageTableRoot;
     PageSize m_pageSize;

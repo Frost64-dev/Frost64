@@ -268,12 +268,14 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `add SIZE dst, src` adds the value of `src` to the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF, ZF, SF, and OF flags are set according to the result.
 
 #### sub
 
 - `sub SIZE dst, src` subtracts the value of `src` from the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF, ZF, SF, and OF flags are set according to the result.
 
 #### mul
 
@@ -282,6 +284,7 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst2` and `dst1` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 - This is an unsigned operation.
+- CF, ZF, and OF flags are set according to the result. SF is undefined.
 
 #### div
 
@@ -291,6 +294,7 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
 - If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
 - This is an unsigned operation.
+- No flags are affected.
 
 #### smul
 
@@ -299,6 +303,7 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `dst2` and `dst1` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 - This is a signed operation.
+- CF, ZF, and OF flags are set according to the result. SF is undefined.
 
 #### sdiv
 
@@ -308,59 +313,69 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - In other words, `dst1 = dst2:dst1 / src`, and `dst2 = dst2:dst1 % src`.
 - If the value of `src` is 0, a divide by zero exception is thrown. If the result is too big to store in `dst1`, an integer overflow exception is thrown.
 - This is a signed operation.
+- No flags are affected.
 
 #### or
 
 - `or SIZE dst, src` performs a bitwise OR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### nor
 
 - `nor SIZE dst, src` performs a bitwise NOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### xor
 
 - `xor SIZE dst, src` performs a bitwise XOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### xnor
 
 - `xnor SIZE dst, src` performs a bitwise XNOR operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### and
 
 - `and SIZE dst, src` performs a bitwise AND operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### nand
 
 - `nand SIZE dst, src` performs a bitwise NAND operation on the value of `dst` and the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF and OF flags are cleared, ZF and SF flags are set according to the result.
 
 #### not
 
 - `not SIZE dst` performs a bitwise NOT operation on the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
+- No flags are affected.
 
 #### shl
 
 - `shl SIZE dst, src` shifts the value of `dst` to the left by the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF is set to the last bit shifted out when `src` is less than the total number of bits in `dst`, otherwise it is undefined. OF is undefined, ZF and SF flags are set according to the result.
 
 #### shr
 
 - `shr SIZE dst, src` shifts the value of `dst` to the right by the value of `src` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
+- CF is set to the last bit shifted out when `src` is less than the total number of bits in `dst`, otherwise it is undefined. OF is undefined, ZF and SF flags are set according to the result.
 
 #### cmp
 
@@ -368,6 +383,7 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `src2` can be a register or memory address (simple or complex).
 - `src1` can be a register, memory address (simple or complex), or an immediate.
 - It is equivalent to `sub SIZE src2, src1` without storing the result.
+- CF, ZF, SF, and OF flags are set according to the result.
 
 #### inc
 

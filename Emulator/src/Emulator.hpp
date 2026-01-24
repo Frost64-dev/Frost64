@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,12 +21,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <thread>
 
 #include <Register.hpp>
 
+#include <MMU/MMU.hpp>
+#include <MMU/VirtualMMU.hpp>
+
 #include <IO/Devices/Video/VideoBackend.hpp>
 
+#include "Interrupts.hpp"
+#include "Stack.hpp"
+
 class DebugInterface;
+
+struct CPUInsState;
 
 namespace Emulator {
 
@@ -36,6 +45,54 @@ namespace Emulator {
         SE_TOO_LITTLE_RAM = 2
     };
 
+    enum class PrivilegeMode {
+        REAL_MODE,
+        PROTECTED_MODE
+    };
+
+    extern MMU g_physicalMMU;
+
+    struct CPUState {
+        uint64_t ID;
+
+        // registers
+        struct CPURegisters {
+            SafeRegister* IP;
+            Register* SCP;
+            Register* SBP;
+            Register* STP;
+            Register* GPR[16];
+            SafeRegister* STS;
+            SafeSyncingRegister* Control[8];
+        } registers;
+        bool registersInitialised = false;
+        Register* registerLookup[256];
+        Stack* stack;
+
+        uint64_t nextIP;
+
+        // MMU
+        VirtualMMU* virtualMMU;
+        MMU* currentMMU;
+
+        std::thread* executionThread;
+
+        CPUInsState* insState;
+
+        PrivilegeMode privilegeMode = PrivilegeMode::REAL_MODE;
+        bool isInUserMode = false;
+        bool isPagingEnabled = false;
+
+        InterruptHandler* interruptHandler;
+        ExceptionHandler* exceptionHandler;
+
+        spinlock_t stateLock;
+    };
+
+    extern thread_local CPUState* g_currentCPUState;
+
+    extern CPUState* g_cpuStates;
+
     enum class EventType {
         SwitchToIP,
         NewMMU,
@@ -44,56 +101,58 @@ namespace Emulator {
 
     struct Event {
         EventType type;
+        CPUState* state;
         uint64_t data;
+    };
+
+    struct EmulatorArgs {
+        uint8_t* firmware;
+        size_t firmwareSize;
+        size_t ramSize;
+        uint64_t cpuCount;
+        const std::string_view& consoleMode;
+        const std::string_view& debugConsoleMode;
+        bool has_display = false;
+        VideoBackendType displayType = VideoBackendType::NONE;
+        bool has_drive = false;
+        const char* drivePath = nullptr;
     };
 
     void RaiseEvent(Event event);
 
-    void HandleMemoryOperation(uint64_t address, void* data, uint64_t size, uint64_t count, bool write);
+    void WaitForOperation();
 
-    int Start(uint8_t* program, size_t size, size_t ramSize, const std::string_view& consoleMode, const std::string_view& debugConsoleMode, bool has_display = false, VideoBackendType displayType = VideoBackendType::NONE, bool has_drive = false, const char* drivePath = nullptr);
-    int RequestEmulatorStop();
-    int SendInstruction(uint64_t instruction);
+    int Start(const EmulatorArgs& args);
+    void StartCPU(CPUState* state, uint64_t startingIP);
 
-    DebugInterface* GetDebugInterface();
+    void DumpRegisters(CPUState* state, FILE* fp);
+    void DumpRegisters(CPUState* state, void (*write)(void*, const char*, ...), void* data = nullptr);
+    void DumpRAM(FILE* fp);
 
-    void SetCPUStatus(uint64_t mask);
-    void ClearCPUStatus(uint64_t mask);
-    uint64_t GetCPUStatus();
-
-    void SetNextIP(uint64_t value);
-    uint64_t GetNextIP();
-
-    void SetCPU_IP(uint64_t value);
-    uint64_t GetCPU_IP();
-    void SetCPUIPFromNext();
-
-    uint64_t* GetRawIPPointer();
-    uint64_t* GetRawNextIPPointer();
-
-    [[noreturn]] void JumpToIP(uint64_t value);
-    void JumpToIPExternal(uint64_t value); // assumes the execution thread is dead
+    void EmulatorMain(uint64_t cpuCount);
 
 
-    void SyncRegisters();
-    void DumpRegisters(FILE* fp);
-    void DumpRegisters(void (*write)(void*, const char*, ...), void* data = nullptr);
+    [[noreturn]] void JumpToIP(CPUState* state, uint64_t value);
+    void JumpToIPExternal(CPUState* state, uint64_t value); // assumes the execution thread is dead
 
-    Register* GetRegisterPointer(uint8_t ID);
+    void SyncRegisters(void* data, uint64_t value);
 
     [[noreturn]] void Crash(const char* message);
     void HandleHalt();
 
-    bool isInProtectedMode();
-    bool isInUserMode();
+    bool isInProtectedMode(CPUState* state);
+    bool isInUserMode(CPUState* state);
 
-    void EnterUserMode();
-    void EnterUserMode(uint64_t address);
-    void ExitUserMode();
+    void EnterUserMode(CPUState* state);
+    void EnterUserMode(CPUState* state, uint64_t address);
+    void ExitUserMode(CPUState* state);
 
-    void KillCurrentInstruction(); // MUST NOT be called from the instruction thread
+    void KillCurrentInstruction(CPUState* cpu); // MUST NOT be called from the instruction thread
 
-    bool isPagingEnabled();
+    bool isPagingEnabled(CPUState* state);
+
+    DebugInterface* GetDebugInterface();
+    uint64_t GetCPUCount();
 } // namespace Emulator
 
 #endif /* _EMULATOR_HPP */

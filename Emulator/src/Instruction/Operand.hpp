@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2023-2025  Frosty515
+Copyright (©) 2023-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Register.hpp>
 
-#include <LibArch/Instruction.hpp>
+#include <MMU/MMU.hpp>
 
 enum class OperandType {
     Register,
@@ -59,15 +59,13 @@ struct ComplexData {
     ComplexItem offset;
 };
 
-typedef void (*MemoryOperation_t)(uint64_t address, void* data, uint64_t size, uint64_t count, bool write);
-
 class Operand {
 public:
     Operand();
-    Operand(OperandSize size, Register* reg);
-    Operand(OperandSize size, uint64_t immediate);
-    Operand(OperandSize size, uint64_t address, MemoryOperation_t operation);
-    Operand(OperandSize size, ComplexData* complexData, MemoryOperation_t operation);
+    Operand(Emulator::CPUState* cpu, OperandSize size, Register* reg);
+    Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t immediate);
+    Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t address, MMU* mmu);
+    Operand(Emulator::CPUState* cpu, OperandSize size, ComplexData* complexData, MMU* mmu);
     ~Operand();
 
     Register* GetRegister();
@@ -88,13 +86,14 @@ public:
     void SetValue(uint64_t value);
 
 private:
+    Emulator::CPUState* m_cpu;
     Register* m_register;
     OperandType m_type;
     OperandSize m_size;
     uint64_t m_offset;
     uint64_t m_address;
     ComplexData* m_complexData;
-    MemoryOperation_t m_memoryOperation;
+    MMU* m_mmu;
 };
 
 #endif /* _OPERAND_HPP */

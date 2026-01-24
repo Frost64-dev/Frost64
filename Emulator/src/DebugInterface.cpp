@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <Common/Util.hpp>
 
-DebugInterface::DebugInterface(IOInterfaceType type, MMU* physicalMMU, VirtualMMU* virtualMMU, const std::string_view& data) : IOInterfaceItem(type, data), m_physicalMMU(physicalMMU), m_virtualMMU(virtualMMU), m_thread(nullptr), m_waitLock(0), m_eventPending(0), m_handlingEvents(0) {
+DebugInterface::DebugInterface(IOInterfaceType type, MMU* physicalMMU, const std::string_view& data) : IOInterfaceItem(type, data), m_cpu(nullptr), m_physicalMMU(physicalMMU), m_virtualMMU(nullptr), m_thread(nullptr), m_waitLock(0), m_eventPending(0), m_handlingEvents(0) {
 }
 
 DebugInterface::~DebugInterface() {
@@ -80,6 +80,9 @@ void DebugInterface::InterfaceInit() {
     m_commands["dump"] = [this](auto&& PH1) {
         return Command_Dump(std::forward<decltype(PH1)>(PH1));
     };
+    m_commands["cpu"] = [this](auto&& PH1) {
+        return Command_SwitchCPU(std::forward<decltype(PH1)>(PH1));
+    };
 
     // build the command alias map
     m_commandAliases["help"] = "help";
@@ -110,6 +113,9 @@ void DebugInterface::InterfaceInit() {
 
     m_commandAliases["dump"] = "dump";
     m_commandAliases["dmp"] = "dump";
+    
+    m_commandAliases["cpu"] = "cpu";
+    m_commandAliases["switchcpu"] = "cpu";
 
     // build the command help map
     m_commandHelp["help"] = "display this help message";
@@ -121,6 +127,7 @@ void DebugInterface::InterfaceInit() {
     m_commandHelp["delete"] = "delete a breakpoint";
     m_commandHelp["info"] = "display information about the emulator";
     m_commandHelp["dump"] = "dump portions of physical or virtual memory";
+    m_commandHelp["cpu"] = "switch the current CPU context";
 
 
     spinlock_acquire(&m_waitLock);
@@ -150,14 +157,15 @@ void DebugInterface::RaiseEvent(EventType type, void* data) {
 
 void DebugInterface::MainLoop() {
     SetSignalHandler(SIGINT, [](int signal) {
-        DebugInterface* debugInterface = Emulator::GetDebugInterface();
-        if (debugInterface != nullptr) {
+        if (DebugInterface* debugInterface = Emulator::GetDebugInterface(); debugInterface != nullptr) {
             if (debugInterface->m_handlingEvents.load() == 1)
                 debugInterface->RaiseEvent(EventType::Signal, reinterpret_cast<void*>(static_cast<uint64_t>(signal)));
             else
                 GlobalSignalHandler(signal);
         }
     });
+    
+    SwitchCPU(0); // default to CPU 0
 
     bool first = true;
     bool result = true;
@@ -166,7 +174,7 @@ void DebugInterface::MainLoop() {
         while (result) {
             if (first) {
                 // Pause the execution thread
-                PauseExecution();
+                PauseExecution(m_cpu);
                 g_IOInterfaceManager->Write(this, "Emulator paused\n");
             }
 
@@ -224,7 +232,7 @@ void DebugInterface::MainLoop() {
         m_eventQueue.Enumerate([&](Event* event) {
             switch (event->type) {
             case EventType::Breakpoint:
-                HandleBreakpoint((uint64_t)event->data);
+                HandleBreakpoint(reinterpret_cast<uint64_t>(event->data));
                 hasInterruptingEvent = true;
                 break;
             case EventType::Signal:
@@ -246,7 +254,7 @@ void DebugInterface::MainLoop() {
 
         if (hasInterruptingEvent) {
             // if we had an interrupting event, we need to pause the execution thread and allow for commands to be entered
-            PauseExecution();
+            PauseExecution(m_cpu);
             g_IOInterfaceManager->Write(this, "Emulator paused\n");
             result = true;
             m_handlingEvents.store(0);
@@ -256,6 +264,18 @@ void DebugInterface::MainLoop() {
 
 void DebugInterface::HandleBreakpoint(uint64_t address) {
     g_IOInterfaceManager->WriteFormatted(this, "Breakpoint hit at 0x%lx\n", address);
+}
+
+void DebugInterface::SwitchCPU(uint64_t ID) {
+    for (uint64_t i = 0; i < Emulator::GetCPUCount(); i++) { // IDs are not necessarily sequential
+        if (Emulator::CPUState* state = &m_cpu[i]; state->ID == ID) {
+            m_cpu = state;
+            m_virtualMMU = m_cpu->virtualMMU;
+            g_IOInterfaceManager->WriteFormatted(this, "Switched to CPU %lu\n", ID);
+            return;
+        }
+    }
+    g_IOInterfaceManager->WriteFormatted(this, "CPU %lu not found\n", ID);
 }
 
 bool DebugInterface::Command_Help(const std::vector<std::string_view>& args) {
@@ -300,20 +320,20 @@ bool DebugInterface::Command_Quit(const std::vector<std::string_view>&) {
 
 bool DebugInterface::Command_Pause(const std::vector<std::string_view>&) {
     g_IOInterfaceManager->Write(this, "Paused\n");
-    PauseExecution();
+    PauseExecution(m_cpu);
     return true;
 }
 
 bool DebugInterface::Command_Continue(const std::vector<std::string_view>&) {
     g_IOInterfaceManager->Write(this, "Continuing...\n");
-    AllowExecution();
+    AllowExecution(m_cpu);
     return false;
 }
 
 bool DebugInterface::Command_Step(const std::vector<std::string_view>&) {
     g_IOInterfaceManager->Write(this, "Stepping...\n");
-    AllowOneInstruction();
-    uint64_t IP = Emulator::GetNextIP();
+    AllowOneInstruction(m_cpu);
+    uint64_t IP = m_cpu->nextIP;
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "Next IP: 0x%lx\n", IP);
     g_IOInterfaceManager->Write(this, buffer);
@@ -328,8 +348,8 @@ bool DebugInterface::Command_Breakpoint(const std::vector<std::string_view>& arg
 
     uint64_t address = strtoul(args[0].data(), nullptr, 0);
     g_IOInterfaceManager->WriteFormatted(this, "Setting breakpoint at %lu\n", address);
-    AddBreakpoint(address, [this](uint64_t addr) {
-        RaiseEvent(EventType::Breakpoint, (void*)addr);
+    AddBreakpoint(m_cpu, address, [this](uint64_t addr) {
+        RaiseEvent(EventType::Breakpoint, reinterpret_cast<void*>(addr));
     });
     return true;
 }
@@ -342,7 +362,7 @@ bool DebugInterface::Command_Delete(const std::vector<std::string_view>& args) {
 
     uint64_t address = strtoul(args[0].data(), nullptr, 0);
     g_IOInterfaceManager->WriteFormatted(this, "Deleting breakpoint at %lu\n", address);
-    RemoveBreakpoint(address);
+    RemoveBreakpoint(m_cpu, address);
     return true;
 }
 
@@ -360,9 +380,8 @@ bool DebugInterface::Command_Info(const std::vector<std::string_view>& args) {
         return true;
     }
 
-    const std::string_view& command = args[0];
-    if (command == "registers")
-        Emulator::DumpRegisters(DI_WriteHandler, this);
+    if (const std::string_view& command = args[0]; command == "registers")
+        Emulator::DumpRegisters(m_cpu, DI_WriteHandler, this);
     else if (command == "memory")
         m_physicalMMU->PrintRegions(DI_WriteHandler, this);
     else
@@ -392,6 +411,12 @@ bool DebugInterface::Command_Dump(const std::vector<std::string_view>& args) {
     uint64_t end = address + size;
 
     MMU* mmu = phys ? m_physicalMMU : m_virtualMMU;
+    if (mmu == nullptr) {
+        if (phys)
+            Emulator::Crash("Debug interface has no physical MMU");
+        g_IOInterfaceManager->Write(this, "Paging is not enabled on the current CPU\n");
+        return true;
+    }
 
     if (!mmu->ValidateRead(address, size)) {
         g_IOInterfaceManager->Write(this, "Invalid region\n");
@@ -449,5 +474,16 @@ bool DebugInterface::Command_Dump(const std::vector<std::string_view>& args) {
         g_IOInterfaceManager->WriteFormatted(this, "|\n");
     }
 
+    return true;
+}
+
+bool DebugInterface::Command_SwitchCPU(const std::vector<std::string_view>& args) {
+    if (args.empty()) {
+        g_IOInterfaceManager->Write(this, "Usage: cpu <ID>\n");
+        return true;
+    }
+
+    uint64_t ID = strtoul(args[0].data(), nullptr, 0);
+    SwitchCPU(ID);
     return true;
 }
