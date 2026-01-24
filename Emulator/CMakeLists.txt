@@ -163,8 +163,11 @@ target_compile_options(Emulator
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wpedantic>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-packed-bitfield-compat>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fstack-protector>
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-O1>
+    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-O3>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-fno-omit-frame-pointer>
+    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-flto>
 )
+
+target_link_options(Emulator PRIVATE -flto=auto)
 
 install(TARGETS Emulator DESTINATION ${CMAKE_SOURCE_DIR}/bin)
