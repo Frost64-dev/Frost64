@@ -30,7 +30,14 @@ void Linux_InstructionSignalHandler(int, siginfo_t* info, void*) {
             // need to raise an integer overflow exception, as division by zero is handled by the relevant functions for the instructions
             if (Emulator::g_currentCPUState == nullptr || Emulator::g_currentCPUState->exceptionHandler == nullptr)
                 Emulator::Crash("Linux_InstructionSignalHandler: CPUState or ExceptionHandler is null");
-            Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::INTEGER_OVERFLOW);
+            Exception e;
+            if (info->si_code == FPE_INTDIV)
+                e = Exception::DIV_BY_ZERO;
+            else if (info->si_code == FPE_INTOVF)
+                e = Exception::INTEGER_OVERFLOW;
+            else
+                e = Exception::INVALID_INSTRUCTION; // unknown FPE code
+            Emulator::g_currentCPUState->exceptionHandler->RaiseException(e);
         }
     }
     // can't handle it, so just fall back to the caller to handle it

@@ -642,11 +642,8 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
 #define DIV_INSTRUCTION3(name)                                           \
     void ins_##name(Emulator::CPUState* cpu, Operand* dst2, Operand* dst1, Operand* src) {       \
         PRINT_INS_INFO3(dst2, dst1, src);                               \
-        uint64_t srcVal = src->GetValue();                              \
-        if (srcVal == 0)                                                 \
-            cpu->exceptionHandler->RaiseException(Exception::DIV_BY_ZERO);  \
         x86_64_128Data dividend = {dst1->GetValue(), dst2->GetValue()};  \
-        x86_64_128Data result = x86_64_##name(dividend, srcVal, cpu->registers.STS->GetRawValuePointer()); \
+        x86_64_128Data result = x86_64_##name(dividend, src->GetValue(), cpu->registers.STS->GetRawValuePointer()); \
         dst1->SetValue(result.low);                                      \
         dst2->SetValue(result.high);                                     \
     }
