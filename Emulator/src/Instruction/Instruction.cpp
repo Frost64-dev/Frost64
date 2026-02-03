@@ -159,54 +159,6 @@ bool InitInstructionSubsystem(Emulator::CPUState* cpu, uint64_t startingIP, MMU*
 
     InitInsCache(state, startingIP, mmu);
 
-    if (cpu->ID == 0) { // boot CPU
-        memset(g_instructionFunctions, 0, sizeof(g_instructionFunctions));
-#define SETINSFUNC(op, Func, args) g_instructionFunctions[static_cast<int>(InsEncoding::Opcode::op)] = {reinterpret_cast<void*>(Func), args}
-        SETINSFUNC(ADD, ins_add, 2);
-        SETINSFUNC(SUB, ins_sub, 2);
-        SETINSFUNC(MUL, ins_mul, 3);
-        SETINSFUNC(DIV, ins_div, 3);
-        SETINSFUNC(SMUL, ins_smul, 3);
-        SETINSFUNC(SDIV, ins_sdiv, 3);
-        SETINSFUNC(OR, ins_or, 2);
-        SETINSFUNC(NOR, ins_nor, 2);
-        SETINSFUNC(XOR, ins_xor, 2);
-        SETINSFUNC(XNOR, ins_xnor, 2);
-        SETINSFUNC(AND, ins_and, 2);
-        SETINSFUNC(NAND, ins_nand, 2);
-        SETINSFUNC(NOT, ins_not, 1);
-        SETINSFUNC(SHL, ins_shl, 2);
-        SETINSFUNC(SHR, ins_shr, 2);
-        SETINSFUNC(CMP, ins_cmp, 2);
-        SETINSFUNC(INC, ins_inc, 1);
-        SETINSFUNC(DEC, ins_dec, 1);
-        SETINSFUNC(RET, ins_ret, 0);
-        SETINSFUNC(CALL, ins_call, 1);
-        SETINSFUNC(JMP, ins_jmp, 1);
-        SETINSFUNC(JC, ins_jc, 1);
-        SETINSFUNC(JNC, ins_jnc, 1);
-        SETINSFUNC(JZ, ins_jz, 1);
-        SETINSFUNC(JNZ, ins_jnz, 1);
-        SETINSFUNC(JL, ins_jl, 1);
-        SETINSFUNC(JLE, ins_jle, 1);
-        SETINSFUNC(JNL, ins_jnl, 1);
-        SETINSFUNC(JNLE, ins_jnle, 1);
-        SETINSFUNC(MOV, ins_mov, 2);
-        SETINSFUNC(NOP, ins_nop, 0);
-        SETINSFUNC(HLT, ins_hlt, 0);
-        SETINSFUNC(PUSH, ins_push, 1);
-        SETINSFUNC(POP, ins_pop, 1);
-        SETINSFUNC(PUSHA, ins_pusha, 0);
-        SETINSFUNC(POPA, ins_popa, 0);
-        SETINSFUNC(INT, ins_int, 1);
-        SETINSFUNC(LIDT, ins_lidt, 1);
-        SETINSFUNC(IRET, ins_iret, 0);
-        SETINSFUNC(SYSCALL, ins_syscall, 0);
-        SETINSFUNC(SYSRET, ins_sysret, 0);
-        SETINSFUNC(ENTERUSER, ins_enteruser, 1);
-#undef SETINSFUNC
-    }
-
     return true;
 }
 
