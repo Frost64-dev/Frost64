@@ -682,7 +682,7 @@ void ins_jnc(Emulator::CPUState* cpu, Operand* dst) {
 }
 
 void ins_jz(Emulator::CPUState* cpu, Operand* dst) {
-    // PRINT_INS_INFO1(dst);
+    PRINT_INS_INFO1(dst);
     if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 2) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
