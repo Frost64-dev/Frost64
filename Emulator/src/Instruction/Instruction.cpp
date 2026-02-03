@@ -51,7 +51,11 @@ struct InsOpcodeArgCountPair {
 
 struct InstructionData {
     InsEncoding::SimpleInstruction instruction;
-    Operand operands[3];
+    RegisterOperand registerOperands[3];
+    ImmediateOperand immediateOperands[3];
+    MemoryOperand memoryOperands[3];
+    ComplexOperand complexOperands[3];
+    Operand* operands[3] = {&registerOperands[0], &immediateOperands[0], &memoryOperands[0]};
     ComplexData complex[3];
     uint64_t IP;
     bool used;
@@ -455,7 +459,8 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
                 case InsEncoding::OperandType::REGISTER: {
                     InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
                     Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
-                    state->currentInstruction->operands[i] = Operand(cpu, static_cast<OperandSize>(op->size), reg);
+                    state->currentInstruction->registerOperands[i] = RegisterOperand(cpu, static_cast<OperandSize>(op->size), reg);
+                    state->currentInstruction->operands[i] = &state->currentInstruction->registerOperands[i];
                     break;
                 }
                 case InsEncoding::OperandType::IMMEDIATE: {
@@ -477,12 +482,14 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
                         cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                         break;
                     }
-                    state->currentInstruction->operands[i] = Operand(cpu, static_cast<OperandSize>(op->size), data);
+                    state->currentInstruction->immediateOperands[i] = ImmediateOperand(cpu, static_cast<OperandSize>(op->size), data);
+                    state->currentInstruction->operands[i] = &state->currentInstruction->immediateOperands[i];
                     break;
                 }
                 case InsEncoding::OperandType::MEMORY: {
                     uint64_t* temp = static_cast<uint64_t*>(op->data);
-                    state->currentInstruction->operands[i] = Operand(cpu, static_cast<OperandSize>(op->size), *temp, cpu->currentMMU);
+                    state->currentInstruction->memoryOperands[i] = MemoryOperand(cpu, static_cast<OperandSize>(op->size), *temp, cpu->currentMMU);
+                    state->currentInstruction->operands[i] = &state->currentInstruction->memoryOperands[i];
                     break;
                 }
                 case InsEncoding::OperandType::COMPLEX: {
@@ -530,7 +537,8 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
                         }
                     } else
                         complex[i].offset.present = false;
-                    state->currentInstruction->operands[i] = Operand(cpu, static_cast<OperandSize>(op->size), &complex[i], cpu->currentMMU);
+                    state->currentInstruction->complexOperands[i] = ComplexOperand(cpu, static_cast<OperandSize>(op->size), &complex[i], cpu->currentMMU);
+                    state->currentInstruction->operands[i] = &state->currentInstruction->complexOperands[i];
                     break;
                 }
                 default:
@@ -552,7 +560,7 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
         *state->rawNextIPPointer = IP + state->currentInstruction->size;
 
         InsOpcodeArgCountPair pair = state->currentInstruction->pair;
-        Operand* operands = state->currentInstruction->operands;
+        Operand** operands = state->currentInstruction->operands;
 
         // Update the cache
         state->currentCacheOffset++;
@@ -564,11 +572,11 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
         if (pair.argCount == 0)
             reinterpret_cast<void (*)(Emulator::CPUState* cpu)>(pair.function)(cpu);
         else if (pair.argCount == 1)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*)>(pair.function)(cpu, &operands[0]);
+            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*)>(pair.function)(cpu, operands[0]);
         else if (pair.argCount == 2)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*)>(pair.function)(cpu, &operands[0], &operands[1]);
+            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1]);
         else if (pair.argCount == 3)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*, Operand*)>(pair.function)(cpu, &operands[0], &operands[1], &operands[2]);
+            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1], operands[2]);
         else
             cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
 

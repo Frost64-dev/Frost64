@@ -62,36 +62,77 @@ struct ComplexData {
 class Operand {
 public:
     Operand();
-    Operand(Emulator::CPUState* cpu, OperandSize size, Register* reg);
-    Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t immediate);
-    Operand(Emulator::CPUState* cpu, OperandSize size, uint64_t address, MMU* mmu);
-    Operand(Emulator::CPUState* cpu, OperandSize size, ComplexData* complexData, MMU* mmu);
-    ~Operand();
-
-    Register* GetRegister();
+    Operand(Emulator::CPUState* cpu, OperandSize size, OperandType type);
+    virtual ~Operand();
 
     OperandType GetType() const;
-
     OperandSize GetSize() const;
 
-    uint64_t GetOffset() const;
+    virtual uint64_t GetValue() const = 0;
+    virtual void SetValue(uint64_t value) = 0;
 
-    uint64_t GetAddress() const;
+    virtual void PrintInfo() const = 0;
 
-    ComplexData* GetComplexData();
-
-    void PrintInfo() const;
-
-    uint64_t GetValue() const;
-    void SetValue(uint64_t value);
-
-private:
+protected:
     Emulator::CPUState* m_cpu;
-    Register* m_register;
     OperandType m_type;
     OperandSize m_size;
-    uint64_t m_offset;
+};
+
+class RegisterOperand : public Operand {
+public:
+    RegisterOperand();
+    RegisterOperand(Emulator::CPUState* cpu, OperandSize size, Register* reg);
+
+    uint64_t GetValue() const override;
+    void SetValue(uint64_t value) override;
+
+    void PrintInfo() const override;
+
+private:
+    Register* m_register;
+};
+
+class ImmediateOperand : public Operand {
+public:
+    ImmediateOperand();
+    ImmediateOperand(Emulator::CPUState* cpu, OperandSize size, uint64_t immediate);
+
+    uint64_t GetValue() const override;
+    void SetValue(uint64_t value) override;
+
+    void PrintInfo() const override;
+
+private:
+    uint64_t m_immediate;
+};
+
+class MemoryOperand : public Operand {
+public:
+    MemoryOperand();
+    MemoryOperand(Emulator::CPUState* cpu, OperandSize size, uint64_t address, MMU* mmu);
+
+    uint64_t GetValue() const override;
+    void SetValue(uint64_t value) override;
+
+    void PrintInfo() const override;
+
+private:
     uint64_t m_address;
+    MMU* m_mmu;
+};
+
+class ComplexOperand : public Operand {
+public:
+    ComplexOperand();
+    ComplexOperand(Emulator::CPUState* cpu, OperandSize size, ComplexData* complexData, MMU* mmu);
+
+    uint64_t GetValue() const override;
+    void SetValue(uint64_t value) override;
+
+    void PrintInfo() const override;
+
+private:
     ComplexData* m_complexData;
     MMU* m_mmu;
 };
