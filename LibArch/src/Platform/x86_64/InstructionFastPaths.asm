@@ -30,8 +30,15 @@ GetRegisterFromID: ; rdi=reg, rsi=error, rdx=data
 .error:
     push rbp
     mov rbp, rsp
-    mov rdi, rdx
-    call rsi
+    mov rcx, rsi
+    lea rdi, [rel .error_message]
+    mov rsi, rdx
+    call rcx
     ; likely dead code from here
     pop rbp
     ret
+
+section .rodata
+
+.error_message:
+db "Invalid register ID", 0
