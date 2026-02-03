@@ -16,7 +16,9 @@
 [bits 64]
 
 global _x86_64_add
+global _x86_64_adc
 global _x86_64_sub
+global _x86_64_sbb
 global _x86_64_mul
 global _x86_64_div
 global _x86_64_smul
@@ -36,87 +38,117 @@ global _x86_64_dec
 
 ; macro for flags
 %macro HANDLE_FLAGS 0
-    setc BYTE [rdx]
-    setz al
-    sets sil
-    seto cl
-    shl al, 1
-    shl sil, 2
-    shl cl, 3
-    or BYTE [rdx], al
-    or BYTE [rdx], sil
-    or BYTE [rdx], cl
+    setc al
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    seto cl ; CL = OF
+    shr ah, 5
+    or al, ah ; AL = CF, ZF, SF
+    shl cl, 3 ; OF to bit 3
+    or al, cl ; AL = CF, ZF, SF, OF
+    mov r8b, BYTE [rdx] ; move flags to r8b
+    and r8b, 0xF0 ; clear OF, SF, ZF, CF
+    or r8b, al
+    mov BYTE [rdx], r8b
 %endmacro
 
 ; macro for OR/XOR/AND flags, which don't set CF/OF
 %macro HANDLE_OR_FLAGS 0
-    setz al
-    sets sil
-    shl al, 1
-    shl sil, 2
-    or BYTE [rdx], al
-    or BYTE [rdx], sil
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    shr ah, 5
+    mov al, BYTE [rdx] ; move flags to al
+    and al, 0xF0 ; clear OF, SF, ZF, CF
+    or al, ah
+    mov BYTE [rdx], al
 %endmacro
 
 ; macro for SHL/SHR flags, where OF is unaffected
 %macro HANDLE_SHIFT_FLAGS 0
-    setc BYTE [rdx]
-    setz al
-    sets sil
-    shl al, 1
-    shl sil, 2
-    or BYTE [rdx], al
-    or BYTE [rdx], sil
+    setc al
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    shr ah, 5
+    or al, ah ; AL = CF, ZF, SF
+    mov cl, BYTE [rdx] ; move flags to cl
+    and cl, 0xF8 ; clear SF, ZF, CF
+    or cl, al
+    mov BYTE [rdx], cl
 %endmacro
 
 ; macro for 1-operand instructions, using rsi instead of rdx
 %macro HANDLE_1OP_FLAGS 0
-    setc BYTE [rsi]
-    setz al
-    sets cl
-    seto dl
-    shl al, 1
-    shl cl, 2
-    shl dl, 3
-    or BYTE [rsi], al
-    or BYTE [rsi], cl
-    or BYTE [rsi], dl
+    setc al
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    seto cl ; CL = OF
+    shr ah, 5
+    or al, ah ; AL = CF, ZF, SF
+    shl cl, 3 ; OF to bit 3
+    or al, cl ; AL = CF, ZF, SF, OF
+    mov r8b, BYTE [rsi] ; move flags to r8b
+    and r8b, 0xF0 ; clear OF, SF, ZF, CF
+    or r8b, al
+    mov BYTE [rsi], r8b
 %endmacro
 
 _x86_64_add:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     add rdi, rsi
     HANDLE_FLAGS
 
     mov rax, rdi
+    ret
 
-    mov rsp, rbp
-    pop rbp
+_x86_64_adc:
+    ; Load incoming CF
+    movzx r8, BYTE [rdx] ; move flags to r8
+    and r8, 0xF1 ; clear OF, SF, ZF
+    bt r8, 0 ; CF is bit 0
+
+    adc rdi, rsi
+
+    ; Now set flags
+    setc al
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    seto cl ; CL = OF
+    shr ah, 5
+    or al, ah ; AL = CF, ZF, SF
+    shl cl, 3 ; OF to bit 3
+    or al, cl ; AL = CF, ZF, SF, OF
+    and r8b, 0xF0 ; ensure lower nibble is clear, as CF could still be set
+    or r8b, al
+    mov BYTE [rdx], r8b
+
+    mov rax, rdi
     ret
 
 _x86_64_sub:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     sub rdi, rsi
     HANDLE_FLAGS
 
     mov rax, rdi
+    ret
 
-    mov rsp, rbp
-    pop rbp
+_x86_64_sbb:
+    ; Load incoming CF
+    movzx r8, BYTE [rdx] ; move flags to r8
+    and r8, 0xF1 ; clear OF, SF, ZF
+    bt r8, 0 ; CF is bit 0
+
+    sbb rdi, rsi
+
+    ; Now set flags
+    setc al
+    lahf ; AH = SF:ZF:0:AF:0:PF:1:CF
+    seto cl ; CL = OF
+    shr ah, 5
+    or al, ah ; AL = CF, ZF, SF
+    shl cl, 3 ; OF to bit 3
+    or al, cl ; AL = CF, ZF, SF, OF
+    and r8b, 0xF0 ; ensure lower nibble is clear, as CF could still be set
+    or r8b, al
+    mov BYTE [rdx], r8b
+
+    mov rax, rdi
     ret
 
 _x86_64_mul:
-    push rbp
-    mov rbp, rsp
-
     and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
 
     mov rcx, rdx ; move pointer to flags to rcx
@@ -134,30 +166,18 @@ _x86_64_mul:
     shl dil, 3
     or BYTE [rcx], sil
     or BYTE [rcx], dil
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_div:
-    push rbp
-    mov rbp, rsp
-
     mov rcx, rdx ; move divisor to rcx
     mov rdx, rsi ; move dividend to rdx:rax
     mov rax, rdi
 .beforediv:
     div rcx
 .afterdiv:
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_smul:
-    push rbp
-    mov rbp, rsp
-
     and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
 
     mov rcx, rdx ; move pointer to flags to rcx
@@ -175,45 +195,25 @@ _x86_64_smul:
     shl dil, 3
     or BYTE [rcx], sil
     or BYTE [rcx], dil
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_sdiv:
-    push rbp
-    mov rbp, rsp
-
     mov rcx, rdx ; move divisor to rcx
     mov rdx, rsi ; move dividend to rdx:rax
     mov rax, rdi
 .beforediv:
     idiv rcx
 .afterdiv:
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_or:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     or rdi, rsi
     HANDLE_OR_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_nor:
-    push rbp
-    mov rbp, rsp
-
     and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
 
     or rdi, rsi
@@ -227,30 +227,16 @@ _x86_64_nor:
     or BYTE [rdx], sil
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_xor:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     xor rdi, rsi
     HANDLE_OR_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_xnor:
-    push rbp
-    mov rbp, rsp
-
     and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
 
     xor rdi, rsi
@@ -264,30 +250,16 @@ _x86_64_xnor:
     or BYTE [rdx], sil
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_and:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     and rdi, rsi
     HANDLE_OR_FLAGS
     
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_nand:
-    push rbp
-    mov rbp, rsp
-
     and BYTE [rdx], 0xf0 ; clear CF and OF, not don't set them
 
     and rdi, rsi
@@ -301,97 +273,48 @@ _x86_64_nand:
     or BYTE [rdx], sil
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_not:
-    push rbp
-    mov rbp, rsp
-
     not rdi
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_shl:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf8
-
     mov cl, sil
 
     shl rdi, cl
     HANDLE_SHIFT_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_shr:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf8
-
     mov cl, sil
 
     shr rdi, cl
     HANDLE_SHIFT_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_cmp:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rdx], 0xf0
-
     cmp rdi, rsi
     HANDLE_FLAGS
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_inc:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rsi], 0xf0
-
-    add rdi, 1
+    add rdi, 1 ; x86 inc instruction doesn't affect CF, so use add
     HANDLE_1OP_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 _x86_64_dec:
-    push rbp
-    mov rbp, rsp
-
-    and BYTE [rsi], 0xf0
-
-    sub rdi, 1
+    sub rdi, 1 ; x86 dec instruction doesn't affect CF, so use sub
     HANDLE_1OP_FLAGS
 
     mov rax, rdi
-
-    mov rsp, rbp
-    pop rbp
     ret
 
 section .data

@@ -270,9 +270,23 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `src` can be a register, memory address (simple or complex), or an immediate.
 - CF, ZF, SF, and OF flags are set according to the result.
 
+#### adc
+
+- `adc SIZE dst, src` adds the value of `src` and the carry flag to the value of `dst` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- CF, ZF, SF, and OF flags are set according to the result.
+
 #### sub
 
 - `sub SIZE dst, src` subtracts the value of `src` from the value of `dst` and stores the result in `dst`.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- CF, ZF, SF, and OF flags are set according to the result.
+
+#### sbb
+
+- `sbb SIZE dst, src` subtracts the value of `src` and the carry flag from the value of `dst` and stores the result in `dst`.
 - `dst` can be a register or memory address (simple or complex).
 - `src` can be a register, memory address (simple or complex), or an immediate.
 - CF, ZF, SF, and OF flags are set according to the result.
@@ -490,6 +504,216 @@ On user mode entry (different from supervisor mode exit), `STS` is cleared. `IP`
 - `address` can be a register, memory address (simple or complex), or an immediate.
 - Equivalent to a `nop` if the condition is not met.
 - This instruction is an alias for `jl`.
+
+#### jo
+
+- `jo SIZE address` jumps to the function at `address` if the overflow flag is set.
+- `address` can be a register, memory address (simple or complex), or an immediate.
+- Equivalent to a `nop` if the overflow flag is not set.
+
+#### jno
+
+- `jno SIZE address` jumps to the function at `address` if the overflow flag is not set.
+- `address` can be a register, memory address (simple or complex), or an immediate.
+- Equivalent to a `nop` if the overflow flag is set.
+
+#### js
+
+- `js SIZE address` jumps to the function at `address` if the sign flag is set.
+- `address` can be a register, memory address (simple or complex), or an immediate.
+- Equivalent to a `nop` if the sign flag is not set.
+
+#### jns
+
+- `jns SIZE address` jumps to the function at `address` if the sign flag is not set.
+- `address` can be a register, memory address (simple or complex), or an immediate.
+- Equivalent to a `nop` if the sign flag is set.
+
+### Conditionals
+
+#### setc
+
+- `setc SIZE dst` sets `dst` to 1 if the carry flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setnc
+
+- `setnc SIZE dst` sets `dst` to 1 if the carry flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setz
+
+- `setz SIZE dst` sets `dst` to 1 if the zero flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setnz
+
+- `setnz SIZE dst` sets `dst` to 1 if the zero flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setl
+
+- `setl SIZE dst` sets `dst` to 1 if the sign flag is not equal to the overflow flag, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setle
+
+- `setle SIZE dst` sets `dst` to 1 if the sign flag is not equal to the overflow flag or the zero flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setnl
+
+- `setnl SIZE dst` sets `dst` to 1 if the sign flag is equal to the overflow flag, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setnle
+
+- `setnle SIZE dst` sets `dst` to 1 if the sign flag is equal to the overflow flag and the zero flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setg
+
+- `setg SIZE dst` sets `dst` to 1 if the sign flag is equal to the overflow flag and the zero flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+- This instruction is an alias for `setnle`.
+
+#### setge
+
+- `setge SIZE dst` sets `dst` to 1 if the sign flag is equal to the overflow flag, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+- This instruction is an alias for `setnl`.
+
+#### setng
+
+- `setng SIZE dst` sets `dst` to 1 if the sign flag is not equal to the overflow flag or the zero flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+- This instruction is an alias for `setle`.
+
+#### setnge
+
+- `setnge SIZE dst` sets `dst` to 1 if the sign flag is not equal to the overflow flag, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+- This instruction is an alias for `setl`.
+
+#### seto
+
+- `seto SIZE dst` sets `dst` to 1 if the overflow flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setno
+
+- `setno SIZE dst` sets `dst` to 1 if the overflow flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### sets
+
+- `sets SIZE dst` sets `dst` to 1 if the sign flag is set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### setns
+
+- `setns SIZE dst` sets `dst` to 1 if the sign flag is not set, otherwise sets it to 0.
+- `dst` can be a register or memory address (simple or complex).
+
+#### movc
+
+- `movc SIZE dst, src` moves the value of `src` to `dst` if the carry flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movnc
+
+- `movnc SIZE dst, src` moves the value of `src` to `dst` if the carry flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movz
+
+- `movz SIZE dst, src` moves the value of `src` to `dst` if the zero flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movnz
+
+- `movnz SIZE dst, src` moves the value of `src` to `dst` if the zero flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movl
+
+- `movl SIZE dst, src` moves the value of `src` to `dst` if the sign flag is not equal to the overflow flag. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movle
+
+- `movle SIZE dst, src` moves the value of `src` to `dst` if the sign flag is not equal to the overflow flag or the zero flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movnl
+
+- `movnl SIZE dst, src` moves the value of `src` to `dst` if the sign flag is equal to the overflow flag. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movnle
+
+- `movnle SIZE dst, src` moves the value of `src` to `dst` if the sign flag is equal to the overflow flag and the zero flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movg
+
+- `movg SIZE dst, src` moves the value of `src` to `dst` if the sign flag is equal to the overflow flag and the zero flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This instruction is an alias for `movnle`.
+
+#### movge
+
+- `movge SIZE dst, src` moves the value of `src` to `dst` if the sign flag is equal to the overflow flag. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This instruction is an alias for `movnl`.
+
+#### movng
+
+- `movng SIZE dst, src` moves the value of `src` to `dst` if the sign flag is not equal to the overflow flag or the zero flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This instruction is an alias for `movle`.
+
+#### movnge
+
+- `movnge SIZE dst, src` moves the value of `src` to `dst` if the sign flag is not equal to the overflow flag. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+- This instruction is an alias for `movl`.
+
+#### movo
+
+- `movo SIZE dst, src` moves the value of `src` to `dst` if the overflow flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movno
+
+- `movno SIZE dst, src` moves the value of `src` to `dst` if the overflow flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movs
+
+- `movs SIZE dst, src` moves the value of `src` to `dst` if the sign flag is set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
+
+#### movns
+
+- `movns SIZE dst, src` moves the value of `src` to `dst` if the sign flag is not set. Otherwise, `dst` is unchanged.
+- `dst` can be a register or memory address (simple or complex).
+- `src` can be a register, memory address (simple or complex), or an immediate.
 
 ### Interrupts
 

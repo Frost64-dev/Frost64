@@ -39,8 +39,8 @@ namespace InsEncoding {
         : m_opcode(Opcode::UNKNOWN), m_fileName(), m_line(0) {
     }
 
-    Instruction::Instruction(Opcode opcode, const std::string& file_name, size_t line)
-        : m_opcode(opcode), m_fileName(file_name), m_line(line) {
+    Instruction::Instruction(Opcode opcode, const std::string& fileName, size_t line)
+        : m_opcode(opcode), m_fileName(fileName), m_line(line) {
     }
 
     Instruction::~Instruction() {
@@ -141,7 +141,9 @@ namespace InsEncoding {
         case Opcode::SDIV:
             return 3;
         case Opcode::ADD:
+        case Opcode::ADC:
         case Opcode::SUB:
+        case Opcode::SBB:
         case Opcode::OR:
         case Opcode::NOR:
         case Opcode::XOR:
@@ -152,6 +154,18 @@ namespace InsEncoding {
         case Opcode::SHL:
         case Opcode::SHR:
         case Opcode::MOV:
+        case Opcode::MOVC:
+        case Opcode::MOVNC:
+        case Opcode::MOVZ:
+        case Opcode::MOVNZ:
+        case Opcode::MOVL:
+        case Opcode::MOVLE:
+        case Opcode::MOVNL:
+        case Opcode::MOVNLE:
+        case Opcode::MOVO:
+        case Opcode::MOVNO:
+        case Opcode::MOVS:
+        case Opcode::MOVNS:
             return 2;
         case Opcode::INC:
         case Opcode::DEC:
@@ -165,6 +179,22 @@ namespace InsEncoding {
         case Opcode::JLE:
         case Opcode::JNL:
         case Opcode::JNLE:
+        case Opcode::JO:
+        case Opcode::JNO:
+        case Opcode::JS:
+        case Opcode::JNS:
+        case Opcode::SETC:
+        case Opcode::SETNC:
+        case Opcode::SETZ:
+        case Opcode::SETNZ:
+        case Opcode::SETL:
+        case Opcode::SETLE:
+        case Opcode::SETNL:
+        case Opcode::SETNLE:
+        case Opcode::SETO:
+        case Opcode::SETNO:
+        case Opcode::SETS:
+        case Opcode::SETNS:
         case Opcode::ENTERUSER:
         case Opcode::PUSH:
         case Opcode::POP:
@@ -186,32 +216,31 @@ namespace InsEncoding {
     }
 
     const char* GetInstructionName(Opcode opcode) {
-    #define NAME_CASE(ins) \
-        case Opcode::ins:  \
-            return #ins;
+        using namespace InsEncoding;
+#define NAME_CASE(ins) \
+case Opcode::ins:  \
+return #ins;
         switch (opcode) {
-            NAME_CASE(PUSH)
-            NAME_CASE(POP)
-            NAME_CASE(PUSHA)
-            NAME_CASE(POPA)
             NAME_CASE(ADD)
+            NAME_CASE(ADC)
             NAME_CASE(SUB)
+            NAME_CASE(SBB)
             NAME_CASE(MUL)
             NAME_CASE(DIV)
             NAME_CASE(SMUL)
             NAME_CASE(SDIV)
             NAME_CASE(OR)
+            NAME_CASE(NOR)
             NAME_CASE(XOR)
             NAME_CASE(XNOR)
-            NAME_CASE(NOR)
             NAME_CASE(AND)
             NAME_CASE(NAND)
-            NAME_CASE(NOT)
-            NAME_CASE(CMP)
-            NAME_CASE(INC)
-            NAME_CASE(DEC)
             NAME_CASE(SHL)
             NAME_CASE(SHR)
+            NAME_CASE(NOT)
+            NAME_CASE(INC)
+            NAME_CASE(DEC)
+            NAME_CASE(CMP)
             NAME_CASE(RET)
             NAME_CASE(CALL)
             NAME_CASE(JMP)
@@ -223,18 +252,50 @@ namespace InsEncoding {
             NAME_CASE(JLE)
             NAME_CASE(JNL)
             NAME_CASE(JNLE)
-            NAME_CASE(INT)
-            NAME_CASE(LIDT)
-            NAME_CASE(IRET)
+            NAME_CASE(JO)
+            NAME_CASE(JNO)
+            NAME_CASE(JS)
+            NAME_CASE(JNS)
+            NAME_CASE(SETC)
+            NAME_CASE(SETNC)
+            NAME_CASE(SETZ)
+            NAME_CASE(SETNZ)
+            NAME_CASE(SETL)
+            NAME_CASE(SETLE)
+            NAME_CASE(SETNL)
+            NAME_CASE(SETNLE)
+            NAME_CASE(SETO)
+            NAME_CASE(SETNO)
+            NAME_CASE(SETS)
+            NAME_CASE(SETNS)
+            NAME_CASE(MOVC)
+            NAME_CASE(MOVNC)
+            NAME_CASE(MOVZ)
+            NAME_CASE(MOVNZ)
+            NAME_CASE(MOVL)
+            NAME_CASE(MOVLE)
+            NAME_CASE(MOVNL)
+            NAME_CASE(MOVNLE)
+            NAME_CASE(MOVO)
+            NAME_CASE(MOVNO)
+            NAME_CASE(MOVS)
+            NAME_CASE(MOVNS)
             NAME_CASE(MOV)
             NAME_CASE(NOP)
             NAME_CASE(HLT)
+            NAME_CASE(PUSH)
+            NAME_CASE(POP)
+            NAME_CASE(PUSHA)
+            NAME_CASE(POPA)
+            NAME_CASE(INT)
+            NAME_CASE(LIDT)
+            NAME_CASE(IRET)
             NAME_CASE(SYSCALL)
             NAME_CASE(SYSRET)
             NAME_CASE(ENTERUSER)
             NAME_CASE(UNKNOWN)
         }
-    #undef NAME_CASE
+#undef NAME_CASE
         return "UNKNOWN";
     }
 

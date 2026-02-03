@@ -106,29 +106,29 @@ The highest bit of the Register ID is used to encode the sign of the offset regi
 #### Numbering
 
 - Bits 0-3 are the offset
-- Bits 4-6 are the group (0-1 for ALU, 2 for control flow, 3 for other, 4-7 are reserved)
+- Bits 4-6 are the group (0-1 for ALU, 2 for control flow, 3-4 for conditionals, 5 for other, 6 and 7 are reserved)
 - Bit 7 is reserved and should always be 0
 
 #### ALU
 
-| Offset | Group 0  | Group 1   |
-|--------|----------|-----------|
-| 0      | add      | inc       |
-| 1      | sub      | dec       |
-| 2      | mul      | (invalid) |
-| 3      | div      | (invalid) |
-| 4      | smul     | (invalid) |
-| 5      | sdiv     | (invalid) |
-| 6      | or       | (invalid) |
-| 7      | nor      | (invalid) |
-| 8      | xor      | (invalid) |
-| 9      | xnor     | (invalid) |
-| a      | and      | (invalid) |
-| b      | nand     | (invalid) |
-| c      | not      | (invalid) |
-| d      | shl      | (invalid) |
-| e      | shr      | (invalid) |
-| f      | cmp      | (invalid) |
+| Offset | Group 0 | Group 1   |
+|--------|---------|-----------|
+| 0      | add     | not       |
+| 1      | adc     | inc       |
+| 2      | sub     | dec       |
+| 3      | sbb     | cmp       |
+| 4      | mul     | (invalid) |
+| 5      | div     | (invalid) |
+| 6      | smul    | (invalid) |
+| 7      | sdiv    | (invalid) |
+| 8      | or      | (invalid) |
+| 9      | nor     | (invalid) |
+| a      | xor     | (invalid) |
+| b      | xnor    | (invalid) |
+| c      | and     | (invalid) |
+| d      | nand    | (invalid) |
+| e      | shl     | (invalid) |
+| f      | shr     | (invalid) |
 
 
 
@@ -143,19 +143,37 @@ The highest bit of the Register ID is used to encode the sign of the offset regi
 | jnc       | 4      |
 | jz        | 5      |
 | jnz       | 6      |
-| jl        | 7      |
-| jnge      | 7      |
-| jle       | 8      |
-| jng       | 8      |
-| jnl       | 9      |
-| jge       | 9      |
-| jnle      | a      |
-| jg        | a      |
-| (invalid) | b      |
-| (invalid) | c      |
-| (invalid) | d      |
-| (invalid) | e      |
+| jl / jnge | 7      |
+| jle / jng | 8      |
+| jnl / jge | 9      |
+| jnle / jg | a      |
+| jo        | b      |
+| jno       | c      |
+| js        | d      |
+| jns       | e      |
 | (invalid) | f      |
+
+#### Conditionals
+
+| Offset | Group 0       | Group 1       |
+|--------|---------------|---------------|
+| 0      | setc          | movl / movnge |
+| 1      | setnc         | movle / movng |
+| 2      | setz          | movnl / movge |
+| 3      | setnz         | movnle / movg |
+| 4      | setl / setnge | movo          |
+| 5      | setle / setge | movno         |
+| 6      | setnl / setge | movs          |
+| 7      | setnle / setg | movns         |
+| 8      | seto          | (invalid)     |
+| 9      | setno         | (invalid)     |
+| a      | sets          | (invalid)     |
+| b      | setns         | (invalid)     |
+| c      | movc          | (invalid)     |
+| d      | movnc         | (invalid)     |
+| e      | movz          | (invalid)     |
+| f      | movnz         | (invalid)     |
+
 
 #### Other
 
@@ -177,3 +195,24 @@ The highest bit of the Register ID is used to encode the sign of the offset regi
 | (invalid) | d      |
 | (invalid) | e      |
 | (invalid) | f      |
+
+#### The Big Opcode Table
+
+| Offset | Group 0 | Group 1   | Group 2   | Group 3       | Group 4       | Group 5   | Group 6   | Group 7   |
+|--------|---------|-----------|-----------|---------------|---------------|-----------|-----------|-----------|
+| 0      | add     | not       | ret       | setc          | movl / movnge | mov       | (invalid) | (invalid) |
+| 1      | adc     | inc       | call      | setnc         | novle / movng | nop       | (invalid) | (invalid) |
+| 2      | sub     | dec       | jmp       | setz          | movnl / movge | hlt       | (invalid) | (invalid) |
+| 3      | sbb     | cmp       | jc        | setnz         | movnle / movg | push      | (invalid) | (invalid) |
+| 4      | mul     | (invalid) | jnc       | setl / setnge | movo          | pop       | (invalid) | (invalid) |
+| 5      | div     | (invalid) | jz        | setle / setge | movno         | pusha     | (invalid) | (invalid) |
+| 6      | smul    | (invalid) | jnz       | setnl / setge | movs          | popa      | (invalid) | (invalid) |
+| 7      | sdiv    | (invalid) | jl / jnge | setnle / setg | movns         | int       | (invalid) | (invalid) |
+| 8      | or      | (invalid) | jle / jng | seto          | (invalid)     | lidt      | (invalid) | (invalid) |
+| 9      | nor     | (invalid) | jnl / jge | setno         | (invalid)     | iret      | (invalid) | (invalid) |
+| a      | xor     | (invalid) | jnle / jg | sets          | (invalid)     | syscall   | (invalid) | (invalid) |
+| b      | xnor    | (invalid) | jo        | setns         | (invalid)     | sysret    | (invalid) | (invalid) |
+| c      | and     | (invalid) | jno       | movc          | (invalid)     | enteruser | (invalid) | (invalid) |
+| d      | nand    | (invalid) | js        | movnc         | (invalid)     | (invalid) | (invalid) | (invalid) |
+| e      | shl     | (invalid) | jns       | movz          | (invalid)     | (invalid) | (invalid) | (invalid) |
+| f      | shr     | (invalid) | (invalid) | movnz         | (invalid)     | (invalid) | (invalid) | (invalid) |

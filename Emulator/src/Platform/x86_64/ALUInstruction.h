@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,9 @@ struct x86_64_128Data {
 #ifdef __APPLE__
 
 uint64_t x86_64_add(uint64_t a, uint64_t b, uint64_t* flags);
+uint64_t x86_64_adc(uint64_t a, uint64_t b, uint64_t* flags);
 uint64_t x86_64_sub(uint64_t a, uint64_t b, uint64_t* flags);
+uint64_t x86_64_sbb(uint64_t a, uint64_t b, uint64_t* flags);
 x86_64_128Data x86_64_mul(uint64_t a, uint64_t b, uint64_t* flags);
 x86_64_128Data x86_64_div(x86_64_128Data a, uint64_t b, uint64_t* flags);
 x86_64_128Data x86_64_smul(uint64_t a, uint64_t b, uint64_t* flags);
@@ -63,7 +65,9 @@ uint64_t x86_64_dec(uint64_t src, uint64_t* flags);
 #else /* __APPLE__ */
 
 #define x86_64_add(a, b, flags) _x86_64_add(a, b, flags)
+#define x86_64_adc(a, b, flags) _x86_64_adc(a, b, flags)
 #define x86_64_sub(a, b, flags) _x86_64_sub(a, b, flags)
+#define x86_64_sbb(a, b, flags) _x86_64_sbb(a, b, flags)
 #define x86_64_mul(a, b, flags) _x86_64_mul(a, b, flags)
 #define x86_64_div(a, b, flags) _x86_64_div(a, b, flags)
 #define x86_64_smul(a, b, flags) _x86_64_smul(a, b, flags)
@@ -82,7 +86,9 @@ uint64_t x86_64_dec(uint64_t src, uint64_t* flags);
 #define x86_64_dec(src, flags) _x86_64_dec(src, flags)
 
 uint64_t _x86_64_add(uint64_t a, uint64_t b, uint64_t* flags);
+uint64_t _x86_64_adc(uint64_t a, uint64_t b, uint64_t* flags);
 uint64_t _x86_64_sub(uint64_t a, uint64_t b, uint64_t* flags);
+uint64_t _x86_64_sbb(uint64_t a, uint64_t b, uint64_t* flags);
 x86_64_128Data _x86_64_mul(uint64_t a, uint64_t b, uint64_t* flags);
 x86_64_128Data _x86_64_div(x86_64_128Data a, uint64_t b, uint64_t* flags);
 x86_64_128Data _x86_64_smul(uint64_t a, uint64_t b, uint64_t* flags);

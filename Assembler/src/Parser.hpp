@@ -52,7 +52,6 @@ private:
     // if the token is going to be printed, a colon followed by a space is insert after the message, then the token is printed inside double quotes
     [[noreturn]] static void error(const char* message, Token* token, bool printToken = false);
 
-    static const char* GetInstructionName(InsEncoding::Opcode opcode);
     static const char* GetRegisterName(InsEncoding::Register reg);
 
 private:

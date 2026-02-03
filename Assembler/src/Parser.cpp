@@ -1556,7 +1556,9 @@ InsEncoding::Opcode Parser::GetOpcode(const char* name, size_t nameSize) {
     if (!m_opcodeTableInitialised) {
 #define INSERT_OPCODE(str, opcode, length) m_opcodes.insert({std::string_view(#str, length), Opcode::opcode})
         INSERT_OPCODE(add, ADD, 3);
+        INSERT_OPCODE(adc, ADC, 3);
         INSERT_OPCODE(sub, SUB, 3);
+        INSERT_OPCODE(sbb, SBB, 3);
         INSERT_OPCODE(mul, MUL, 3);
         INSERT_OPCODE(div, DIV, 3);
         INSERT_OPCODE(smul, SMUL, 4);
@@ -1567,12 +1569,12 @@ InsEncoding::Opcode Parser::GetOpcode(const char* name, size_t nameSize) {
         INSERT_OPCODE(xnor, XNOR, 4);
         INSERT_OPCODE(and, AND, 3);
         INSERT_OPCODE(nand, NAND, 4);
-        INSERT_OPCODE(not, NOT, 3);
-        INSERT_OPCODE(cmp, CMP, 3);
-        INSERT_OPCODE(inc, INC, 3);
-        INSERT_OPCODE(dec, DEC, 3);
         INSERT_OPCODE(shl, SHL, 3);
         INSERT_OPCODE(shr, SHR, 3);
+        INSERT_OPCODE(not, NOT, 3);
+        INSERT_OPCODE(inc, INC, 3);
+        INSERT_OPCODE(dec, DEC, 3);
+        INSERT_OPCODE(cmp, CMP, 3);
         INSERT_OPCODE(ret, RET, 3);
         INSERT_OPCODE(call, CALL, 4);
         INSERT_OPCODE(jmp, JMP, 3);
@@ -1588,6 +1590,42 @@ InsEncoding::Opcode Parser::GetOpcode(const char* name, size_t nameSize) {
         INSERT_OPCODE(jge, JNL, 3);
         INSERT_OPCODE(jnle, JNLE, 4);
         INSERT_OPCODE(jg, JNLE, 2);
+        INSERT_OPCODE(jo, JO, 2);
+        INSERT_OPCODE(jno, JNO, 3);
+        INSERT_OPCODE(js, JS, 2);
+        INSERT_OPCODE(jns, JNS, 3);
+        INSERT_OPCODE(setc, SETC, 4);
+        INSERT_OPCODE(setnc, SETNC, 5);
+        INSERT_OPCODE(setz, SETZ, 4);
+        INSERT_OPCODE(setnz, SETNZ, 5);
+        INSERT_OPCODE(setl, SETL, 4);
+        INSERT_OPCODE(setnge, SETL, 6);
+        INSERT_OPCODE(setle, SETLE, 5);
+        INSERT_OPCODE(setng, SETLE, 5);
+        INSERT_OPCODE(setnl, SETNL, 5);
+        INSERT_OPCODE(setge, SETNL, 5);
+        INSERT_OPCODE(setnle, SETNLE, 6);
+        INSERT_OPCODE(setg, SETNLE, 4);
+        INSERT_OPCODE(seto, SETO, 4);
+        INSERT_OPCODE(setno, SETNO, 5);
+        INSERT_OPCODE(sets, SETS, 4);
+        INSERT_OPCODE(setns, SETNS, 5);
+        INSERT_OPCODE(movc, MOVC, 4);
+        INSERT_OPCODE(movnc, MOVNC, 5);
+        INSERT_OPCODE(movz, MOVZ, 4);
+        INSERT_OPCODE(movnz, MOVNZ, 5);
+        INSERT_OPCODE(movl, MOVL, 4);
+        INSERT_OPCODE(movnge, MOVL, 6);
+        INSERT_OPCODE(movle, MOVLE, 5);
+        INSERT_OPCODE(movng, MOVLE, 5);
+        INSERT_OPCODE(movnl, MOVNL, 5);
+        INSERT_OPCODE(movge, MOVNL, 5);
+        INSERT_OPCODE(movnle, MOVNLE, 6);
+        INSERT_OPCODE(movg, MOVNLE, 4);
+        INSERT_OPCODE(movo, MOVO, 4);
+        INSERT_OPCODE(movno, MOVNO, 5);
+        INSERT_OPCODE(movs, MOVS, 4);
+        INSERT_OPCODE(movns, MOVNS, 5);
         INSERT_OPCODE(mov, MOV, 3);
         INSERT_OPCODE(nop, NOP, 3);
         INSERT_OPCODE(hlt, HLT, 3);
@@ -1604,6 +1642,8 @@ InsEncoding::Opcode Parser::GetOpcode(const char* name, size_t nameSize) {
 #undef INSERT_OPCODE
         m_opcodeTableInitialised = true;
     }
+    if (!m_opcodes.contains(std::string_view(name, nameSize)))
+        return Opcode::UNKNOWN;
     return m_opcodes[std::string_view(name, nameSize)];
 }
 
@@ -2329,59 +2369,7 @@ Token* Parser::SimplifyExpression(const LinkedList::RearInsertLinkedList<Token>&
     exit(1);
 }
 
-const char* Parser::GetInstructionName(InsEncoding::Opcode opcode) {
-    using namespace InsEncoding;
-#define NAME_CASE(ins) \
-    case Opcode::ins:  \
-        return #ins;
-    switch (opcode) {
-        NAME_CASE(PUSH)
-        NAME_CASE(POP)
-        NAME_CASE(PUSHA)
-        NAME_CASE(POPA)
-        NAME_CASE(ADD)
-        NAME_CASE(SUB)
-        NAME_CASE(MUL)
-        NAME_CASE(DIV)
-        NAME_CASE(SMUL)
-        NAME_CASE(SDIV)
-        NAME_CASE(OR)
-        NAME_CASE(NOR)
-        NAME_CASE(XOR)
-        NAME_CASE(XNOR)
-        NAME_CASE(AND)
-        NAME_CASE(NAND)
-        NAME_CASE(NOT)
-        NAME_CASE(CMP)
-        NAME_CASE(INC)
-        NAME_CASE(DEC)
-        NAME_CASE(SHL)
-        NAME_CASE(SHR)
-        NAME_CASE(RET)
-        NAME_CASE(CALL)
-        NAME_CASE(JMP)
-        NAME_CASE(JC)
-        NAME_CASE(JNC)
-        NAME_CASE(JZ)
-        NAME_CASE(JNZ)
-        NAME_CASE(JL)
-        NAME_CASE(JLE)
-        NAME_CASE(JNL)
-        NAME_CASE(JNLE)
-        NAME_CASE(INT)
-        NAME_CASE(LIDT)
-        NAME_CASE(IRET)
-        NAME_CASE(MOV)
-        NAME_CASE(NOP)
-        NAME_CASE(HLT)
-        NAME_CASE(SYSCALL)
-        NAME_CASE(SYSRET)
-        NAME_CASE(ENTERUSER)
-        NAME_CASE(UNKNOWN)
-    }
-#undef NAME_CASE
-    return "UNKNOWN";
-}
+
 
 const char* Parser::GetRegisterName(InsEncoding::Register reg) {
     using namespace InsEncoding;
