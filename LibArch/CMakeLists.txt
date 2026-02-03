@@ -39,7 +39,7 @@ target_include_directories(arch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/LibA
 target_include_directories(arch PUBLIC ${CMAKE_SOURCE_DIR}/LibCommon/include)
 
 target_compile_options(arch
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>
+    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C,ASM_NASM>:-g>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wall>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wextra>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wpedantic>
