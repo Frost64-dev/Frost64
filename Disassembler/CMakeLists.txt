@@ -40,7 +40,7 @@ target_include_directories(Disassembler PUBLIC ${CMAKE_SOURCE_DIR}/LibArch/inclu
 target_include_directories(Disassembler PUBLIC ${CMAKE_SOURCE_DIR}/LibCommon/include)
 
 target_compile_options(Disassembler
-    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-g>
+    PRIVATE $<$<COMPILE_LANGUAGE:CXX,C,ASM_NASM>:-g>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wall>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wextra>
     PRIVATE $<$<COMPILE_LANGUAGE:CXX,C>:-Wpedantic>
