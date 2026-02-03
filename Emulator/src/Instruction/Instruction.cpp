@@ -71,11 +71,12 @@ struct InstructionExecutionRunState {
 };
 
 struct CPUInsState {
-    explicit CPUInsState(Emulator::CPUState* cpu) : rawIPPointer(nullptr), rawNextIPPointer(nullptr), instructionDataCache(), currentInstruction(nullptr),
+    explicit CPUInsState(Emulator::CPUState* cpu) : rawIPPointer(nullptr), rawNextIPPointer(nullptr), rawSTSPointer(nullptr), instructionDataCache(), currentInstruction(nullptr),
                                                     currentCacheOffset(0), cacheJustMissed(true), insCache(cpu) {}
 
     uint64_t* rawIPPointer;
     uint64_t* rawNextIPPointer;
+    uint64_t* rawSTSPointer;
 
     InstructionData instructionDataCache[128]; // 128 instructions is quite big, should hopefully be enough
 
@@ -190,6 +191,7 @@ bool InitInstructionSubsystem(Emulator::CPUState* cpu, uint64_t startingIP, MMU*
 
     state->rawIPPointer = cpu->registers.IP->GetRawValuePointer();
     state->rawNextIPPointer = &cpu->nextIP;
+    state->rawSTSPointer = cpu->registers.STS->GetRawValuePointer();
 
     InitInsCache(state, startingIP, mmu);
 
@@ -624,7 +626,7 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
 #define ALU_INSTRUCTION3(name)                                                            \
     void ins_##name(Emulator::CPUState* cpu, Operand* dst2, Operand* dst1, Operand* src) {                         \
         PRINT_INS_INFO3(dst2, dst1, src);                                                 \
-        x86_64_128Data result = x86_64_##name(dst1->GetValue(), src->GetValue(), cpu->registers.STS->GetRawValuePointer()); \
+        x86_64_128Data result = x86_64_##name(dst1->GetValue(), src->GetValue(), cpu->insState->rawSTSPointer); \
         dst1->SetValue(result.low);                                                       \
         dst2->SetValue(result.high);                                                      \
     }
@@ -633,7 +635,7 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
     void ins_##name(Emulator::CPUState* cpu, Operand* dst2, Operand* dst1, Operand* src) {       \
         PRINT_INS_INFO3(dst2, dst1, src);                               \
         x86_64_128Data dividend = {dst1->GetValue(), dst2->GetValue()};  \
-        x86_64_128Data result = x86_64_##name(dividend, src->GetValue(), cpu->registers.STS->GetRawValuePointer()); \
+        x86_64_128Data result = x86_64_##name(dividend, src->GetValue(), cpu->insState->rawSTSPointer); \
         dst1->SetValue(result.low);                                      \
         dst2->SetValue(result.high);                                     \
     }
@@ -641,19 +643,19 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
 #define ALU_INSTRUCTION2(name)                                                  \
     void ins_##name(Emulator::CPUState* cpu, Operand* dst, Operand* src) {                               \
         PRINT_INS_INFO2(dst, src);                                              \
-        dst->SetValue(x86_64_##name(dst->GetValue(), src->GetValue(), cpu->registers.STS->GetRawValuePointer())); \
+        dst->SetValue(x86_64_##name(dst->GetValue(), src->GetValue(), cpu->insState->rawSTSPointer)); \
     }
 
 #define ALU_INSTRUCTION2_NO_RET_VAL(name)                        \
     void ins_##name(Emulator::CPUState* cpu, Operand* dst, Operand* src) {                \
         PRINT_INS_INFO2(dst, src);                               \
-        x86_64_##name(dst->GetValue(), src->GetValue(), cpu->registers.STS->GetRawValuePointer()); \
+        x86_64_##name(dst->GetValue(), src->GetValue(), cpu->insState->rawSTSPointer); \
     }
 
 #define ALU_INSTRUCTION1(name)                                 \
     void ins_##name(Emulator::CPUState* cpu, Operand* dst) {                            \
         PRINT_INS_INFO1(dst);                                  \
-        dst->SetValue(x86_64_##name(dst->GetValue(), cpu->registers.STS->GetRawValuePointer())); \
+        dst->SetValue(x86_64_##name(dst->GetValue(), cpu->insState->rawSTSPointer)); \
     }
 
 ALU_INSTRUCTION2(add)
@@ -705,7 +707,7 @@ void ins_jmp(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jc(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 1) {
+    if (*cpu->insState->rawSTSPointer & 1) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -714,7 +716,7 @@ void ins_jc(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jnc(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 1)) {
+    if (!(*cpu->insState->rawSTSPointer & 1)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -723,7 +725,7 @@ void ins_jnc(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jz(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 2) {
+    if (*cpu->insState->rawSTSPointer & 2) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -732,7 +734,7 @@ void ins_jz(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jnz(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 2)) {
+    if (!(*cpu->insState->rawSTSPointer & 2)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -741,7 +743,7 @@ void ins_jnz(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jl(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8)) {
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -750,7 +752,7 @@ void ins_jl(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jle(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8) || (flags & 2)) {
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8) || (flags & 2)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -759,7 +761,7 @@ void ins_jle(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jnl(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8)) {
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -768,7 +770,7 @@ void ins_jnl(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jnle(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8) && !(flags & 2)) {
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8) && !(flags & 2)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -777,7 +779,7 @@ void ins_jnle(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jo(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 8) {
+    if (*cpu->insState->rawSTSPointer & 8) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -786,7 +788,7 @@ void ins_jo(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jno(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 8)) {
+    if (!(*cpu->insState->rawSTSPointer & 8)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -795,7 +797,7 @@ void ins_jno(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_js(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 4) {
+    if (*cpu->insState->rawSTSPointer & 4) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -804,7 +806,7 @@ void ins_js(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_jns(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 4)) {
+    if (!(*cpu->insState->rawSTSPointer & 4)) {
         uint64_t IP = dst->GetValue();
         *cpu->insState->rawNextIPPointer = IP;
         cpu->insState->insCache.MaybeSetBaseAddress(IP);
@@ -813,7 +815,7 @@ void ins_jns(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setc(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 1)
+    if (*cpu->insState->rawSTSPointer & 1)
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -821,7 +823,7 @@ void ins_setc(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setnc(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 1))
+    if (!(*cpu->insState->rawSTSPointer & 1))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -829,7 +831,7 @@ void ins_setnc(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setz(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 2)
+    if (*cpu->insState->rawSTSPointer & 2)
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -837,7 +839,7 @@ void ins_setz(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setnz(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 2))
+    if (!(*cpu->insState->rawSTSPointer & 2))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -845,7 +847,7 @@ void ins_setnz(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setl(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -853,7 +855,7 @@ void ins_setl(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setle(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8) || (flags & 2))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8) || (flags & 2))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -861,7 +863,7 @@ void ins_setle(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setnl(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -869,7 +871,7 @@ void ins_setnl(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setnle(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8) && !(flags & 2))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8) && !(flags & 2))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -877,7 +879,7 @@ void ins_setnle(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_seto(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 8)
+    if (*cpu->insState->rawSTSPointer & 8)
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -885,7 +887,7 @@ void ins_seto(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setno(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 8))
+    if (!(*cpu->insState->rawSTSPointer & 8))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -893,7 +895,7 @@ void ins_setno(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_sets(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 4)
+    if (*cpu->insState->rawSTSPointer & 4)
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -901,7 +903,7 @@ void ins_sets(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_setns(Emulator::CPUState* cpu, Operand* dst) {
     PRINT_INS_INFO1(dst);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 4))
+    if (!(*cpu->insState->rawSTSPointer & 4))
         dst->SetValue(1);
     else
         dst->SetValue(0);
@@ -909,73 +911,73 @@ void ins_setns(Emulator::CPUState* cpu, Operand* dst) {
 
 void ins_movc(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 1)
+    if (*cpu->insState->rawSTSPointer & 1)
         dst->SetValue(src->GetValue());
 }
 
 void ins_movnc(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 1))
+    if (!(*cpu->insState->rawSTSPointer & 1))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movz(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 2)
+    if (*cpu->insState->rawSTSPointer & 2)
         dst->SetValue(src->GetValue());
 }
 
 void ins_movnz(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 2))
+    if (!(*cpu->insState->rawSTSPointer & 2))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movl(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movle(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) != (flags & 8) || (flags & 2))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) != (flags & 8) || (flags & 2))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movnl(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movnle(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); (flags & 4) == (flags & 8) && !(flags & 2))
+    if (uint64_t flags = *cpu->insState->rawSTSPointer; (flags & 4) == (flags & 8) && !(flags & 2))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movo(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 8)
+    if (*cpu->insState->rawSTSPointer & 8)
         dst->SetValue(src->GetValue());
 }
 
 void ins_movno(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 8))
+    if (!(*cpu->insState->rawSTSPointer & 8))
         dst->SetValue(src->GetValue());
 }
 
 void ins_movs(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); flags & 4)
+    if (*cpu->insState->rawSTSPointer & 4)
         dst->SetValue(src->GetValue());
 }
 
 void ins_movns(Emulator::CPUState* cpu, Operand* dst, Operand* src) {
     PRINT_INS_INFO2(dst, src);
-    if (uint64_t flags = cpu->registers.STS->GetValue(); !(flags & 4))
+    if (!(*cpu->insState->rawSTSPointer & 4))
         dst->SetValue(src->GetValue());
 }
 
