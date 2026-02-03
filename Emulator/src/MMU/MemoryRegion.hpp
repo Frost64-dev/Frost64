@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,15 +30,15 @@ class MemoryRegion {
     virtual void read(uint64_t address, uint8_t* buffer, size_t size) = 0;
     virtual void write(uint64_t address, const uint8_t* buffer, size_t size) = 0;
 
-    virtual void read8(uint64_t address, uint8_t* buffer);
-    virtual void read16(uint64_t address, uint16_t* buffer);
-    virtual void read32(uint64_t address, uint32_t* buffer);
-    virtual void read64(uint64_t address, uint64_t* buffer);
+    virtual uint8_t read8(uint64_t address);
+    virtual uint16_t read16(uint64_t address);
+    virtual uint32_t read32(uint64_t address);
+    virtual uint64_t read64(uint64_t address);
 
-    virtual void write8(uint64_t address, const uint8_t* buffer);
-    virtual void write16(uint64_t address, const uint16_t* buffer);
-    virtual void write32(uint64_t address, const uint32_t* buffer);
-    virtual void write64(uint64_t address, const uint64_t* buffer);
+    virtual void write8(uint64_t address, uint8_t data);
+    virtual void write16(uint64_t address, uint16_t data);
+    virtual void write32(uint64_t address, uint32_t data);
+    virtual void write64(uint64_t address, uint64_t data);
 
     virtual uint64_t getStart();
     virtual uint64_t getEnd();

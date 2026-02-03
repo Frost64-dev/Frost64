@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,36 +29,44 @@ MemoryRegion::~MemoryRegion() {
 
 }
 
-void MemoryRegion::read8(uint64_t address, uint8_t* buffer) {
-    read(address, buffer, 1);
+uint8_t MemoryRegion::read8(uint64_t address) {
+    uint8_t buffer = 0;
+    read(address, &buffer, 1);
+    return buffer;
 }
 
-void MemoryRegion::read16(uint64_t address, uint16_t* buffer) {
-    read(address, reinterpret_cast<uint8_t*>(buffer), 2);
+uint16_t MemoryRegion::read16(uint64_t address) {
+    uint16_t buffer = 0;
+    read(address, reinterpret_cast<uint8_t*>(&buffer), 2);
+    return buffer;
 }
 
-void MemoryRegion::read32(uint64_t address, uint32_t* buffer) {
-    read(address, reinterpret_cast<uint8_t*>(buffer), 4);
+uint32_t MemoryRegion::read32(uint64_t address) {
+    uint32_t buffer = 0;
+    read(address, reinterpret_cast<uint8_t*>(&buffer), 4);
+    return buffer;
 }
 
-void MemoryRegion::read64(uint64_t address, uint64_t* buffer) {
-    read(address, reinterpret_cast<uint8_t*>(buffer), 8);
+uint64_t MemoryRegion::read64(uint64_t address) {
+    uint64_t buffer = 0;
+    read(address, reinterpret_cast<uint8_t*>(&buffer), 8);
+    return buffer;
 }
 
-void MemoryRegion::write8(uint64_t address, const uint8_t* buffer) {
-    write(address, buffer, 1);
+void MemoryRegion::write8(uint64_t address, uint8_t data) {
+    write(address, &data, 1);
 }
 
-void MemoryRegion::write16(uint64_t address, const uint16_t* buffer) {
-    write(address, reinterpret_cast<const uint8_t*>(buffer), 2);
+void MemoryRegion::write16(uint64_t address, uint16_t data) {
+    write(address, reinterpret_cast<const uint8_t*>(&data), 2);
 }
 
-void MemoryRegion::write32(uint64_t address, const uint32_t* buffer) {
-    write(address, reinterpret_cast<const uint8_t*>(buffer), 4);
+void MemoryRegion::write32(uint64_t address, uint32_t data) {
+    write(address, reinterpret_cast<const uint8_t*>(&data), 4);
 }
 
-void MemoryRegion::write64(uint64_t address, const uint64_t* buffer) {
-    write(address, reinterpret_cast<const uint8_t*>(buffer), 8);
+void MemoryRegion::write64(uint64_t address, uint64_t data) {
+    write(address, reinterpret_cast<const uint8_t*>(&data), 8);
 }
 
 uint64_t MemoryRegion::getStart() {
@@ -79,8 +87,7 @@ void MemoryRegion::dump(FILE* fp) {
     uint8_t buffer_index = 0;
     uint8_t last_printed = 0;
     for (uint64_t i = m_start; i < m_end; i++, buffer_index++) {
-        uint8_t data = 0;
-        read8(i, &data);
+        uint8_t data = read8(i);
         buffer[buffer_index] = data;
         if ((i - m_start) % 16 == 15) {
             buffer_index = 0;

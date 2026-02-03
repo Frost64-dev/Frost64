@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024-2025  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -47,60 +47,56 @@ void IOMemoryRegion::write(uint64_t address, const uint8_t* buffer, size_t size)
     }
 }
 
-void IOMemoryRegion::read8(uint64_t address, uint8_t* buffer) {
+uint8_t IOMemoryRegion::read8(uint64_t address) {
     if (m_isBus)
-        *buffer = m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFF;
-    else
-        *buffer = m_data.device->ReadByte((address - getStart()) / 8);
+        return m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFF;
+    return m_data.device->ReadByte((address - getStart()) / 8);
 }
 
-void IOMemoryRegion::read16(uint64_t address, uint16_t* buffer) {
+uint16_t IOMemoryRegion::read16(uint64_t address) {
     if (m_isBus)
-        *buffer = m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFFFF;
-    else
-        *buffer = m_data.device->ReadWord((address - getStart()) / 8);
+        return m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFFFF;
+    return m_data.device->ReadWord((address - getStart()) / 8);
 }
 
-void IOMemoryRegion::read32(uint64_t address, uint32_t* buffer) {
+uint32_t IOMemoryRegion::read32(uint64_t address) {
     if (m_isBus)
-        *buffer = m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFFFF'FFFF;
-    else
-        *buffer = m_data.device->ReadDWord((address - getStart()) / 8);
+        return m_data.bus->ReadRegister((address - getStart()) / 8) & 0xFFFF'FFFF;
+    return m_data.device->ReadDWord((address - getStart()) / 8);
 }
 
-void IOMemoryRegion::read64(uint64_t address, uint64_t* buffer) {
+uint64_t IOMemoryRegion::read64(uint64_t address) {
     if (m_isBus)
-        *buffer = m_data.bus->ReadRegister((address - getStart()) / 8);
-    else
-        *buffer = m_data.device->ReadQWord((address - getStart()) / 8);
+        return m_data.bus->ReadRegister((address - getStart()) / 8);
+    return m_data.device->ReadQWord((address - getStart()) / 8);
 }
 
-void IOMemoryRegion::write8(uint64_t address, const uint8_t* buffer) {
+void IOMemoryRegion::write8(uint64_t address, uint8_t data) {
     if (m_isBus)
-        m_data.bus->WriteRegister((address - getStart()) / 8, *buffer);
+        m_data.bus->WriteRegister((address - getStart()) / 8, data);
     else
-        m_data.device->WriteByte((address - getStart()) / 8, *buffer);
+        m_data.device->WriteByte((address - getStart()) / 8, data);
 }
 
-void IOMemoryRegion::write16(uint64_t address, const uint16_t* buffer) {
+void IOMemoryRegion::write16(uint64_t address, uint16_t data) {
     if (m_isBus)
-        m_data.bus->WriteRegister((address - getStart()) / 8, *buffer);
+        m_data.bus->WriteRegister((address - getStart()) / 8, data);
     else
-        m_data.device->WriteWord((address - getStart()) / 8, *buffer);
+        m_data.device->WriteWord((address - getStart()) / 8, data);
 }
 
-void IOMemoryRegion::write32(uint64_t address, const uint32_t* buffer) {
+void IOMemoryRegion::write32(uint64_t address, uint32_t data) {
     if (m_isBus)
-        m_data.bus->WriteRegister((address - getStart()) / 8, *buffer);
+        m_data.bus->WriteRegister((address - getStart()) / 8, data);
     else
-        m_data.device->WriteDWord((address - getStart()) / 8, *buffer);
+        m_data.device->WriteDWord((address - getStart()) / 8, data);
 }
 
-void IOMemoryRegion::write64(uint64_t address, const uint64_t* buffer) {
+void IOMemoryRegion::write64(uint64_t address, uint64_t data) {
     if (m_isBus)
-        m_data.bus->WriteRegister((address - getStart()) / 8, *buffer);
+        m_data.bus->WriteRegister((address - getStart()) / 8, data);
     else
-        m_data.device->WriteQWord((address - getStart()) / 8, *buffer);
+        m_data.device->WriteQWord((address - getStart()) / 8, data);
 }
 
 void IOMemoryRegion::dump(FILE* fp) {

@@ -119,7 +119,7 @@ uint8_t MMU::read8(uint64_t address) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address)) {
-            region->read8(address, &data);
+            data = region->read8(address);
             found = true;
             break;
         }
@@ -134,7 +134,7 @@ uint16_t MMU::read16(uint64_t address) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 2)) {
-            region->read16(address, &data);
+            data = region->read16(address);
             found = true;
             break;
         }
@@ -149,7 +149,7 @@ uint32_t MMU::read32(uint64_t address) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 4)) {
-            region->read32(address, &data);
+            data = region->read32(address);
             found = true;
             break;
         }
@@ -164,7 +164,7 @@ uint64_t MMU::read64(uint64_t address) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 8)) {
-            region->read64(address, &data);
+            data = region->read64(address);
             found = true;
             break;
         }
@@ -178,7 +178,7 @@ void MMU::write8(uint64_t address, uint8_t data) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address)) {
-            region->write8(address, &data);
+            region->write8(address, data);
             found = true;
             break;
         }
@@ -191,7 +191,7 @@ void MMU::write16(uint64_t address, uint16_t data) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 2)) {
-            region->write16(address, &data);
+            region->write16(address, data);
             found = true;
             break;
         }
@@ -204,7 +204,7 @@ void MMU::write32(uint64_t address, uint32_t data) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 4)) {
-            region->write32(address, &data);
+            region->write32(address, data);
             found = true;
             break;
         }
@@ -217,7 +217,7 @@ void MMU::write64(uint64_t address, uint64_t data) {
     bool found = false;
     for (MemoryRegion* region : m_regions) {
         if (region->isInside(address, 8)) {
-            region->write64(address, &data);
+            region->write64(address, data);
             found = true;
             break;
         }

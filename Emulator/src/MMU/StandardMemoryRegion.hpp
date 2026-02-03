@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,10 +22,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "MemoryRegion.hpp"
 
+// NOTE: This class does not do any bounds checking. It is assumed that the MMU will handle that.
 class StandardMemoryRegion : public MemoryRegion {
 public:
     StandardMemoryRegion(uint64_t start, uint64_t end);
     ~StandardMemoryRegion();
+
+    virtual uint8_t read8(uint64_t address) override;
+    virtual uint16_t read16(uint64_t address) override;
+    virtual uint32_t read32(uint64_t address) override;
+    virtual uint64_t read64(uint64_t address) override;
+
+    virtual void write8(uint64_t address, uint8_t data) override;
+    virtual void write16(uint64_t address, uint16_t data) override;
+    virtual void write32(uint64_t address, uint32_t data) override;
+    virtual void write64(uint64_t address, uint64_t data) override;
 
     virtual void read(uint64_t address, uint8_t* buffer, size_t size) override;
     virtual void write(uint64_t address, const uint8_t* buffer, size_t size) override;

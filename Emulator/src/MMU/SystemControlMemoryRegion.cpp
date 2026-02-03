@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2026  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -69,27 +69,29 @@ void SystemControlMemoryRegion::write(uint64_t address, const uint8_t* buffer, s
 }
 
 #define SYSCTRLReadFunc(size) \
-void SystemControlMemoryRegion::read##size(uint64_t address, uint##size##_t* buffer) {  \
-    if (uint64_t offset = address - getStart(); offset < 0x10)                          \
-        *buffer = ReadRegister(offset / 8);                                             \
-    else if (offset < 0x40)                                                             \
-        m_IORegion.read##size(address, buffer);                                         \
-    else if (offset < 0x70)                                                             \
-        *buffer = m_MemControl.ReadRegister((offset - 0x40) / 8);                       \
-    else                                                                                \
-        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);     \
+uint##size##_t SystemControlMemoryRegion::read##size(uint64_t address) {                                        \
+    uint##size##_t ret = 0;                                                                                     \
+    if (uint64_t offset = address - getStart(); offset < 0x10)                                                  \
+        ret = ReadRegister(offset / 8);                                                                         \
+    else if (offset < 0x40)                                                                                     \
+        ret = m_IORegion.read##size(address);                                                                   \
+    else if (offset < 0x70)                                                                                     \
+        ret = m_MemControl.ReadRegister((offset - 0x40) / 8);                                                   \
+    else                                                                                                        \
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);  \
+    return ret;                                                                                                 \
 }
 
 #define SYSCTRLWriteFunc(size) \
-void SystemControlMemoryRegion::write##size(uint64_t address, const uint##size##_t* buffer) {  \
-    if (uint64_t offset = address - getStart(); offset < 0x10)                                 \
-        WriteRegister(offset / 8, *buffer);                                                    \
-    else if (offset < 0x40)                                                                    \
-        m_IORegion.write##size(address, buffer);                                               \
-    else if (offset < 0x70)                                                                    \
-        m_MemControl.WriteRegister((offset - 0x40) / 8, *buffer);                              \
-    else                                                                                       \
-        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address);            \
+void SystemControlMemoryRegion::write##size(uint64_t address, uint##size##_t data) {                           \
+    if (uint64_t offset = address - getStart(); offset < 0x10)                                                 \
+        WriteRegister(offset / 8, data);                                                                       \
+    else if (offset < 0x40)                                                                                    \
+        m_IORegion.write##size(address, data);                                                                 \
+    else if (offset < 0x70)                                                                                    \
+        m_MemControl.WriteRegister((offset - 0x40) / 8, data);                                                 \
+    else                                                                                                       \
+        Emulator::g_currentCPUState->exceptionHandler->RaiseException(Exception::PHYS_MEM_VIOLATION, address); \
 }
 
 SYSCTRLReadFunc(8)

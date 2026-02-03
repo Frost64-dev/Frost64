@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2024  Frosty515
+Copyright (©) 2024-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,12 +30,49 @@ StandardMemoryRegion::~StandardMemoryRegion() {
     OSSpecific::FreeCOWMemory(m_data);
 }
 
+uint8_t StandardMemoryRegion::read8(uint64_t address) {
+    return m_data[address - getStart()];
+}
+
+uint16_t StandardMemoryRegion::read16(uint64_t address) {
+    uint16_t* buf = reinterpret_cast<uint16_t*>(m_data + (address - getStart()));
+    return *buf;
+}
+
+uint32_t StandardMemoryRegion::read32(uint64_t address) {
+    uint32_t* buf = reinterpret_cast<uint32_t*>(m_data + (address - getStart()));
+    return *buf;
+}
+
+uint64_t StandardMemoryRegion::read64(uint64_t address) {
+    uint64_t* buf = reinterpret_cast<uint64_t*>(m_data + (address - getStart()));
+    return *buf;
+}
+
+void StandardMemoryRegion::write8(uint64_t address, uint8_t data) {
+    m_data[address - getStart()] = data;
+}
+
+void StandardMemoryRegion::write16(uint64_t address, uint16_t data) {
+    uint16_t* buf = reinterpret_cast<uint16_t*>(m_data + (address - getStart()));
+    *buf = data;
+}
+
+void StandardMemoryRegion::write32(uint64_t address, uint32_t data) {
+    uint32_t* buf = reinterpret_cast<uint32_t*>(m_data + (address - getStart()));
+    *buf = data;
+}
+
+void StandardMemoryRegion::write64(uint64_t address, uint64_t data) {
+    uint64_t* buf = reinterpret_cast<uint64_t*>(m_data + (address - getStart()));
+    *buf = data;
+}
+
+
 void StandardMemoryRegion::read(uint64_t address, uint8_t* buffer, size_t size) {
-    if (isInside(address, size))
-        memcpy(buffer, m_data + (address - getStart()), size);
+    memcpy(buffer, m_data + (address - getStart()), size);
 }
 
 void StandardMemoryRegion::write(uint64_t address, const uint8_t* buffer, size_t size) {
-    if (isInside(address, size))
-        memcpy(m_data + (address - getStart()), buffer, size);
+    memcpy(m_data + (address - getStart()), buffer, size);
 }

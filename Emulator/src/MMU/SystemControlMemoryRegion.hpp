@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,14 +35,15 @@ public:
     virtual void read(uint64_t address, uint8_t* buffer, size_t size) override;
     virtual void write(uint64_t address, const uint8_t* buffer, size_t size) override;
 
-    virtual void read8(uint64_t address, uint8_t* buffer) override;
-    virtual void read16(uint64_t address, uint16_t* buffer) override;
-    virtual void read32(uint64_t address, uint32_t* buffer) override;
-    virtual void read64(uint64_t address, uint64_t* buffer) override;
-    virtual void write8(uint64_t address, const uint8_t* buffer) override;
-    virtual void write16(uint64_t address, const uint16_t* buffer) override;
-    virtual void write32(uint64_t address, const uint32_t* buffer) override;
-    virtual void write64(uint64_t address, const uint64_t* buffer) override;
+    virtual uint8_t read8(uint64_t address) override;
+    virtual uint16_t read16(uint64_t address) override;
+    virtual uint32_t read32(uint64_t address) override;
+    virtual uint64_t read64(uint64_t address) override;
+
+    virtual void write8(uint64_t address, uint8_t data) override;
+    virtual void write16(uint64_t address, uint16_t data) override;
+    virtual void write32(uint64_t address, uint32_t data) override;
+    virtual void write64(uint64_t address, uint64_t data) override;
 
     virtual bool canSplit() override { return false; }
 
