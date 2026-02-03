@@ -408,7 +408,7 @@ namespace InsEncoding {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
-    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, int operandDataBuffersOffset, void (*error_handler)(const char* message, void* data), void* error_data) {
+    bool DecodeInstruction(StreamBuffer& buffer, uint64_t& currentOffset, SimpleInstruction* out, int operandDataBuffersOffset, void (*errorHandler)(const char* message, void* data), void* errorData) {
         if (out == nullptr)
             return false;
 
@@ -538,7 +538,7 @@ namespace InsEncoding {
             operandTypes[0] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[0]);
             operandTypes[1] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[1]);
         } else
-            error_handler("Invalid argument count", error_data);
+            errorHandler("Invalid argument count", errorData);
 
         for (uint8_t i = 0; i < argCount; i++) {
             OperandType operandType = operandTypes[i];
@@ -570,7 +570,7 @@ namespace InsEncoding {
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         currentOffset += sizeof(RegisterID);
                         complex->base.data.reg = &g_currentDecodeData->currentRegisters[i * 3];
-                        *complex->base.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
+                        *complex->base.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
                     }
                 }
                 if (complex->index.present) {
@@ -593,7 +593,7 @@ namespace InsEncoding {
                         buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                         currentOffset += sizeof(RegisterID);
                         complex->index.data.reg = &g_currentDecodeData->currentRegisters[i * 3 + 1];
-                        *complex->index.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
+                        *complex->index.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
                     }
                 }
                 if (complex->offset.present) {
@@ -618,7 +618,7 @@ namespace InsEncoding {
                         complex->offset.data.reg = &g_currentDecodeData->currentRegisters[i * 3 + 2];
                         complex->offset.sign = reg_id.type & 1 << 3; // sign is stored in the highest bit of the type
                         reg_id.type &= ~(1 << 3); // clear the sign bit
-                        *complex->offset.data.reg = GetRegisterFromID(reg_id, error_handler, error_data);
+                        *complex->offset.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
                     }
                 }
                 operand.data = complex;
@@ -629,7 +629,7 @@ namespace InsEncoding {
                 buffer.ReadStream8(reinterpret_cast<uint8_t&>(reg_id));
                 currentOffset += sizeof(RegisterID);
                 Register* reg = &g_currentDecodeData->currentRegisters[i * 3];
-                *reg = GetRegisterFromID(reg_id, error_handler, error_data);
+                *reg = GetRegisterFromID(reg_id, errorHandler, errorData);
                 operand.data = reg;
                 break;
             }
@@ -658,7 +658,7 @@ namespace InsEncoding {
                 break;
             }
             default:
-                error_handler("Invalid operand type", error_data);
+                errorHandler("Invalid operand type", errorData);
             }
 
             g_currentDecodeData->instruction.operands[g_currentDecodeData->instruction.operandCount] = operand;
@@ -671,7 +671,7 @@ namespace InsEncoding {
 
 #pragma GCC diagnostic pop
 
-    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t data_size, uint64_t global_offset, DataSection* dataSection) {
+    size_t EncodeInstruction(Instruction* instruction, uint8_t* data, size_t dataSize, uint64_t globalOffset, DataSection* dataSection) {
         Buffer buffer;
         uint64_t current_offset = 0;
 
@@ -1017,7 +1017,7 @@ namespace InsEncoding {
                         case ComplexItem::Type::LABEL: {
                             Label* label = item->data.label;
                             Block::Jump* jump = new Block::Jump;
-                            jump->offset = current_offset + global_offset;
+                            jump->offset = current_offset + globalOffset;
                             jump->section = dataSection;
                             label->blocks.get(0)->jumpsToHere.insert(jump);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
@@ -1028,7 +1028,7 @@ namespace InsEncoding {
                         case ComplexItem::Type::SUBLABEL: {
                             Block* block = item->data.sublabel;
                             Block::Jump* jump = new Block::Jump;
-                            jump->offset = current_offset + global_offset;
+                            jump->offset = current_offset + globalOffset;
                             jump->section = dataSection;
                             block->jumpsToHere.insert(jump);
                             uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
@@ -1045,7 +1045,7 @@ namespace InsEncoding {
                 Label* i_label = static_cast<Label*>(operand->data);
                 Block* i_block = i_label->blocks.get(0);
                 Block::Jump* jump = new Block::Jump;
-                jump->offset = current_offset + global_offset;
+                jump->offset = current_offset + globalOffset;
                 jump->section = dataSection;
                 i_block->jumpsToHere.insert(jump);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
@@ -1054,7 +1054,7 @@ namespace InsEncoding {
             } else if (operand->type == OperandType::SUBLABEL) {
                 Block* i_block = static_cast<Block*>(operand->data);
                 Block::Jump* jump = new Block::Jump;
-                jump->offset = current_offset + global_offset;
+                jump->offset = current_offset + globalOffset;
                 jump->section = dataSection;
                 i_block->jumpsToHere.insert(jump);
                 uint64_t temp_offset = 0xDEAD'BEEF'DEAD'BEEF;
@@ -1065,8 +1065,8 @@ namespace InsEncoding {
             }
         }
 
-        buffer.Read(0, data, data_size);
-        if (current_offset > data_size)
+        buffer.Read(0, data, dataSize);
+        if (current_offset > dataSize)
             EncodingError("Data buffer overflow", instruction);
         return current_offset;
     }
