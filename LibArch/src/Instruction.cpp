@@ -479,12 +479,11 @@ return #ins;
         buffer.ReadStream8(rawOpcode);
         currentOffset++;
 
-        g_currentDecodeData->instruction.SetOpcode(static_cast<Opcode>(rawOpcode));
-        g_currentDecodeData->instruction.operandCount = 0;
+        out->SetOpcode(static_cast<Opcode>(rawOpcode));
+        out->operandCount = 0;
 
-        uint8_t argCount = GetArgCountForOpcode(g_currentDecodeData->instruction.GetOpcode());
+        uint8_t argCount = GetArgCountForOpcode(out->GetOpcode());
         if (argCount == 0) {
-            *out = g_currentDecodeData->instruction;
             return true;
         }
 
@@ -605,6 +604,7 @@ return #ins;
             OperandType operandType = operandTypes[i];
             OperandSize operandSize = operandSizes[i];
 
+            // faster to build the operand in place, and then copy.
             Operand operand(operandType, operandSize, nullptr);
 
             switch (operandType) {
@@ -722,11 +722,9 @@ return #ins;
                 errorHandler("Invalid operand type", errorData);
             }
 
-            g_currentDecodeData->instruction.operands[g_currentDecodeData->instruction.operandCount] = operand;
-            g_currentDecodeData->instruction.operandCount++;
+            out->operands[out->operandCount] = operand;
+            out->operandCount++;
         }
-
-        *out = g_currentDecodeData->instruction;
         return true;
     }
 
