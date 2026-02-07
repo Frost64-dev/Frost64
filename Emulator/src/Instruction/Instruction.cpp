@@ -97,6 +97,8 @@ struct CPUInsState {
     std::atomic_uchar terminateExecution = 0;
     std::atomic_uchar allowOneInstruction = 0;
 
+    std::atomic_uchar stateChange = 0; // used to signal when one of the above states has changed OR when breakpoints are enabled, so the instruction thread can react to it
+
     spinlock_t lock = SPINLOCK_DEFAULT_VALUE;
 };
 
@@ -253,8 +255,10 @@ void AddBreakpoint(Emulator::CPUState* cpu, uint64_t address, std::function<void
     spinlock_acquire(&state->breakpointsLock);
     state->breakpoints[address] = std::move(callback);
     spinlock_release(&state->breakpointsLock);
-    if (state->breakpointsEnabled.load() == 0)
+    if (state->breakpointsEnabled.load() == 0) {
+        state->stateChange.store(1);
         state->breakpointsEnabled.store(1);
+    }
 }
 
 void RemoveBreakpoint(Emulator::CPUState* cpu, uint64_t address) {
@@ -264,8 +268,10 @@ void RemoveBreakpoint(Emulator::CPUState* cpu, uint64_t address) {
     spinlock_acquire(&state->breakpointsLock);
     state->breakpoints.erase(address);
     spinlock_release(&state->breakpointsLock);
-    if (state->breakpoints.empty())
+    if (state->breakpoints.empty()) {
+        state->stateChange.store(1);
         state->breakpointsEnabled.store(0);
+    }
 }
 
 void AllowExecution(Emulator::CPUState* cpu, void** oldState) {
@@ -278,6 +284,8 @@ void AllowExecution(Emulator::CPUState* cpu, void** oldState) {
         state->executionAllowed.store(s->Allowed);
         state->terminateExecution.store(s->Terminate);
 
+        state->stateChange.store(1);
+
         state->allowOneInstruction.notify_all();
         state->executionAllowed.notify_all();
 
@@ -285,6 +293,7 @@ void AllowExecution(Emulator::CPUState* cpu, void** oldState) {
     } else {
         state->terminateExecution.store(0);
         state->executionAllowed.store(1);
+        state->stateChange.store(1);
         state->executionAllowed.notify_all();
     }
 }
@@ -295,6 +304,7 @@ void AllowOneInstruction(Emulator::CPUState* cpu) {
     CPUInsState* state = cpu->insState;
     state->allowOneInstruction.store(1);
     state->executionAllowed.store(1);
+    state->stateChange.store(1);
     state->executionAllowed.notify_all();
     state->allowOneInstruction.wait(1);
     state->executionRunning.wait(1);
@@ -305,6 +315,7 @@ void PauseExecution(Emulator::CPUState* cpu) {
         return;
     CPUInsState* state = cpu->insState;
     state->executionAllowed.store(0);
+    state->stateChange.store(1);
     state->executionRunning.wait(1);
 }
 
@@ -322,6 +333,7 @@ void StopExecution(Emulator::CPUState* cpu, void** state) {
     }
 
     insState->terminateExecution.store(1);
+    insState->stateChange.store(1);
     insState->executionRunning.wait(1);
 }
 
@@ -345,59 +357,66 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
     CPUInsState* state = cpu->insState;
     while (true) {
         uint64_t IP = *state->rawIPPointer;
-        if (state->terminateExecution.load() == 1) {
-            state->executionRunning.store(0);
-            state->executionRunning.notify_all();
-            break; // completely stop execution
-        }
-        if (state->executionAllowed.load() == 0) {
-            if (state->executionRunning.load() == 1) {
+        if (state->stateChange.load() == 1) {
+            if (state->terminateExecution.load() == 1) {
                 state->executionRunning.store(0);
+                state->executionRunning.notify_all();
+                state->stateChange.store(0);
+                break; // completely stop execution
+            }
+            if (state->executionAllowed.load() == 0) {
+                if (state->executionRunning.load() == 1) {
+                    state->executionRunning.store(0);
+                    state->executionRunning.notify_all();
+                }
+                state->executionAllowed.wait(0);
+                if (state->breakpointsEnabled.load() == 0)
+                    state->stateChange.store(0);
+                continue; // still looping through instructions, just not doing anything
+            }
+            else if (state->executionRunning.load() == 0) {
+                state->executionRunning.store(1);
                 state->executionRunning.notify_all();
             }
-            state->executionAllowed.wait(0);
-            continue; // still looping through instructions, just not doing anything
-        }
-        else if (state->executionRunning.load() == 0) {
-            state->executionRunning.store(1);
-            state->executionRunning.notify_all();
-        }
 
-        if (state->allowOneInstruction.load() == 1) {
-            state->executionRunning.store(1);
-            state->allowOneInstruction.store(0);
-            state->allowOneInstruction.notify_all();
-            state->executionAllowed.store(0);
-        }
-
-        if (state->breakpointsEnabled.load() == 1 && state->allowOneInstruction.load() == 0) { // don't check on single step
-            // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
-            spinlock_acquire(&state->breakpointsLock);
-            auto it = state->breakpoints.find(IP);
-            if (it != state->breakpoints.end()) {
-                state->executionRunning.store(0);
-                state->executionRunning.notify_all();
+            if (state->allowOneInstruction.load() == 1) {
+                state->executionRunning.store(1);
+                state->allowOneInstruction.store(0);
+                state->allowOneInstruction.notify_all();
                 state->executionAllowed.store(0);
-                state->executionAllowed.notify_all();
-
-                state->currentBreakpoint.first = IP;
-                state->currentBreakpoint.second = it->second;
-                state->breakpointHit = true;
-                state->breakpoints.erase(it);
-                spinlock_release(&state->breakpointsLock);
-
-                state->currentBreakpoint.second(IP);
-
-                continue;
             }
-            spinlock_release(&state->breakpointsLock);
-        }
 
-        if (state->breakpointHit && state->currentBreakpoint.first != IP) {
-            spinlock_acquire(&state->breakpointsLock);
-            state->breakpoints[state->currentBreakpoint.first] = state->currentBreakpoint.second;
-            state->breakpointHit = false;
-            spinlock_release(&state->breakpointsLock);
+            if (state->breakpointsEnabled.load() == 1 && state->allowOneInstruction.load() == 0) { // don't check on single step
+                // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
+                spinlock_acquire(&state->breakpointsLock);
+                auto it = state->breakpoints.find(IP);
+                if (it != state->breakpoints.end()) {
+                    state->executionRunning.store(0);
+                    state->executionRunning.notify_all();
+                    state->executionAllowed.store(0);
+                    state->executionAllowed.notify_all();
+
+                    state->currentBreakpoint.first = IP;
+                    state->currentBreakpoint.second = it->second;
+                    state->breakpointHit = true;
+                    state->breakpoints.erase(it);
+                    spinlock_release(&state->breakpointsLock);
+
+                    state->currentBreakpoint.second(IP);
+                    continue;
+                }
+                spinlock_release(&state->breakpointsLock);
+            }
+
+            if (state->breakpointHit && state->currentBreakpoint.first != IP) {
+                spinlock_acquire(&state->breakpointsLock);
+                state->breakpoints[state->currentBreakpoint.first] = state->currentBreakpoint.second;
+                state->breakpointHit = false;
+                spinlock_release(&state->breakpointsLock);
+            }
+
+            if (state->breakpointsEnabled.load() == 0)
+                state->stateChange.store(0);
         }
 
         if (int offset = FindIPInInsCache(state, IP); offset != -1) {
