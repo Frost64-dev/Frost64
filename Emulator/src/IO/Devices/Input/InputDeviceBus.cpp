@@ -15,76 +15,76 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "HIDDeviceBus.hpp"
+#include "InputDeviceBus.hpp"
 #include "Keyboard.hpp"
 
 #include <IO/Devices/Video/VideoDevice.hpp>
 #include <IO/Devices/Video/VideoBackend.hpp>
 
-HIDDeviceBus::HIDDeviceBus(HIDBackendType backendType, VideoDevice* videoDevice)
- : IODevice(IODeviceID::HID, 0x20, 2), m_backendType(backendType), m_videoDevice(videoDevice), m_keyboard(nullptr), m_mouse(nullptr), m_status(), m_keyboardData(0), m_mouseData(0), m_keyboardDataPendingRead(false), m_mouseDataPendingRead(false) {
+InputDeviceBus::InputDeviceBus(InputBackendType backendType, VideoDevice* videoDevice)
+ : IODevice(IODeviceID::INPUT, 0x20, 2), m_backendType(backendType), m_videoDevice(videoDevice), m_keyboard(nullptr), m_mouse(nullptr), m_status(), m_keyboardData(0), m_mouseData(0), m_keyboardDataPendingRead(false), m_mouseDataPendingRead(false) {
 }
 
-HIDDeviceBus::~HIDDeviceBus() {
+InputDeviceBus::~InputDeviceBus() {
 
 }
 
-uint8_t HIDDeviceBus::ReadByte(uint64_t address) {
+uint8_t InputDeviceBus::ReadByte(uint64_t address) {
     return ReadRegister(address) & 0xFF;
 }
 
-uint16_t HIDDeviceBus::ReadWord(uint64_t address) {
+uint16_t InputDeviceBus::ReadWord(uint64_t address) {
     return ReadRegister(address) & 0xFFFF;
 }
 
-uint32_t HIDDeviceBus::ReadDWord(uint64_t address) {
+uint32_t InputDeviceBus::ReadDWord(uint64_t address) {
     return ReadRegister(address) & 0xFFFFFFFF;
 }
 
-uint64_t HIDDeviceBus::ReadQWord(uint64_t address) {
+uint64_t InputDeviceBus::ReadQWord(uint64_t address) {
     return ReadRegister(address);
 }
 
-void HIDDeviceBus::WriteByte(uint64_t address, uint8_t data) {
+void InputDeviceBus::WriteByte(uint64_t address, uint8_t data) {
     uint64_t current = ReadRegister(address);
     current &= ~0xFF;
     current |= data;
     WriteRegister(address, current);
 }
 
-void HIDDeviceBus::WriteWord(uint64_t address, uint16_t data) {
+void InputDeviceBus::WriteWord(uint64_t address, uint16_t data) {
     uint64_t current = ReadRegister(address);
     current &= ~0xFFFF;
     current |= data;
     WriteRegister(address, current);
 }
 
-void HIDDeviceBus::WriteDWord(uint64_t address, uint32_t data) {
+void InputDeviceBus::WriteDWord(uint64_t address, uint32_t data) {
     uint64_t current = ReadRegister(address);
     current &= ~0xFFFFFFFF;
     current |= data;
     WriteRegister(address, current);
 }
 
-void HIDDeviceBus::WriteQWord(uint64_t address, uint64_t data) {
+void InputDeviceBus::WriteQWord(uint64_t address, uint64_t data) {
     WriteRegister(address, data);
 }
 
-HID_StatusRegister HIDDeviceBus::GetStatus() {
+Input_StatusRegister InputDeviceBus::GetStatus() {
     return m_status;
 }
 
-void HIDDeviceBus::SetStatus(HID_StatusRegister status) {
+void InputDeviceBus::SetStatus(Input_StatusRegister status) {
     m_status = status;
 }
 
-uint64_t HIDDeviceBus::ReadRegister(uint64_t offset) {
-    switch (static_cast<HIDDeviceRegisters>(offset)) {
-    case HIDDeviceRegisters::COMMAND:
+uint64_t InputDeviceBus::ReadRegister(uint64_t offset) {
+    switch (static_cast<InputDeviceRegisters>(offset)) {
+    case InputDeviceRegisters::COMMAND:
         return 0;
-    case HIDDeviceRegisters::STATUS:
+    case InputDeviceRegisters::STATUS:
         return *reinterpret_cast<uint64_t*>(&m_status);
-    case HIDDeviceRegisters::KEYBOARD:
+    case InputDeviceRegisters::KEYBOARD:
         if (m_keyboardDataPendingRead) {
             m_keyboardDataPendingRead = false;
             return m_keyboardData;
@@ -92,45 +92,45 @@ uint64_t HIDDeviceBus::ReadRegister(uint64_t offset) {
         if (m_keyboard != nullptr)
             return m_keyboard->Read();
         return 0;
-    case HIDDeviceRegisters::MOUSE:
+    case InputDeviceRegisters::MOUSE:
         return m_mouseData;
     default:
         return 0;
     }
 }
 
-void HIDDeviceBus::WriteRegister(uint64_t offset, uint64_t data) {
-    switch (static_cast<HIDDeviceRegisters>(offset)) {
-    case HIDDeviceRegisters::COMMAND:
+void InputDeviceBus::WriteRegister(uint64_t offset, uint64_t data) {
+    switch (static_cast<InputDeviceRegisters>(offset)) {
+    case InputDeviceRegisters::COMMAND:
         RunCommand(data);
         break;
-    case HIDDeviceRegisters::STATUS:
+    case InputDeviceRegisters::STATUS:
         break;
-    case HIDDeviceRegisters::KEYBOARD:
+    case InputDeviceRegisters::KEYBOARD:
         m_keyboardData = data;
         break;
-    case HIDDeviceRegisters::MOUSE:
+    case InputDeviceRegisters::MOUSE:
         m_mouseData = data;
         break;
     }
 }
 
-bool IsBackendTypeEqual(VideoBackendType backendType, HIDBackendType deviceType) {
-    if (backendType == VideoBackendType::XCB && deviceType == HIDBackendType::XCB)
+bool IsBackendTypeEqual(VideoBackendType backendType, InputBackendType deviceType) {
+    if (backendType == VideoBackendType::XCB && deviceType == InputBackendType::XCB)
         return true;
     return false;
 }
 
-void HIDDeviceBus::RunCommand(uint64_t command) {
+void InputDeviceBus::RunCommand(uint64_t command) {
     m_status.ERR = 0;
-    switch (static_cast<HIDDeviceCommands>(command)) {
-    case HIDDeviceCommands::INIT: {
+    switch (static_cast<InputDeviceCommands>(command)) {
+    case InputDeviceCommands::INIT: {
         // Step 1: Check if the video device is initialised and using the same backend type
         if (m_videoDevice == nullptr) {
             m_status.ERR = 1;
             break;
         }
-        if (VideoBackendToHIDBackend(m_videoDevice->GetBackendType()) != m_backendType || !m_videoDevice->isInitialised()) {
+        if (VideoBackendToInputBackend(m_videoDevice->GetBackendType()) != m_backendType || !m_videoDevice->isInitialised()) {
             m_status.ERR = 1;
             break;
         }
@@ -144,7 +144,7 @@ void HIDDeviceBus::RunCommand(uint64_t command) {
             if (videoBackend == nullptr)
                 m_status.ERR = 1;
 
-            m_keyboard = new HIDKeyboard(this, videoBackend);
+            m_keyboard = new Keyboard(this, videoBackend);
             m_keyboard->Init();
 
             m_status.KBD_EN = 1;
@@ -155,7 +155,7 @@ void HIDDeviceBus::RunCommand(uint64_t command) {
 
         break;
     }
-    case HIDDeviceCommands::GET_DEV_INFO: {
+    case InputDeviceCommands::GET_DEV_INFO: {
         m_keyboardData = m_status.KBD_EN | m_status.KBD_INT << 1;
         m_mouseData = m_status.MSE_EN | m_status.MSE_INT << 1;
         m_keyboardDataPendingRead = true;
@@ -163,7 +163,7 @@ void HIDDeviceBus::RunCommand(uint64_t command) {
         m_status.ERR = 0;
         break;
     }
-    case HIDDeviceCommands::SET_DEV_INFO: {
+    case InputDeviceCommands::SET_DEV_INFO: {
         m_status.KBD_EN = m_keyboardData & 1;
         m_status.KBD_INT = m_keyboardData >> 1 & 1;
         m_status.MSE_EN = m_mouseData & 1;
@@ -171,12 +171,12 @@ void HIDDeviceBus::RunCommand(uint64_t command) {
         m_status.ERR = 0;
         break;
     }
-    case HIDDeviceCommands::ACK_IRQ0: {
+    case InputDeviceCommands::ACK_IRQ0: {
         m_status.KBD_INTP = 0;
         m_status.ERR = 0;
         break;
     }
-    case HIDDeviceCommands::ACK_IRQ1: {
+    case InputDeviceCommands::ACK_IRQ1: {
         m_status.MSE_INTP = 0;
         m_status.ERR = 0;
         break;
@@ -184,10 +184,10 @@ void HIDDeviceBus::RunCommand(uint64_t command) {
     }
 }
 
-HIDBackendType VideoBackendToHIDBackend(VideoBackendType backendType) {
+InputBackendType VideoBackendToInputBackend(VideoBackendType backendType) {
 #ifdef ENABLE_XCB
     if (backendType == VideoBackendType::XCB)
-        return HIDBackendType::XCB;
+        return InputBackendType::XCB;
 #endif
-    return HIDBackendType::NONE;
+    return InputBackendType::NONE;
 }

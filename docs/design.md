@@ -1276,11 +1276,11 @@ asciiz "Hello, world!"
 
 - The next node is 0 if there is no next node.
 
-### HID Keyboard & Mouse
+### Keyboard & Mouse
 
 - The keyboard & mouse share a combined device on the bus, taking up 4 registers
 
-#### HID Registers
+#### Input Registers
 
 | Port | Name      | Description      |
 |------|-----------|------------------|
@@ -1306,7 +1306,7 @@ asciiz "Hello, world!"
 
 Note: KBD_INTP or MSE_INTP might be set before the interrupt arrives.
 
-#### HID Commands
+#### Input Commands
 
 | Command | Description      |
 |---------|------------------|

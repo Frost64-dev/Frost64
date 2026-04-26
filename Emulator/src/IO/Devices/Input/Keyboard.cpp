@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "HIDDeviceBus.hpp"
+#include "InputDeviceBus.hpp"
 #include "Keyboard.hpp"
 
 #include <cstdint>
@@ -29,17 +29,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <IO/Devices/Video/backends/XCB/XCBVideoBackend.hpp>
 #endif
 
-HIDKeyboard::HIDKeyboard(HIDDeviceBus* bus, VideoBackend* videoBackend)
+Keyboard::Keyboard(InputDeviceBus* bus, VideoBackend* videoBackend)
     : m_bus(bus), m_videoBackend(videoBackend), m_backend(nullptr), m_modifiers{0, 0, 0, 0, 0, 0, 0, 0}, m_currentEvent({255, m_modifiers, 0, 0}), m_dataRead(true) {
 }
 
-HIDKeyboard::~HIDKeyboard() {
+Keyboard::~Keyboard() {
 }
 
-void HIDKeyboard::Init() {
+void Keyboard::Init() {
 #ifdef ENABLE_XCB
-    if (m_bus->GetBackendType() == HIDBackendType::XCB) {
-        XCBVideoBackend* videoBackend = static_cast<XCBVideoBackend*>(m_videoBackend);
+    if (m_bus->GetBackendType() == InputBackendType::XCB) {
+        XCBVideoBackend* videoBackend = dynamic_cast<XCBVideoBackend*>(m_videoBackend);
         XCBKeyboardBackend* backend = new XCBKeyboardBackend(videoBackend->GetXCBConnection());
         m_backend = backend;
         backend->SetKeyboard(this);
@@ -49,8 +49,8 @@ void HIDKeyboard::Init() {
 #endif
 }
 
-void HIDKeyboard::HandleKeyEvent(HIDKeycode keycode, bool release) {
-    HID_StatusRegister status = m_bus->GetStatus();
+void Keyboard::HandleKeyEvent(Keycode keycode, bool release) {
+    Input_StatusRegister status = m_bus->GetStatus();
     if (status.KBD_EN == 0)
         return;
 
@@ -58,7 +58,7 @@ void HIDKeyboard::HandleKeyEvent(HIDKeycode keycode, bool release) {
         return;
 
 
-    m_currentEvent.Keycode = keycode;
+    m_currentEvent.keycode = keycode;
     m_currentEvent.Released = release;
 
     switch (keycode) {
@@ -93,7 +93,7 @@ void HIDKeyboard::HandleKeyEvent(HIDKeycode keycode, bool release) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
 
-uint64_t HIDKeyboard::Read() {
+uint64_t Keyboard::Read() {
     m_dataRead = true;
     uint64_t* result = reinterpret_cast<uint64_t*>(&m_currentEvent);
     return *result;

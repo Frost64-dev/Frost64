@@ -15,8 +15,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _IO_HID_DEVICE_HPP
-#define _IO_HID_DEVICE_HPP
+#ifndef _IO_INPUT_DEVICE_HPP
+#define _IO_INPUT_DEVICE_HPP
 
 #include <cstdint>
 
@@ -24,19 +24,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <IO/Devices/Video/VideoDevice.hpp>
 
-enum class HIDDeviceType {
+enum class InputDeviceType {
     KEYBOARD = 0,
     MOUSE = 1
 };
 
-enum class HIDDeviceRegisters {
+enum class InputDeviceRegisters {
     COMMAND = 0,
     STATUS = 1,
     KEYBOARD = 2,
     MOUSE = 3
 };
 
-enum class HIDDeviceCommands {
+enum class InputDeviceCommands {
     INIT = 0,
     GET_DEV_INFO = 1,
     SET_DEV_INFO = 2,
@@ -44,7 +44,7 @@ enum class HIDDeviceCommands {
     ACK_IRQ1 = 4,
 };
 
-struct [[gnu::packed]] HID_StatusRegister {
+struct [[gnu::packed]] Input_StatusRegister {
     uint8_t ERR : 1;
     uint8_t KBD_EN : 1;
     uint8_t KBD_INT : 1;
@@ -57,18 +57,18 @@ struct [[gnu::packed]] HID_StatusRegister {
     uint64_t RSVD : 55;
 };
 
-enum class HIDBackendType {
+enum class InputBackendType {
     NONE,
     XCB,
 };
 
-class HIDKeyboard;
-class HIDMouse;
+class Keyboard;
+class Mouse;
 
-class HIDDeviceBus : public IODevice {
+class InputDeviceBus : public IODevice {
 public:
-    explicit HIDDeviceBus(HIDBackendType backendType, VideoDevice* videoDevice);
-    virtual ~HIDDeviceBus();
+    explicit InputDeviceBus(InputBackendType backendType, VideoDevice* videoDevice);
+    virtual ~InputDeviceBus();
 
     uint8_t ReadByte(uint64_t address) override;
     uint16_t ReadWord(uint64_t address) override;
@@ -80,10 +80,10 @@ public:
     void WriteDWord(uint64_t address, uint32_t data) override;
     void WriteQWord(uint64_t address, uint64_t data) override;
 
-    HIDBackendType GetBackendType() const { return m_backendType; }
+    InputBackendType GetBackendType() const { return m_backendType; }
 
-    HID_StatusRegister GetStatus();
-    void SetStatus(HID_StatusRegister status);
+    Input_StatusRegister GetStatus();
+    void SetStatus(Input_StatusRegister status);
 
 private:
     uint64_t ReadRegister(uint64_t offset);
@@ -91,19 +91,19 @@ private:
 
     void RunCommand(uint64_t command);
 
-    HIDBackendType m_backendType;
+    InputBackendType m_backendType;
     VideoDevice* m_videoDevice;
 
-    HIDKeyboard* m_keyboard;
-    HIDMouse* m_mouse;
+    Keyboard* m_keyboard;
+    Mouse* m_mouse;
 
-    HID_StatusRegister m_status;
+    Input_StatusRegister m_status;
     uint64_t m_keyboardData;
     uint64_t m_mouseData;
     bool m_keyboardDataPendingRead;
     bool m_mouseDataPendingRead;
 };
 
-HIDBackendType VideoBackendToHIDBackend(VideoBackendType backendType);
+InputBackendType VideoBackendToInputBackend(VideoBackendType backendType);
 
-#endif /* _IO_HID_DEVICE_HPP */
+#endif /* _IO_INPUT_DEVICE_HPP */

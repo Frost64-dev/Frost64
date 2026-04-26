@@ -71,7 +71,7 @@ void XCBKeyboardBackend::Shutdown() {
 }
 
 void XCBKeyboardBackend::HandleKeyEvent(xcb_key_press_event_t* event, bool release) {
-    HIDKeycode keycode;
+    Keycode keycode;
     xkb_keysym_t keysym = xkb_state_key_get_one_sym(m_xkbState, event->detail);
     switch (keysym) {
 #define CASE_KEYSYM(sym, code) \
@@ -196,6 +196,6 @@ void XCBKeyboardBackend::HandleKeyEvent(xcb_key_press_event_t* event, bool relea
         return;
 #undef CASE_KEYSYM
     }
-    if (HIDKeyboard* keyboard = GetKeyboard(); keyboard != nullptr)
+    if (Keyboard* keyboard = GetKeyboard(); keyboard != nullptr)
         keyboard->HandleKeyEvent(keycode, release);
 }

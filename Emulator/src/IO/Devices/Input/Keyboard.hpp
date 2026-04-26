@@ -15,16 +15,16 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _IO_HID_KEYBOARD_HPP
-#define _IO_HID_KEYBOARD_HPP
+#ifndef _IO_KEYBOARD_HPP
+#define _IO_KEYBOARD_HPP
 
 #include <cstdint>
 
-#include "HIDDeviceBus.hpp"
+#include "InputDeviceBus.hpp"
 
-typedef uint8_t HIDKeycode;
+typedef uint8_t Keycode;
 
-struct HIDKeyboardModifiers {
+struct KeyboardModifiers {
     uint8_t L_CTRL  : 1;
     uint8_t R_CTRL  : 1;
     uint8_t L_SHIFT : 1;
@@ -35,56 +35,56 @@ struct HIDKeyboardModifiers {
     uint8_t MENU    : 1;
 };
 
-struct [[gnu::packed]] HIDKeyboardEvent {
-    HIDKeycode Keycode;
-    HIDKeyboardModifiers Modifiers;
+struct [[gnu::packed]] KeyboardEvent {
+    Keycode keycode;
+    KeyboardModifiers Modifiers;
     uint8_t Released : 1;
     uint64_t Reserved : 47;
 };
 
-class HIDKeyboardBackend;
+class KeyboardBackend;
 
-class HIDKeyboard {
+class Keyboard {
 public:
-    HIDKeyboard(HIDDeviceBus* bus, VideoBackend* videoBackend);
-    ~HIDKeyboard();
+    Keyboard(InputDeviceBus* bus, VideoBackend* videoBackend);
+    ~Keyboard();
 
     void Init();
 
-    void HandleKeyEvent(HIDKeycode keycode, bool release);
+    void HandleKeyEvent(Keycode keycode, bool release);
 
     uint64_t Read();
 
 private:
-    HIDDeviceBus* m_bus;
+    InputDeviceBus* m_bus;
     VideoBackend* m_videoBackend;
 
-    HIDKeyboardBackend* m_backend;
+    KeyboardBackend* m_backend;
 
-    HIDKeyboardModifiers m_modifiers;
+    KeyboardModifiers m_modifiers;
 
-    HIDKeyboardEvent m_currentEvent;
+    KeyboardEvent m_currentEvent;
     bool m_dataRead;
 };
 
-enum class HIDKeyboardBackendType {
+enum class KeyboardBackendType {
     XCB = 0,
 };
 
-class HIDKeyboardBackend {
+class KeyboardBackend {
 public:
-    HIDKeyboardBackend() : m_keyboard(nullptr) {}
-    virtual ~HIDKeyboardBackend() {}
+    KeyboardBackend() : m_keyboard(nullptr) {}
+    virtual ~KeyboardBackend() {}
 
     virtual void Initialise() = 0;
     virtual void Shutdown() = 0;
 
-    void SetKeyboard(HIDKeyboard* keyboard) { m_keyboard = keyboard; }
+    void SetKeyboard(Keyboard* keyboard) { m_keyboard = keyboard; }
 
-    HIDKeyboard* GetKeyboard() { return m_keyboard; }
+    Keyboard* GetKeyboard() { return m_keyboard; }
 
 private:
-    HIDKeyboard* m_keyboard;
+    Keyboard* m_keyboard;
 };
 
-#endif /* _IO_HID_KEYBOARD_HPP */
+#endif /* _IO_KEYBOARD_HPP */

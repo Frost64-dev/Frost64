@@ -87,8 +87,8 @@ set(emulator_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOInterfaceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/IOMemoryRegion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/ConsoleDevice.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/HIDDeviceBus.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/Keyboard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Input/InputDeviceBus.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Input/Keyboard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/PhysicalRegionListBuffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageDevice.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Storage/StorageFile.cpp
@@ -123,7 +123,7 @@ if (ENABLE_XCB STREQUAL "ON")
     set(emulator_sources
         ${emulator_sources}
             ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Video/backends/XCB/XCBVideoBackend.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/HID/backends/XCB/XCBKeyboard.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/IO/Devices/Input/backends/XCB/XCBKeyboard.cpp
     )
 endif ()
 

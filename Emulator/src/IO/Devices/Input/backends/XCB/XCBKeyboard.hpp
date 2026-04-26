@@ -18,15 +18,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _XCB_KEYBOARD_BACKEND_HPP
 #define _XCB_KEYBOARD_BACKEND_HPP
 
-#include <cstdint>
-
 #include <xcb/xcb.h>
 
 #include <xkbcommon/xkbcommon.h>
 
-#include <IO/Devices/HID/Keyboard.hpp>
+#include <IO/Devices/Input/Keyboard.hpp>
 
-class XCBKeyboardBackend : public HIDKeyboardBackend {
+class XCBKeyboardBackend : public KeyboardBackend {
 public:
     explicit XCBKeyboardBackend(xcb_connection_t* connection);
     ~XCBKeyboardBackend() override;

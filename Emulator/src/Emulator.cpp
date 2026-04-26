@@ -17,7 +17,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "Emulator.hpp"
 
-#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -37,7 +36,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <IO/Devices/ConsoleDevice.hpp>
 
-#include <IO/Devices/HID/HIDDeviceBus.hpp>
+#include <IO/Devices/Input/InputDeviceBus.hpp>
 
 #include <IO/Devices/Storage/StorageDevice.hpp>
 
@@ -67,7 +66,7 @@ namespace Emulator {
     ConsoleDevice* g_ConsoleDevice;
     VideoDevice* g_VideoDevice;
     StorageDevice* g_StorageDevice;
-    HIDDeviceBus* g_HIDDeviceBus;
+    InputDeviceBus* g_InputDeviceBus;
 
     MMU g_physicalMMU;
 
@@ -195,8 +194,8 @@ namespace Emulator {
         if (args.has_display) {
             g_VideoDevice = new VideoDevice(args.displayType, g_physicalMMU);
             assert(g_IOBus->AddDevice(g_VideoDevice));
-            g_HIDDeviceBus = new HIDDeviceBus(VideoBackendToHIDBackend(args.displayType), g_VideoDevice);
-            assert(g_IOBus->AddDevice(g_HIDDeviceBus));
+            g_InputDeviceBus = new InputDeviceBus(VideoBackendToInputBackend(args.displayType), g_VideoDevice);
+            assert(g_IOBus->AddDevice(g_InputDeviceBus));
         }
 
         // Configure the storage device

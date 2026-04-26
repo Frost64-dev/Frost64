@@ -1,5 +1,5 @@
 /*
-Copyright (©) 2025  Frosty515
+Copyright (©) 2025-2026  Frosty515
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstring>
 #include <Emulator.hpp>
 
-#include "IO/Devices/HID/backends/XCB/XCBKeyboard.hpp"
+#include "IO/Devices/Input/backends/XCB/XCBKeyboard.hpp"
 
 xcb_format_t const* query_xcb_format_for_depth(xcb_connection_t* const m_connection, uint32_t depth) {
     xcb_setup_t const* const setup = xcb_get_setup(m_connection);
@@ -182,10 +182,10 @@ void XCBVideoBackend::Init() {
 
     XSizeHints hints = {};
     hints.flags = X_SIZE_HINT_P_MIN_SIZE | X_SIZE_HINT_P_MAX_SIZE;
-    hints.min_width = mode.width;
-    hints.min_height = mode.height;
-    hints.max_width = mode.width;
-    hints.max_height = mode.height;
+    hints.min_width = static_cast<int32_t>(mode.width);
+    hints.min_height = static_cast<int32_t>(mode.height);
+    hints.max_width = static_cast<int32_t>(mode.width);
+    hints.max_height = static_cast<int32_t>(mode.height);
 
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(XSizeHints) / 4, &hints);
     xcb_flush(m_connection);
@@ -217,10 +217,10 @@ void XCBVideoBackend::SetMode(VideoMode mode) {
 
     XSizeHints hints = {};
     hints.flags = X_SIZE_HINT_P_MIN_SIZE | X_SIZE_HINT_P_MAX_SIZE | X_SIZE_HINT_P_SIZE;
-    hints.min_width = mode.width;
-    hints.min_height = mode.height;
-    hints.max_width = mode.width;
-    hints.max_height = mode.height;
+    hints.min_width = static_cast<int32_t>(mode.width);
+    hints.min_height = static_cast<int32_t>(mode.height);
+    hints.max_width = static_cast<int32_t>(mode.width);
+    hints.max_height = static_cast<int32_t>(mode.height);
 
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(XSizeHints) / 4, &hints);
 

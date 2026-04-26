@@ -27,8 +27,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <cstdio>
 #endif
 
-#include <csignal>
-
 #include <Emulator.hpp>
 #include <Exceptions.hpp>
 #include <Interrupts.hpp>

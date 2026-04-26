@@ -54,7 +54,7 @@ enum class IODeviceID {
     CONSOLE = 0,
     VIDEO = 1,
     STORAGE = 2,
-    HID = 3
+    INPUT = 3
 };
 
 struct [[gnu::packed]] IOBus_GetBusInfoResponse {
