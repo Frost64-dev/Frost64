@@ -434,3 +434,72 @@ uint64_t SafeRegister::GetValue(OperandSize size) const {
         return 0;
     }
 }
+
+LockableSafeRegister::LockableSafeRegister()
+    : SafeRegister() {
+}
+
+LockableSafeRegister::LockableSafeRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, uint64_t value)
+    : SafeRegister(cpu, ID, writable, value) {
+}
+
+LockableSafeRegister::LockableSafeRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, uint64_t value)
+    : SafeRegister(cpu, type, index, writable, value) {
+}
+
+LockableSafeRegister::~LockableSafeRegister() {
+}
+
+bool LockableSafeRegister::SetValue(uint64_t value, bool force, bool lock) {
+    if (lock)
+        m_mutex.lock();
+    bool result = SafeRegister::SetValue(value, force);
+    if (lock)
+        m_mutex.unlock();
+    return result;
+}
+
+bool LockableSafeRegister::SetValue(uint64_t value, OperandSize size, bool lock) {
+    if (lock)
+        m_mutex.lock();
+    bool result = SafeRegister::SetValue(value, size);
+    if (lock)
+        m_mutex.unlock();
+    return result;
+}
+
+void LockableSafeRegister::SetValueNoCheck(uint64_t value, bool lock) {
+    if (lock)
+        m_mutex.lock();
+    m_value = value;
+    if (lock)
+        m_mutex.unlock();
+}
+
+
+uint64_t LockableSafeRegister::GetValue(bool lock) const {
+    if (lock)
+        m_mutex.lock();
+    uint64_t result = SafeRegister::GetValue();
+    if (lock)
+        m_mutex.unlock();
+    return result;
+}
+
+uint64_t LockableSafeRegister::GetValue(OperandSize size, bool lock) const {
+    if (lock)
+        m_mutex.lock();
+    uint64_t result = SafeRegister::GetValue(size);
+    if (lock)
+        m_mutex.unlock();
+    return result;
+}
+
+uint64_t LockableSafeRegister::GetValueNoCheck(bool lock) const {
+    if (lock)
+        m_mutex.lock();
+    uint64_t result = m_value;
+    if (lock)
+        m_mutex.unlock();
+    return result;
+}

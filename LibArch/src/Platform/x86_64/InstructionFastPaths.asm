@@ -1,4 +1,4 @@
-; Copyright (©) 2025  Frosty515
+; Copyright (©) 2025-2026  Frosty515
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ GetRegisterFromID: ; rdi=reg, rsi=error, rdx=data
     lea rdi, [rel .error_message]
     mov rsi, rdx
     call rcx
-    ; likely dead code from here
+    mov eax, -1
     pop rbp
     ret
 

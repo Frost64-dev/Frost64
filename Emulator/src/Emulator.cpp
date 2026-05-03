@@ -113,20 +113,6 @@ namespace Emulator {
             for (uint64_t i = 0; i < g_events.getCount(); i++) {
                 Event* event = g_events.getHead();
                 switch (event->type) {
-                case EventType::SwitchToIP: {
-                    // assuming that the execution thread has joined this thread
-                    CPUState* state = event->state;
-                    if (state == nullptr)
-                        Crash("No CPU state on SwitchToIP event");
-                    if (state->executionThread == nullptr)
-                        Crash("No executionThread for SwitchToIP event");
-                    state->executionThread->detach();
-                    delete state->executionThread;
-                    state->registers.IP->SetValue(event->data);
-                    InsCache_MaybeSetBaseAddress(state, event->data);
-                    state->executionThread = new std::thread(StartExecution, state);
-                    break;
-                }
                 case EventType::NewMMU: {
                     // assuming that the execution thread has joined this thread
                     CPUState* state = event->state;
@@ -136,6 +122,7 @@ namespace Emulator {
                     assert(state->executionThread != nullptr);
                     state->executionThread->detach();
                     delete state->executionThread;
+                    state->executionThread = nullptr;
                     UpdateInsCacheMMU(state, state->currentMMU);
                     state->executionThread = new std::thread(StartExecution, state);
                     break;
@@ -235,7 +222,7 @@ namespace Emulator {
             state->registers.GPR[i] = new Register(RegisterType::GeneralPurpose, i, true);
         for (int i = 0; i < 8; i++)
             state->registers.Control[i] = new SafeSyncingRegister(state, RegisterType::Control, i, true);
-        state->registers.STS = new SafeRegister(state, RegisterType::Status, 0, false, 0);
+        state->registers.STS = new LockableSafeRegister(state, RegisterType::Status, 0, false, 0);
 
         state->registersInitialised = true;
 
@@ -341,16 +328,8 @@ namespace Emulator {
         EmulatorThread->join();
     }
 
-    [[noreturn]] void JumpToIP(CPUState* state, uint64_t value) {
-        RaiseEvent({EventType::SwitchToIP, state, value});
-        EmulatorThread->join();
-        Crash("Emulator thread exited unexpectedly"); // should be unreachable
-    }
-
-    void JumpToIPExternal(CPUState* state, uint64_t value) {
-        state->registers.IP->SetValue(value);
-        InsCache_MaybeSetBaseAddress(state, value);
-        state->executionThread = new std::thread(StartExecution, state); // already allowed to execute from when it was killed.
+    void JumpToIP(CPUState* state, uint64_t value) {
+        SwitchExecution(state, value);
     }
 
     void SyncRegisters(void* data, uint64_t value) {
@@ -418,8 +397,10 @@ namespace Emulator {
     }
 
     void EnterUserMode(CPUState* state) {
-        uint64_t status = state->registers.STS->GetValue();
-        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true);
+        state->registers.STS->Lock();
+        uint64_t status = state->registers.STS->GetValue(false);
+        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true, false);
+        state->registers.STS->Unlock();
         state->registers.Control[1]->SetValue(status, true);
         state->nextIP = state->registers.GPR[14]->GetValue();
         state->registers.SCP->SetValue(state->registers.GPR[15]->GetValue());
@@ -434,26 +415,14 @@ namespace Emulator {
 
     void ExitUserMode(CPUState* state) {
         state->isInUserMode = false;
-        uint64_t status = state->registers.STS->GetValue();
-        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true);
+        state->registers.STS->Lock();
+        uint64_t status = state->registers.STS->GetValue(false);
+        state->registers.STS->SetValue(state->registers.Control[1]->GetValue(), true, false);
+        state->registers.STS->Unlock();
         state->registers.Control[1]->SetValue(status, true);
         state->registers.GPR[14]->SetValue(state->nextIP, true);
         state->nextIP = state->registers.Control[2]->GetValue();
         state->registers.GPR[15]->SetValue(state->registers.SCP->GetValue());
-    }
-
-    void KillCurrentInstruction(CPUState* cpu) {
-        if (std::this_thread::get_id() == cpu->executionThread->get_id())
-            Crash("Cannot kill current instruction from the instruction thread");
-
-        void* state = nullptr;
-
-        StopExecution(cpu, &state); // wait for current instruction to finish executing
-
-        cpu->executionThread->join(); // ensure the thread has finished executing
-        delete cpu->executionThread;
-
-        AllowExecution(cpu, &state);
     }
 
     bool isPagingEnabled(CPUState* state) {

@@ -37,6 +37,25 @@ ExceptionHandler::~ExceptionHandler() {
 }
 
 [[noreturn]] void ExceptionHandler::RaiseException(Exception exception, ...) {
+    va_list args;
+    va_start(args, exception);
+    Int_RaiseException(exception, args);
+    va_end(args);
+    throw std::runtime_error("Exception");
+}
+
+void ExceptionHandler::RaiseExceptionRet(Exception exception, ...) {
+    va_list args;
+    va_start(args, exception);
+    Int_RaiseException(exception, args);
+    va_end(args);
+}
+
+void ExceptionHandler::SetINTHandler(InterruptHandler* INTHandler) {
+    m_INTHandler = INTHandler;
+}
+
+void ExceptionHandler::Int_RaiseException(Exception exception, va_list args) {
     if (m_cpu == nullptr)
         Emulator::Crash("ExceptionHandler::RaiseException(): CPUState is null");
     if (m_cpu->stack == nullptr)
@@ -55,9 +74,6 @@ ExceptionHandler::~ExceptionHandler() {
             else
                 RaiseException(Exception::UNHANDLED_INTERRUPT, static_cast<uint8_t>(exception));
         }
-
-        va_list args;
-        va_start(args, exception);
 
         switch (exception) {
         case Exception::PHYS_MEM_VIOLATION:
@@ -84,12 +100,6 @@ ExceptionHandler::~ExceptionHandler() {
         default:
             break;
         }
-
-        va_end(args);
     }
     m_INTHandler->RaiseInterrupt(static_cast<uint8_t>(exception), m_cpu->registers.IP->GetValue());
-}
-
-void ExceptionHandler::SetINTHandler(InterruptHandler* INTHandler) {
-    m_INTHandler = INTHandler;
 }

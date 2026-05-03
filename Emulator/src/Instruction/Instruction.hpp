@@ -44,6 +44,8 @@ void AllowExecution(Emulator::CPUState* cpu, void** oldState = nullptr); // If o
 void AllowOneInstruction(Emulator::CPUState* cpu);
 void PauseExecution(Emulator::CPUState* cpu);
 void StopExecution(Emulator::CPUState* cpu, void** state = nullptr); // If state is non-NULL, a new object of will be allocated with new, and deleted when parsed to the next AllowExecution call.
+void SwitchExecution(Emulator::CPUState* cpu, uint64_t IP);
+void InsRaiseInterrupt(Emulator::CPUState* cpu, uint8_t interrupt);
 
 void StartExecution(Emulator::CPUState* cpu);
 void ExecutionLoop(Emulator::CPUState* cpu);

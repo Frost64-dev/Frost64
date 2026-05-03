@@ -23,8 +23,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <Exceptions.hpp>
 #include <Stack.hpp>
 
-InterruptHandler::InterruptHandler(Emulator::CPUState* cpu, MMU* mmu)
-    : m_cpu(cpu), m_MMU(mmu), m_IDTR(0) {
+InterruptHandler::InterruptHandler(Emulator::CPUState* cpu, MMU* mmu) : m_cpu(cpu), m_MMU(mmu), m_IDTR(0) {
     for (int i = 0; i < 256; i++) {
         m_IDT[i].loaded = true;
         m_IDT[i].flags = 0;
@@ -41,25 +40,37 @@ void InterruptHandler::SetIDTR(uint64_t base) {
         m_IDT[i].loaded = false;
 }
 
-[[noreturn]] void InterruptHandler::RaiseInterrupt(uint8_t interrupt, uint64_t IP) {
-    RaiseInterruptCommon(interrupt, IP);
+void InterruptHandler::RaiseInterrupt(uint8_t interrupt, uint64_t IP, bool external) {
+    m_lock.lock();
+    if (external)
+        m_cpu->registers.STS->Lock();
+    uint64_t STS = m_cpu->registers.STS->GetValueNoCheck(!external);
+    RaiseInterruptCommon(interrupt, IP, STS);
+    if (external) {
+        STS = m_cpu->registers.STS->GetValueNoCheck(false);
+        m_cpu->registers.STS->SetValueNoCheck(STS | 1 << Emulator::REG_STS_INT_BIT, false);
+        m_cpu->registers.STS->Unlock();
+    }
+    m_lock.unlock();
     Emulator::JumpToIP(m_cpu, m_IDT[interrupt].handler);
 }
 
 void InterruptHandler::RaiseInterruptExternal(uint8_t interrupt) {
-    Emulator::KillCurrentInstruction(m_cpu);
-    RaiseInterruptCommon(interrupt, m_cpu->registers.IP->GetValue());
-    Emulator::JumpToIPExternal(m_cpu, m_IDT[interrupt].handler);
+    if ((m_cpu->registers.STS->GetValueNoCheck() & 1 << Emulator::REG_STS_INT_BIT) > 0)
+        return; // already in an interrupt, ignore this one
+    InsRaiseInterrupt(m_cpu, interrupt);
 }
 
 
 void InterruptHandler::ReturnFromInterrupt() {
+    m_lock.lock();
     StackViolationErrorCode code = {1, 0, 0, 0};
     if (m_cpu->stack->WillUnderflowOnPop())
         m_cpu->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
     m_cpu->registers.STS->SetValueNoCheck(m_cpu->stack->pop());
     if (m_cpu->stack->WillUnderflowOnPop())
         m_cpu->exceptionHandler->RaiseException(Exception::STACK_VIOLATION, code);
+    m_lock.unlock();
     Emulator::JumpToIP(m_cpu, m_cpu->stack->pop());
 }
 
@@ -87,7 +98,7 @@ void InterruptHandler::HandleFailure(uint8_t interrupt) {
     m_cpu->exceptionHandler->RaiseException(Exception::UNHANDLED_INTERRUPT, interrupt);
 }
 
-void InterruptHandler::RaiseInterruptCommon(uint8_t interrupt, uint64_t IP) {
+void InterruptHandler::RaiseInterruptCommon(uint8_t interrupt, uint64_t IP, uint64_t STS) {
     if (!m_IDT[interrupt].loaded)
         m_IDT[interrupt] = ReadDescriptor(interrupt);
     if ((m_IDT[interrupt].flags & 1) == 0)
@@ -99,5 +110,5 @@ void InterruptHandler::RaiseInterruptCommon(uint8_t interrupt, uint64_t IP) {
     m_cpu->stack->push(IP);
     if (m_cpu->stack->WillOverflowOnPush())
         HandleFailure(interrupt);
-    m_cpu->stack->push(m_cpu->registers.STS->GetValue());
+    m_cpu->stack->push(STS);
 }

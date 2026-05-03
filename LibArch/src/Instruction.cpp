@@ -597,8 +597,10 @@ return #ins;
             }
             operandTypes[0] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[0]);
             operandTypes[1] = CONVERT_COMPACT_TO_OPERAND(compactOperandTypes[1]);
-        } else
+        } else {
             errorHandler("Invalid argument count", errorData);
+            return false;
+        }
 
         for (uint8_t i = 0; i < argCount; i++) {
             OperandType operandType = operandTypes[i];
@@ -632,6 +634,8 @@ return #ins;
                         currentOffset += sizeof(RegisterID);
                         complex->base.data.reg = &g_currentDecodeData->currentRegisters[i * 3];
                         *complex->base.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
+                        if (*complex->base.data.reg == Register::unknown)
+                            return false;
                     }
                 }
                 if (complex->index.present) {
@@ -655,6 +659,8 @@ return #ins;
                         currentOffset += sizeof(RegisterID);
                         complex->index.data.reg = &g_currentDecodeData->currentRegisters[i * 3 + 1];
                         *complex->index.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
+                        if (*complex->index.data.reg == Register::unknown)
+                            return false;
                     }
                 }
                 if (complex->offset.present) {
@@ -680,6 +686,8 @@ return #ins;
                         complex->offset.sign = reg_id.type & 1 << 3; // sign is stored in the highest bit of the type
                         reg_id.type &= ~(1 << 3); // clear the sign bit
                         *complex->offset.data.reg = GetRegisterFromID(reg_id, errorHandler, errorData);
+                        if (*complex->offset.data.reg == Register::unknown)
+                            return false;
                     }
                 }
                 operand.data = complex;
@@ -691,6 +699,8 @@ return #ins;
                 currentOffset += sizeof(RegisterID);
                 Register* reg = &g_currentDecodeData->currentRegisters[i * 3];
                 *reg = GetRegisterFromID(reg_id, errorHandler, errorData);
+                if (*reg == Register::unknown)
+                    return false;
                 operand.data = reg;
                 break;
             }
@@ -720,6 +730,7 @@ return #ins;
             }
             default:
                 errorHandler("Invalid operand type", errorData);
+                return false;
             }
 
             out->operands[out->operandCount] = operand;

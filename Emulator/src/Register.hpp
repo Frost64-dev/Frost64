@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define _REGISTER_HPP
 
 #include <cstdint>
+#include <mutex>
 
 enum class OperandSize;
 
@@ -171,6 +172,28 @@ public:
 
 private:
     Emulator::CPUState* m_cpu;
+};
+
+class LockableSafeRegister : public SafeRegister {
+public:
+    LockableSafeRegister();
+    LockableSafeRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, uint64_t value = 0);
+    LockableSafeRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
+    ~LockableSafeRegister() override;
+
+    bool SetValue(uint64_t value, bool force = false, bool lock = true);
+    bool SetValue(uint64_t value, OperandSize size, bool lock = true);
+    void SetValueNoCheck(uint64_t value, bool lock = true);
+
+    uint64_t GetValue(bool lock = true) const;
+    uint64_t GetValue(OperandSize size, bool lock = true) const;
+    uint64_t GetValueNoCheck(bool lock = true) const;
+
+    void Lock() { m_mutex.lock(); }
+    void Unlock() { m_mutex.unlock(); }
+
+private:
+    mutable std::mutex m_mutex;
 };
 
 #pragma GCC diagnostic pop

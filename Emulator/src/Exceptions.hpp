@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _EXCEPTIONS_HPP
 #define _EXCEPTIONS_HPP
 
+#include <cstdarg>
 #include <cstdint>
 
 class InterruptHandler;
@@ -57,16 +58,19 @@ namespace Emulator {
 }
 
 class ExceptionHandler {
-   public:
+public:
     ExceptionHandler();
     ExceptionHandler(Emulator::CPUState* cpu, InterruptHandler* INTHandler);
     ~ExceptionHandler();
 
     [[noreturn]] void RaiseException(Exception exception, ...);
+    void RaiseExceptionRet(Exception exception, ...);
 
     void SetINTHandler(InterruptHandler* INTHandler);
 
-   private:
+private:
+    void Int_RaiseException(Exception exception, va_list args);
+
     Emulator::CPUState* m_cpu;
     InterruptHandler* m_INTHandler;
 };

@@ -39,6 +39,8 @@ struct CPUInsState;
 
 namespace Emulator {
 
+    constexpr uint64_t REG_STS_INT_BIT = 4;
+
     enum StartErrors {
         SE_SUCCESS = 0,
         SE_MALLOC_FAIL = 1,
@@ -62,7 +64,7 @@ namespace Emulator {
             Register* SBP;
             Register* STP;
             Register* GPR[16];
-            SafeRegister* STS;
+            LockableSafeRegister* STS;
             SafeSyncingRegister* Control[8];
         } registers;
         bool registersInitialised = false;
@@ -94,7 +96,6 @@ namespace Emulator {
     extern CPUState* g_cpuStates;
 
     enum class EventType {
-        SwitchToIP,
         NewMMU,
         StorageTransfer
     };
@@ -131,9 +132,7 @@ namespace Emulator {
 
     void EmulatorMain(uint64_t cpuCount);
 
-
-    [[noreturn]] void JumpToIP(CPUState* state, uint64_t value);
-    void JumpToIPExternal(CPUState* state, uint64_t value); // assumes the execution thread is dead
+    void JumpToIP(CPUState* state, uint64_t value);
 
     void SyncRegisters(void* data, uint64_t value);
 
@@ -146,8 +145,6 @@ namespace Emulator {
     void EnterUserMode(CPUState* state);
     void EnterUserMode(CPUState* state, uint64_t address);
     void ExitUserMode(CPUState* state);
-
-    void KillCurrentInstruction(CPUState* cpu); // MUST NOT be called from the instruction thread
 
     bool isPagingEnabled(CPUState* state);
 

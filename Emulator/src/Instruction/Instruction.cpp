@@ -19,6 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include <atomic>
 #include <cstring>
+#include <stdexcept>
 #include <utility>
 
 #include "InstructionCache.hpp"
@@ -94,8 +95,13 @@ struct CPUInsState {
     std::atomic_uchar executionRunning = 0;
     std::atomic_uchar terminateExecution = 0;
     std::atomic_uchar allowOneInstruction = 0;
+    std::atomic_uchar switchExecution = 0;
+    std::atomic_uchar intPending = 0;
 
     std::atomic_uchar stateChange = 0; // used to signal when one of the above states has changed OR when breakpoints are enabled, so the instruction thread can react to it
+
+    uint64_t execSwitchNewIP;
+    uint8_t interrupt;
 
     spinlock_t lock = SPINLOCK_DEFAULT_VALUE;
 };
@@ -335,6 +341,25 @@ void StopExecution(Emulator::CPUState* cpu, void** state) {
     insState->executionRunning.wait(1);
 }
 
+void SwitchExecution(Emulator::CPUState* cpu, uint64_t IP) {
+    if (cpu == nullptr || cpu->insState == nullptr)
+        return;
+    CPUInsState* insState = cpu->insState;
+    insState->execSwitchNewIP = IP;
+    insState->switchExecution.store(1);
+    insState->stateChange.store(1);
+}
+
+void InsRaiseInterrupt(Emulator::CPUState* cpu, uint8_t interrupt) {
+    if (cpu == nullptr || cpu->insState == nullptr)
+        return;
+    CPUInsState* insState = cpu->insState;
+    insState->interrupt = interrupt;
+    insState->intPending.store(1);
+    insState->stateChange.store(1);
+    insState->intPending.wait(1);
+}
+
 void StartExecution(Emulator::CPUState* cpu) {
     if (cpu == nullptr || cpu->insState == nullptr)
         return;
@@ -355,254 +380,274 @@ void ExecutionLoop(Emulator::CPUState* cpu) {
     CPUInsState* state = cpu->insState;
     while (true) {
         uint64_t IP = *state->rawIPPointer;
-        if (state->stateChange.load() == 1) {
-            if (state->terminateExecution.load() == 1) {
-                state->executionRunning.store(0);
-                state->executionRunning.notify_all();
-                state->stateChange.store(0);
-                break; // completely stop execution
-            }
-            if (state->executionAllowed.load() == 0) {
-                if (state->executionRunning.load() == 1) {
+        try {
+            if (state->stateChange.load() == 1) {
+                if (state->terminateExecution.load() == 1) {
                     state->executionRunning.store(0);
                     state->executionRunning.notify_all();
+                    state->stateChange.store(0);
+                    break; // completely stop execution
                 }
-                state->executionAllowed.wait(0);
+                if (state->executionAllowed.load() == 0) {
+                    if (state->executionRunning.load() == 1) {
+                        state->executionRunning.store(0);
+                        state->executionRunning.notify_all();
+                    }
+                    state->executionAllowed.wait(0);
+                    if (state->breakpointsEnabled.load() == 0)
+                        state->stateChange.store(0);
+                    state->executionRunning.store(1);
+                    state->executionRunning.notify_all();
+                }
+                else if (state->executionRunning.load() == 0) {
+                    state->executionRunning.store(1);
+                    state->executionRunning.notify_all();
+                }
+
+                if (state->allowOneInstruction.load() == 1) {
+                    state->executionRunning.store(1);
+                    state->allowOneInstruction.store(0);
+                    state->allowOneInstruction.notify_all();
+                    state->executionAllowed.store(0);
+                }
+
+                if (state->intPending.load() == 1) {
+                    cpu->interruptHandler->RaiseInterrupt(state->interrupt, *state->rawIPPointer, true);
+                    state->intPending.store(0);
+                    state->intPending.notify_all();
+                }
+
+                if (state->switchExecution.load() == 1) {
+                    *state->rawIPPointer = state->execSwitchNewIP;
+                    InsCache_MaybeSetBaseAddress(state, state->execSwitchNewIP);
+                    IP = state->execSwitchNewIP;
+                    state->switchExecution.store(0);
+                }
+
+                if (state->breakpointsEnabled.load() == 1 && state->allowOneInstruction.load() == 0) { // don't check on single step
+                    // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
+                    spinlock_acquire(&state->breakpointsLock);
+                    auto it = state->breakpoints.find(IP);
+                    if (it != state->breakpoints.end()) {
+                        state->executionRunning.store(0);
+                        state->executionRunning.notify_all();
+                        state->executionAllowed.store(0);
+                        state->executionAllowed.notify_all();
+
+                        state->currentBreakpoint.first = IP;
+                        state->currentBreakpoint.second = it->second;
+                        state->breakpointHit = true;
+                        state->breakpoints.erase(it);
+                        spinlock_release(&state->breakpointsLock);
+
+                        state->currentBreakpoint.second(IP);
+                        continue;
+                    }
+                    spinlock_release(&state->breakpointsLock);
+                }
+
+                if (state->breakpointHit && state->currentBreakpoint.first != IP) {
+                    spinlock_acquire(&state->breakpointsLock);
+                    state->breakpoints[state->currentBreakpoint.first] = state->currentBreakpoint.second;
+                    state->breakpointHit = false;
+                    spinlock_release(&state->breakpointsLock);
+                }
+
                 if (state->breakpointsEnabled.load() == 0)
                     state->stateChange.store(0);
-                continue; // still looping through instructions, just not doing anything
-            }
-            else if (state->executionRunning.load() == 0) {
-                state->executionRunning.store(1);
-                state->executionRunning.notify_all();
             }
 
-            if (state->allowOneInstruction.load() == 1) {
-                state->executionRunning.store(1);
-                state->allowOneInstruction.store(0);
-                state->allowOneInstruction.notify_all();
-                state->executionAllowed.store(0);
+            if (int offset = FindIPInInsCache(state, IP); offset != -1) {
+                state->currentInstruction = &state->instructionDataCache[offset];
+                state->currentCacheOffset = offset;
+                state->cacheJustMissed = false;
             }
-
-            if (state->breakpointsEnabled.load() == 1 && state->allowOneInstruction.load() == 0) { // don't check on single step
-                // fprintf(stderr, "Breakpoint check at 0x%lx\n", IP);
-                spinlock_acquire(&state->breakpointsLock);
-                auto it = state->breakpoints.find(IP);
-                if (it != state->breakpoints.end()) {
-                    state->executionRunning.store(0);
-                    state->executionRunning.notify_all();
-                    state->executionAllowed.store(0);
-                    state->executionAllowed.notify_all();
-
-                    state->currentBreakpoint.first = IP;
-                    state->currentBreakpoint.second = it->second;
-                    state->breakpointHit = true;
-                    state->breakpoints.erase(it);
-                    spinlock_release(&state->breakpointsLock);
-
-                    state->currentBreakpoint.second(IP);
-                    continue;
-                }
-                spinlock_release(&state->breakpointsLock);
-            }
-
-            if (state->breakpointHit && state->currentBreakpoint.first != IP) {
-                spinlock_acquire(&state->breakpointsLock);
-                state->breakpoints[state->currentBreakpoint.first] = state->currentBreakpoint.second;
-                state->breakpointHit = false;
-                spinlock_release(&state->breakpointsLock);
-            }
-
-            if (state->breakpointsEnabled.load() == 0)
-                state->stateChange.store(0);
-        }
-
-        if (int offset = FindIPInInsCache(state, IP); offset != -1) {
-            state->currentInstruction = &state->instructionDataCache[offset];
-            state->currentCacheOffset = offset;
-            state->cacheJustMissed = false;
-        }
-        else {
-            if (state->currentInstruction->used) {
-                // need to find a different slot
-                int i_offset = -1;
-                for (int i = state->currentCacheOffset + 1; i < 128; i++) { // start with going from the current offset to the end
-                    if (!state->instructionDataCache[i].used) {
-                        i_offset = i;
-                        break;
-                    }
-                }
-                if (i_offset == -1) {
-                    // start from 0, until current offset
-                    for (int i = 0; i < state->currentCacheOffset; i++) {
+            else {
+                if (state->currentInstruction->used) {
+                    // need to find a different slot
+                    int i_offset = -1;
+                    for (int i = state->currentCacheOffset + 1; i < 128; i++) { // start with going from the current offset to the end
                         if (!state->instructionDataCache[i].used) {
                             i_offset = i;
                             break;
                         }
                     }
                     if (i_offset == -1) {
-                        // all used, start from current + 1
-                        if (state->currentCacheOffset == 127)
-                            i_offset = 0;
-                        else
-                            i_offset = state->currentCacheOffset + 1;
+                        // start from 0, until current offset
+                        for (int i = 0; i < state->currentCacheOffset; i++) {
+                            if (!state->instructionDataCache[i].used) {
+                                i_offset = i;
+                                break;
+                            }
+                        }
+                        if (i_offset == -1) {
+                            // all used, start from current + 1
+                            if (state->currentCacheOffset == 127)
+                                i_offset = 0;
+                            else
+                                i_offset = state->currentCacheOffset + 1;
+                        }
                     }
+                    state->currentCacheOffset = i_offset;
+                    state->currentInstruction = &state->instructionDataCache[i_offset];
                 }
-                state->currentCacheOffset = i_offset;
-                state->currentInstruction = &state->instructionDataCache[i_offset];
-            }
-            state->currentInstruction->used = false;
-            state->currentInstruction->IP = 0;
-            state->currentInstruction->pair.function = nullptr;
-            state->currentInstruction->pair.argCount = 0;
-            uint64_t currentOffset = 0;
-            if (!state->cacheJustMissed) {
-                state->insCache.MaybeSetBaseAddress(IP);
-                state->cacheJustMissed = true;
-            }
-            if (!DecodeInstruction(state->insCache, currentOffset, &state->currentInstruction->instruction, state->currentCacheOffset, [](const char* message, void* data) {
-        #ifdef EMULATOR_DEBUG
-                printf("Decoding error: %s\n", message);
-        #else
-                (void)message;
-        #endif
-                Emulator::CPUState* cpu_state = static_cast<Emulator::CPUState*>(data);
-                cpu_state->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-            }, cpu))
-                cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-            InsEncoding::SimpleInstruction& currentIns = state->currentInstruction->instruction;
-            ComplexData* complex = state->currentInstruction->complex;
-            uint8_t Opcode = static_cast<uint8_t>(currentIns.GetOpcode());
-            for (uint64_t i = 0; i < currentIns.operandCount; i++) {
-                switch (InsEncoding::Operand* op = &currentIns.operands[i]; op->type) {
-                case InsEncoding::OperandType::REGISTER: {
-                    InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
-                    Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
-                    state->currentInstruction->registerOperands[i] = RegisterOperand(cpu, static_cast<OperandSize>(op->size), reg);
-                    state->currentInstruction->operands[i] = &state->currentInstruction->registerOperands[i];
-                    break;
+                state->currentInstruction->used = false;
+                state->currentInstruction->IP = 0;
+                state->currentInstruction->pair.function = nullptr;
+                state->currentInstruction->pair.argCount = 0;
+                uint64_t currentOffset = 0;
+                if (!state->cacheJustMissed) {
+                    state->insCache.MaybeSetBaseAddress(IP);
+                    state->cacheJustMissed = true;
                 }
-                case InsEncoding::OperandType::IMMEDIATE: {
-                    uint64_t data;
-                    switch (op->size) {
-                    case InsEncoding::OperandSize::BYTE:
-                        data = *static_cast<uint8_t*>(op->data);
+                if (!DecodeInstruction(state->insCache, currentOffset, &state->currentInstruction->instruction, state->currentCacheOffset, [](const char* message, void* data) {
+            #ifdef EMULATOR_DEBUG
+                    printf("Decoding error: %s\n", message);
+            #else
+                    (void)message;
+            #endif
+                    Emulator::CPUState* cpu_state = static_cast<Emulator::CPUState*>(data);
+                    cpu_state->exceptionHandler->RaiseExceptionRet(Exception::INVALID_INSTRUCTION);
+                }, cpu))
+                    continue; // jump to start of loop to handle the exception
+                
+                InsEncoding::SimpleInstruction& currentIns = state->currentInstruction->instruction;
+                ComplexData* complex = state->currentInstruction->complex;
+                uint8_t Opcode = static_cast<uint8_t>(currentIns.GetOpcode());
+                for (uint64_t i = 0; i < currentIns.operandCount; i++) {
+                    switch (InsEncoding::Operand* op = &currentIns.operands[i]; op->type) {
+                    case InsEncoding::OperandType::REGISTER: {
+                        InsEncoding::Register* tempReg = static_cast<InsEncoding::Register*>(op->data);
+                        Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
+                        state->currentInstruction->registerOperands[i] = RegisterOperand(cpu, static_cast<OperandSize>(op->size), reg);
+                        state->currentInstruction->operands[i] = &state->currentInstruction->registerOperands[i];
                         break;
-                    case InsEncoding::OperandSize::WORD:
-                        data = *static_cast<uint16_t*>(op->data);
+                    }
+                    case InsEncoding::OperandType::IMMEDIATE: {
+                        uint64_t data;
+                        switch (op->size) {
+                        case InsEncoding::OperandSize::BYTE:
+                            data = *static_cast<uint8_t*>(op->data);
+                            break;
+                        case InsEncoding::OperandSize::WORD:
+                            data = *static_cast<uint16_t*>(op->data);
+                            break;
+                        case InsEncoding::OperandSize::DWORD:
+                            data = *static_cast<uint32_t*>(op->data);
+                            break;
+                        case InsEncoding::OperandSize::QWORD:
+                            data = *static_cast<uint64_t*>(op->data);
+                            break;
+                        default:
+                            cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
+                            break;
+                        }
+                        state->currentInstruction->immediateOperands[i] = ImmediateOperand(cpu, static_cast<OperandSize>(op->size), data);
+                        state->currentInstruction->operands[i] = &state->currentInstruction->immediateOperands[i];
                         break;
-                    case InsEncoding::OperandSize::DWORD:
-                        data = *static_cast<uint32_t*>(op->data);
+                    }
+                    case InsEncoding::OperandType::MEMORY: {
+                        uint64_t* temp = static_cast<uint64_t*>(op->data);
+                        state->currentInstruction->memoryOperands[i] = MemoryOperand(cpu, static_cast<OperandSize>(op->size), *temp, cpu->currentMMU);
+                        state->currentInstruction->operands[i] = &state->currentInstruction->memoryOperands[i];
                         break;
-                    case InsEncoding::OperandSize::QWORD:
-                        data = *static_cast<uint64_t*>(op->data);
+                    }
+                    case InsEncoding::OperandType::COMPLEX: {
+                        InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
+                        complex[i].base.present = temp->base.present;
+                        complex[i].index.present = temp->index.present;
+                        complex[i].offset.present = temp->offset.present;
+                        if (complex[i].base.present) {
+                            if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                                InsEncoding::Register* tempReg = temp->base.data.reg;
+                                Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
+                                complex[i].base.data.reg = reg;
+                                complex[i].base.type = ComplexItem::Type::REGISTER;
+                            } else {
+                                complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
+                                complex[i].base.data.imm.data = temp->base.data.imm.data;
+                                complex[i].base.type = ComplexItem::Type::IMMEDIATE;
+                            }
+                        } else
+                            complex[i].base.present = false;
+                        if (complex[i].index.present) {
+                            if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                                InsEncoding::Register* tempReg = temp->index.data.reg;
+                                Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
+                                complex[i].index.data.reg = reg;
+                                complex[i].index.type = ComplexItem::Type::REGISTER;
+                            } else {
+                                complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
+                                complex[i].index.data.imm.data = temp->index.data.imm.data;
+                                complex[i].index.type = ComplexItem::Type::IMMEDIATE;
+                            }
+                        } else
+                            complex[i].index.present = false;
+                        if (complex[i].offset.present) {
+                            if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
+                                InsEncoding::Register* tempReg = temp->offset.data.reg;
+                                Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
+                                complex[i].offset.data.reg = reg;
+                                complex[i].offset.type = ComplexItem::Type::REGISTER;
+                                complex[i].offset.sign = temp->offset.sign;
+                            } else {
+                                complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
+                                complex[i].offset.data.imm.data = temp->offset.data.imm.data;
+                                complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
+                            }
+                        } else
+                            complex[i].offset.present = false;
+                        state->currentInstruction->complexOperands[i] = ComplexOperand(cpu, static_cast<OperandSize>(op->size), &complex[i], cpu->currentMMU);
+                        state->currentInstruction->operands[i] = &state->currentInstruction->complexOperands[i];
                         break;
+                    }
                     default:
                         cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
                         break;
                     }
-                    state->currentInstruction->immediateOperands[i] = ImmediateOperand(cpu, static_cast<OperandSize>(op->size), data);
-                    state->currentInstruction->operands[i] = &state->currentInstruction->immediateOperands[i];
-                    break;
                 }
-                case InsEncoding::OperandType::MEMORY: {
-                    uint64_t* temp = static_cast<uint64_t*>(op->data);
-                    state->currentInstruction->memoryOperands[i] = MemoryOperand(cpu, static_cast<OperandSize>(op->size), *temp, cpu->currentMMU);
-                    state->currentInstruction->operands[i] = &state->currentInstruction->memoryOperands[i];
-                    break;
-                }
-                case InsEncoding::OperandType::COMPLEX: {
-                    InsEncoding::ComplexData* temp = static_cast<InsEncoding::ComplexData*>(op->data);
-                    complex[i].base.present = temp->base.present;
-                    complex[i].index.present = temp->index.present;
-                    complex[i].offset.present = temp->offset.present;
-                    if (complex[i].base.present) {
-                        if (temp->base.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                            InsEncoding::Register* tempReg = temp->base.data.reg;
-                            Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
-                            complex[i].base.data.reg = reg;
-                            complex[i].base.type = ComplexItem::Type::REGISTER;
-                        } else {
-                            complex[i].base.data.imm.size = static_cast<OperandSize>(temp->base.data.imm.size);
-                            complex[i].base.data.imm.data = temp->base.data.imm.data;
-                            complex[i].base.type = ComplexItem::Type::IMMEDIATE;
-                        }
-                    } else
-                        complex[i].base.present = false;
-                    if (complex[i].index.present) {
-                        if (temp->index.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                            InsEncoding::Register* tempReg = temp->index.data.reg;
-                            Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
-                            complex[i].index.data.reg = reg;
-                            complex[i].index.type = ComplexItem::Type::REGISTER;
-                        } else {
-                            complex[i].index.data.imm.size = static_cast<OperandSize>(temp->index.data.imm.size);
-                            complex[i].index.data.imm.data = temp->index.data.imm.data;
-                            complex[i].index.type = ComplexItem::Type::IMMEDIATE;
-                        }
-                    } else
-                        complex[i].index.present = false;
-                    if (complex[i].offset.present) {
-                        if (temp->offset.type == InsEncoding::ComplexItem::Type::REGISTER) {
-                            InsEncoding::Register* tempReg = temp->offset.data.reg;
-                            Register* reg = cpu->registerLookup[static_cast<uint8_t>(*tempReg)];
-                            complex[i].offset.data.reg = reg;
-                            complex[i].offset.type = ComplexItem::Type::REGISTER;
-                            complex[i].offset.sign = temp->offset.sign;
-                        } else {
-                            complex[i].offset.data.imm.size = static_cast<OperandSize>(temp->offset.data.imm.size);
-                            complex[i].offset.data.imm.data = temp->offset.data.imm.data;
-                            complex[i].offset.type = ComplexItem::Type::IMMEDIATE;
-                        }
-                    } else
-                        complex[i].offset.present = false;
-                    state->currentInstruction->complexOperands[i] = ComplexOperand(cpu, static_cast<OperandSize>(op->size), &complex[i], cpu->currentMMU);
-                    state->currentInstruction->operands[i] = &state->currentInstruction->complexOperands[i];
-                    break;
-                }
-                default:
+                state->currentInstruction->IP = IP;
+
+                // Get the instruction
+                state->currentInstruction->pair = g_instructionFunctions[Opcode];
+                if (state->currentInstruction->pair.function == nullptr)
                     cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-                    break;
-                }
+                state->currentInstruction->size = currentOffset;
+                state->currentInstruction->used = true;
             }
-            state->currentInstruction->IP = IP;
 
-            // Get the instruction
-            state->currentInstruction->pair = g_instructionFunctions[Opcode];
-            if (state->currentInstruction->pair.function == nullptr)
+            // Increment instruction pointer
+            *state->rawNextIPPointer = IP + state->currentInstruction->size;
+
+            InsOpcodeArgCountPair pair = state->currentInstruction->pair;
+            Operand** operands = state->currentInstruction->operands;
+
+            // Update the cache
+            state->currentCacheOffset++;
+            if (state->currentCacheOffset >= 128) // wrap around
+                state->currentCacheOffset = 0;
+            state->currentInstruction = &state->instructionDataCache[state->currentCacheOffset];
+
+            // Execute the instruction
+            if (pair.argCount == 0)
+                reinterpret_cast<void (*)(Emulator::CPUState* cpu)>(pair.function)(cpu);
+            else if (pair.argCount == 1)
+                reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*)>(pair.function)(cpu, operands[0]);
+            else if (pair.argCount == 2)
+                reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1]);
+            else if (pair.argCount == 3)
+                reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1], operands[2]);
+            else
                 cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-            state->currentInstruction->size = currentOffset;
-            state->currentInstruction->used = true;
+
+            // Set the IP to the next instruction
+            *state->rawIPPointer = *state->rawNextIPPointer;
+
+        } catch (std::runtime_error& error) {
+#ifdef EMULATOR_DEBUG
+            printf("Caught runtime error: %s\n", error.what());
+#endif
         }
-
-        // Increment instruction pointer
-        *state->rawNextIPPointer = IP + state->currentInstruction->size;
-
-        InsOpcodeArgCountPair pair = state->currentInstruction->pair;
-        Operand** operands = state->currentInstruction->operands;
-
-        // Update the cache
-        state->currentCacheOffset++;
-        if (state->currentCacheOffset >= 128) // wrap around
-            state->currentCacheOffset = 0;
-        state->currentInstruction = &state->instructionDataCache[state->currentCacheOffset];
-
-        // Execute the instruction
-        if (pair.argCount == 0)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu)>(pair.function)(cpu);
-        else if (pair.argCount == 1)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*)>(pair.function)(cpu, operands[0]);
-        else if (pair.argCount == 2)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1]);
-        else if (pair.argCount == 3)
-            reinterpret_cast<void (*)(Emulator::CPUState* cpu, Operand*, Operand*, Operand*)>(pair.function)(cpu, operands[0], operands[1], operands[2]);
-        else
-            cpu->exceptionHandler->RaiseException(Exception::INVALID_INSTRUCTION);
-
-        // Set the IP to the next instruction
-        *state->rawIPPointer = *state->rawNextIPPointer;
-
-
     }
 }
 

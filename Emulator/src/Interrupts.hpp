@@ -18,7 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #ifndef _INTERRUPTS_HPP
 #define _INTERRUPTS_HPP
 
-#include <stdint.h>
+#include <cstdint>
+#include <mutex>
 
 #include <MMU/MMU.hpp>
 
@@ -56,7 +57,7 @@ public:
 
     void SetIDTR(uint64_t base);
 
-    [[noreturn]] void RaiseInterrupt(uint8_t interrupt, uint64_t IP);
+    void RaiseInterrupt(uint8_t interrupt, uint64_t IP, bool external = false);
     void RaiseInterruptExternal(uint8_t interrupt);
     void ReturnFromInterrupt();
 
@@ -67,13 +68,14 @@ private:
     InterruptDescriptor ReadDescriptor(uint8_t interrupt);
     void HandleFailure(uint8_t interrupt);
 
-    void RaiseInterruptCommon(uint8_t interrupt, uint64_t IP);
+    void RaiseInterruptCommon(uint8_t interrupt, uint64_t IP, uint64_t STS);
 
 private:
     Emulator::CPUState* m_cpu;
     MMU* m_MMU;
     InterruptDescriptor m_IDT[256];
     uint64_t m_IDTR;
+    std::mutex m_lock;
 };
 
 #endif /* _INTERRUPTS_HPP */
