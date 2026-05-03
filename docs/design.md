@@ -1015,8 +1015,16 @@ asciiz "Hello, world!"
 | 2      | 4              | DATA     | Data register    |
 
 - The command register is used to send commands to the device.
-- The status register is used to get the status of the device. Bit 0 is set to 1 when the current command is complete, and bit 1 is set to 1 when there is an error.
+- The status register is used to get the status of the device. Layout is below.
 - The data register is used to send data to the device or get data from the device.
+
+#### Status register
+
+| Offset | Name  | Description                                             |
+|--------|-------|---------------------------------------------------------|
+| 0      | DONE  | Set when the command is done                            |
+| 1      | ERROR | Set when there is an error                              |
+| 3-63   |       | Reserved                                                |
 
 #### Commands
 
