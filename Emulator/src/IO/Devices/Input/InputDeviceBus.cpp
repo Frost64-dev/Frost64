@@ -82,8 +82,10 @@ uint64_t InputDeviceBus::ReadRegister(uint64_t offset) {
     switch (static_cast<InputDeviceRegisters>(offset)) {
     case InputDeviceRegisters::COMMAND:
         return 0;
-    case InputDeviceRegisters::STATUS:
-        return *reinterpret_cast<uint64_t*>(&m_status);
+    case InputDeviceRegisters::STATUS: {
+        uint64_t* temp = reinterpret_cast<uint64_t*>(&m_status);
+        return *temp;
+    }
     case InputDeviceRegisters::KEYBOARD:
         if (m_keyboardDataPendingRead) {
             m_keyboardDataPendingRead = false;
