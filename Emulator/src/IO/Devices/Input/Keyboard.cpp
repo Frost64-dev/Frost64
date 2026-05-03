@@ -18,8 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "InputDeviceBus.hpp"
 #include "Keyboard.hpp"
 
-#include <cstdint>
-
+#include <chrono>
+#include <thread>
 
 #include <IO/Devices/Video/VideoBackend.hpp>
 
@@ -86,8 +86,10 @@ void Keyboard::HandleKeyEvent(Keycode keycode, bool release) {
 
     m_bus->SetStatus(status); // set the status before triggering the interrupt
 
-    if (status.KBD_INT == 1 && !wasInterruptPending)
+    if (status.KBD_INT == 1 && !wasInterruptPending) {
         m_bus->RaiseInterrupt(0);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
 }
 
 #pragma GCC diagnostic push
