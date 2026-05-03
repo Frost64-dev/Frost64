@@ -68,12 +68,15 @@ namespace Emulator {
     struct CPUState;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Woverloaded-virtual"
+
 class Register {
 public:
     Register();
     Register(uint8_t ID, bool writable, uint64_t value = 0);
     Register(RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
-    ~Register();
+    virtual ~Register();
 
     [[gnu::always_inline,nodiscard]] inline RegisterType GetType() const { return m_type; }
     [[gnu::always_inline,nodiscard]] inline uint8_t GetIndex() const { return m_index; }
@@ -120,7 +123,7 @@ public:
     SyncingRegister();
     SyncingRegister(uint8_t ID, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
     SyncingRegister(RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
-    ~SyncingRegister();
+    ~SyncingRegister() override;
 
     bool SetValue(uint64_t value, bool = false) override;
     bool SetValue(uint64_t value, OperandSize size) override;
@@ -136,7 +139,7 @@ public:
     SafeSyncingRegister();
     SafeSyncingRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
     SafeSyncingRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, RegisterSyncCallback callback = {nullptr, nullptr}, uint64_t value = 0);
-    ~SafeSyncingRegister();
+    ~SafeSyncingRegister() override;
 
     bool SetValue(uint64_t value, bool force = false) override;
     bool SetValue(uint64_t value, OperandSize size) override;
@@ -156,7 +159,7 @@ public:
     SafeRegister();
     SafeRegister(Emulator::CPUState* cpu, uint8_t ID, bool writable, uint64_t value = 0);
     SafeRegister(Emulator::CPUState* cpu, RegisterType type, uint8_t index, bool writable, uint64_t value = 0);
-    ~SafeRegister();
+    ~SafeRegister() override;
 
     bool SetValue(uint64_t value, bool force = false) override;
     bool SetValue(uint64_t value, OperandSize size) override;
@@ -169,5 +172,7 @@ public:
 private:
     Emulator::CPUState* m_cpu;
 };
+
+#pragma GCC diagnostic pop
 
 #endif /* _REGISTER_HPP */
