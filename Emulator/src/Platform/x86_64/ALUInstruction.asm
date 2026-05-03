@@ -149,9 +149,9 @@ _x86_64_sbb:
     ret
 
 _x86_64_mul:
-    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
-
     mov rcx, rdx ; move pointer to flags to rcx
+
+    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
 
     mov rax, rdi
     mul rsi ; rdx:rax = rax * rsi
@@ -178,9 +178,9 @@ _x86_64_div:
     ret
 
 _x86_64_smul:
-    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
-
     mov rcx, rdx ; move pointer to flags to rcx
+
+    and BYTE [rcx], 0xf4 ; clear CF, ZF, OF
 
     mov rax, rdi
     imul rsi ; rdx:rax = rax * rsi
